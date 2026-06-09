@@ -1,0 +1,905 @@
+]633;E;for f in app/page.tsx app/students/page.tsx app/teachers/page.tsx app/courses/page.tsx;dae0abe3-4cd7-4876-9ef0-cf4dd3fc9186]633;C===== app/page.tsx =====
+import Link from "next/link";
+export default function Home() {
+const stats = [
+{ title: "Students", value: 245 },
+{ title: "Teachers", value: 18 },
+{ title: "Courses", value: 32 },
+{ title: "Revenue", value: "€12,450" },
+];
+const students = [
+{
+id: 1,
+name: "Γιάννης Παπαδόπουλος",
+className: "Γ Λυκείου",
+course: "Μαθηματικά",
+},
+{
+id: 2,
+name: "Μαρία Κωνσταντίνου",
+className: "Β Λυκείου",
+course: "Φυσική",
+},
+{
+id: 3,
+name: "Νίκος Γεωργίου",
+className: "Α Λυκείου",
+course: "Έκθεση",
+},
+];
+const schedule = [
+{
+day: "Δευτέρα",
+time: "18:00",
+course: "Μαθηματικά Γ3",
+teacher: "Παπαδόπουλος",
+},
+{
+day: "Τρίτη",
+time: "19:00",
+course: "Φυσική Β2",
+teacher: "Κωνσταντίνου",
+},
+];
+return ( <div className="min-h-screen flex bg-gray-100"> <aside className="w-64 bg-gray-900 text-white p-6"> <h1 className="text-3xl font-bold mb-10">
+EduFlow </h1>
+```
+    <nav className="space-y-4 flex flex-col">
+      <Link href="/" className="hover:text-blue-300">
+        📊 Dashboard
+      </Link>
+
+      <Link href="/students" className="hover:text-blue-300">
+        👨‍🎓 Students
+      </Link>
+      <Link href="/teachers" className="hover:text-blue-300">
+        👨‍🏫 Teachers
+      </Link>
+      <Link href="/courses" className="hover:text-blue-300">
+        📚 Courses
+      </Link>
+      <Link href="/schedule" className="hover:text-blue-300">
+        📅 Schedule
+      </Link>
+      <Link href="/attendance" className="hover:text-blue-300">
+        ✅ Attendance
+      </Link>
+      <Link href="/payments" className="hover:text-blue-300">
+        💰 Payments
+      </Link>
+    </nav>
+  </aside>
+  <main className="flex-1 p-8">
+    <h2 className="text-4xl font-bold mb-2">
+      EduFlow Dashboard
+    </h2>
+    <p className="text-gray-500 mb-8">
+      Tutoring Management Platform
+    </p>
+    <div className="grid md:grid-cols-4 gap-6 mb-8">
+      {stats.map((item) => (
+        <div
+          key={item.title}
+          className="bg-white rounded-xl shadow p-6"
+        >
+          <div className="text-gray-500">
+            {item.title}
+          </div>
+          <div className="text-3xl font-bold mt-2">
+            {item.value}
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="grid md:grid-cols-2 gap-8">
+      <div className="bg-white rounded-xl shadow p-6">
+        <h3 className="text-xl font-bold mb-4">
+          Students
+        </h3>
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th className="text-left">Name</th>
+              <th className="text-left">Class</th>
+              <th className="text-left">Course</th>
+            </tr>
+          </thead>
+          <tbody>
+            {students.map((student) => (
+              <tr key={student.id}>
+                <td>{student.name}</td>
+                <td>{student.className}</td>
+                <td>{student.course}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="bg-white rounded-xl shadow p-6">
+        <h3 className="text-xl font-bold mb-4">
+          Auto Generated Schedule
+        </h3>
+        {schedule.map((item, index) => (
+          <div
+            key={index}
+            className="border-b py-3"
+          >
+            <div className="font-semibold">
+              {item.course}
+            </div>
+            <div className="text-sm text-gray-500">
+              {item.day} - {item.time}
+            </div>
+            <div className="text-sm">
+              {item.teacher}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div className="mt-8 bg-white rounded-xl shadow p-6">
+      <h3 className="text-xl font-bold mb-4">
+        Smart Schedule Generator
+      </h3>
+      <button className="bg-blue-600 text-white px-6 py-3 rounded-lg">
+        Generate Schedule
+      </button>
+    </div>
+  </main>
+</div>
+);
+}
+
+===== app/students/page.tsx =====
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { WorkspaceShell } from "../components/WorkspaceShell";
+import {
+  createStudent,
+  deleteStudent,
+  fetchCourses,
+  fetchStudents,
+  searchStudents,
+  updateStudent,
+} from "../lib/api";
+import type { Course, Student } from "../lib/data";
+
+const initialStudentState: Omit<Student, "id" | "status"> = {
+  fullName: "",
+  grade: "",
+  course: "",
+  parentName: "",
+  email: "",
+  phone: "",
+};
+
+export default function StudentsPage() {
+  const [students, setStudents] = useState<Student[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [formValues, setFormValues] = useState<Omit<Student, "id" | "status">>(initialStudentState);
+
+  useEffect(() => {
+    async function load() {
+      const [studentData, courseData] = await Promise.all([fetchStudents(), fetchCourses()]);
+      setStudents(studentData);
+      setCourses(courseData);
+    }
+
+    load();
+  }, []);
+
+  const displayedStudents = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return students;
+    }
+
+    return students.filter((student) => {
+      const term = searchTerm.toLowerCase();
+      return (
+        student.fullName.toLowerCase().includes(term) ||
+        student.course.toLowerCase().includes(term) ||
+        student.parentName.toLowerCase().includes(term)
+      );
+    });
+  }, [students, searchTerm]);
+
+  function resetForm() {
+    setSelectedStudent(null);
+    setFormValues(initialStudentState);
+  }
+
+  async function saveStudent() {
+    const trimmedName = formValues.fullName.trim();
+    if (!trimmedName || !formValues.grade || !formValues.course || !formValues.parentName) {
+      return;
+    }
+
+    const record: Student = {
+      id: selectedStudent?.id ?? `stu_${Date.now()}`,
+      status: selectedStudent?.status ?? "active",
+      fullName: trimmedName,
+      grade: formValues.grade,
+      course: formValues.course,
+      parentName: formValues.parentName,
+      email: formValues.email || `${trimmedName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+      phone: formValues.phone || "+30 698 000 0000",
+    };
+
+    const savedStudent = selectedStudent
+      ? await updateStudent(record.id, record)
+      : await createStudent(record);
+
+    if (!savedStudent) {
+      return;
+    }
+
+    setStudents((current) => {
+      const updated = current.filter((student) => student.id !== savedStudent.id);
+      return [savedStudent, ...updated];
+    });
+
+    resetForm();
+  }
+
+  async function handleDelete(id: string) {
+    const deleted = await deleteStudent(id);
+    if (!deleted) {
+      return;
+    }
+
+    setStudents((current) => current.filter((student) => student.id !== id));
+    if (selectedStudent?.id === id) {
+      resetForm();
+    }
+  }
+
+  function handleEdit(student: Student) {
+    setSelectedStudent(student);
+    setFormValues({
+      fullName: student.fullName,
+      grade: student.grade,
+      course: student.course,
+      parentName: student.parentName,
+      email: student.email,
+      phone: student.phone,
+    });
+  }
+
+  return (
+    <WorkspaceShell
+      title="Students"
+      description="Manage student profiles, enrollment status, and course assignments from one workspace."
+    >
+      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
+        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Student roster</h2>
+              <p className="mt-1 text-sm text-slate-500">Search, browse, and update enrolled learners.</p>
+            </div>
+            <div className="w-full md:w-80">
+              <label className="block text-sm font-medium text-slate-700">Search students</label>
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
+                placeholder="Search by name, course, or parent"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Grade</th>
+                  <th className="px-4 py-3 text-left font-semibold">Course</th>
+                  <th className="px-4 py-3 text-left font-semibold">Parent</th>
+                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {displayedStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-4 text-slate-900">{student.fullName}</td>
+                    <td className="px-4 py-4 text-slate-600">{student.grade}</td>
+                    <td className="px-4 py-4 text-slate-600">{student.course}</td>
+                    <td className="px-4 py-4 text-slate-600">{student.parentName}</td>
+                    <td className="px-4 py-4 space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(student)}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(student.id)}
+                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">{selectedStudent ? "Edit student" : "Add student"}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {selectedStudent
+                ? "Update the student record and save your changes."
+                : "Create student records and assign them to your next course."}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">Full name</label>
+            <input
+              value={formValues.fullName}
+              onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Ελένη Παπαδοπούλου"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Grade</label>
+            <input
+              value={formValues.grade}
+              onChange={(event) => setFormValues({ ...formValues, grade: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="B Λυκείου"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Course</label>
+            <select
+              value={formValues.course}
+              onChange={(event) => setFormValues({ ...formValues, course: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+            >
+              <option value="">Select course</option>
+              {courses.map((courseOption) => (
+                <option key={courseOption.id} value={courseOption.title}>
+                  {courseOption.title}
+                </option>
+              ))}
+            </select>
+
+            <label className="block text-sm font-medium text-slate-700">Parent / Guardian</label>
+            <input
+              value={formValues.parentName}
+              onChange={(event) => setFormValues({ ...formValues, parentName: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Μαρία Κωνσταντίνου"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={saveStudent}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              {selectedStudent ? "Update student" : "Save student"}
+            </button>
+            {selectedStudent ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </WorkspaceShell>
+  );
+}
+
+===== app/teachers/page.tsx =====
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { WorkspaceShell } from "../components/WorkspaceShell";
+import {
+  createTeacher,
+  deleteTeacher,
+  fetchTeachers,
+  updateTeacher,
+} from "../lib/api";
+import type { Teacher } from "../lib/data";
+
+const initialTeacherState: Omit<Teacher, "id"> = {
+  fullName: "",
+  subject: "",
+  availability: "",
+  email: "",
+  phone: "",
+};
+
+export default function TeachersPage() {
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [formValues, setFormValues] = useState<Omit<Teacher, "id">>(initialTeacherState);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    fetchTeachers().then(setTeachers);
+  }, []);
+
+  const displayedTeachers = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return teachers;
+    }
+
+    const lower = searchTerm.toLowerCase();
+    return teachers.filter(
+      (teacher) =>
+        teacher.fullName.toLowerCase().includes(lower) ||
+        teacher.subject.toLowerCase().includes(lower) ||
+        teacher.availability.toLowerCase().includes(lower)
+    );
+  }, [searchTerm, teachers]);
+
+  function resetForm() {
+    setSelectedTeacher(null);
+    setFormValues(initialTeacherState);
+  }
+
+  async function saveTeacher() {
+    const trimmedName = formValues.fullName.trim();
+    if (!trimmedName || !formValues.subject || !formValues.availability) {
+      return;
+    }
+
+    const record: Teacher = {
+      id: selectedTeacher?.id ?? `tea_${Date.now()}`,
+      fullName: trimmedName,
+      subject: formValues.subject,
+      availability: formValues.availability,
+      email: formValues.email || `${trimmedName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+      phone: formValues.phone || "+30 210 000 0000",
+    };
+
+    const savedTeacher = selectedTeacher
+      ? await updateTeacher(record.id, record)
+      : await createTeacher(record);
+
+    if (!savedTeacher) {
+      return;
+    }
+
+    setTeachers((current) => {
+      const updated = current.filter((teacher) => teacher.id !== savedTeacher.id);
+      return [savedTeacher, ...updated];
+    });
+
+    resetForm();
+  }
+
+  async function handleDelete(id: string) {
+    const deleted = await deleteTeacher(id);
+    if (!deleted) {
+      return;
+    }
+
+    setTeachers((current) => current.filter((teacher) => teacher.id !== id));
+    if (selectedTeacher?.id === id) {
+      resetForm();
+    }
+  }
+
+  function handleEdit(teacher: Teacher) {
+    setSelectedTeacher(teacher);
+    setFormValues({
+      fullName: teacher.fullName,
+      subject: teacher.subject,
+      availability: teacher.availability,
+      email: teacher.email,
+      phone: teacher.phone,
+    });
+  }
+
+  return (
+    <WorkspaceShell
+      title="Teachers"
+      description="Track tutor availability, subjects, and classroom assignments across your teaching team."
+    >
+      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
+        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Teacher roster</h2>
+              <p className="mt-1 text-sm text-slate-500">Review your teaching staff and assign their next lessons.</p>
+            </div>
+            <div className="w-full md:w-80">
+              <label className="block text-sm font-medium text-slate-700">Search teachers</label>
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
+                placeholder="Search by name, subject, or availability"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Subject</th>
+                  <th className="px-4 py-3 text-left font-semibold">Availability</th>
+                  <th className="px-4 py-3 text-left font-semibold">Contact</th>
+                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {displayedTeachers.map((teacher) => (
+                  <tr key={teacher.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-4 text-slate-900">{teacher.fullName}</td>
+                    <td className="px-4 py-4 text-slate-600">{teacher.subject}</td>
+                    <td className="px-4 py-4 text-slate-600">{teacher.availability}</td>
+                    <td className="px-4 py-4 text-slate-600">{teacher.email}</td>
+                    <td className="px-4 py-4 space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(teacher)}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(teacher.id)}
+                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">{selectedTeacher ? "Edit teacher" : "Add teacher"}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {selectedTeacher
+                ? "Update tutor availability and contact details."
+                : "Register new tutors and capture their teaching availability."}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">Full name</label>
+            <input
+              value={formValues.fullName}
+              onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Κωνσταντίνος Βασιλείου"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Subject</label>
+            <input
+              value={formValues.subject}
+              onChange={(event) => setFormValues({ ...formValues, subject: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Φυσική"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Availability</label>
+            <input
+              value={formValues.availability}
+              onChange={(event) => setFormValues({ ...formValues, availability: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Mon, Wed, Fri"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={saveTeacher}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              {selectedTeacher ? "Update teacher" : "Save teacher"}
+            </button>
+            {selectedTeacher ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </WorkspaceShell>
+  );
+}
+
+===== app/courses/page.tsx =====
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { WorkspaceShell } from "../components/WorkspaceShell";
+import {
+  assignTeacherToCourse,
+  createCourse,
+  deleteCourse,
+  fetchCourses,
+  fetchTeachers,
+  updateCourse,
+} from "../lib/api";
+import type { Course, Teacher } from "../lib/data";
+
+const initialCourseState: Omit<Course, "id"> = {
+  title: "",
+  subject: "",
+  teacher: "",
+  duration: "",
+  seats: 0,
+};
+
+export default function CoursesPage() {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [formValues, setFormValues] = useState<Omit<Course, "id">>(initialCourseState);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    async function load() {
+      const [courseData, teacherData] = await Promise.all([fetchCourses(), fetchTeachers()]);
+      setCourses(courseData);
+      setTeachers(teacherData);
+    }
+
+    load();
+  }, []);
+
+  const displayedCourses = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return courses;
+    }
+
+    const lower = searchTerm.toLowerCase();
+    return courses.filter(
+      (course) =>
+        course.title.toLowerCase().includes(lower) ||
+        course.subject.toLowerCase().includes(lower) ||
+        course.teacher.toLowerCase().includes(lower)
+    );
+  }, [searchTerm, courses]);
+
+  function resetForm() {
+    setSelectedCourse(null);
+    setFormValues(initialCourseState);
+  }
+
+  async function saveCourse() {
+    const trimmedTitle = formValues.title.trim();
+    if (!trimmedTitle || !formValues.subject || !formValues.teacher || !formValues.duration) {
+      return;
+    }
+
+    const record: Course = {
+      id: selectedCourse?.id ?? `course_${Date.now()}`,
+      title: trimmedTitle,
+      subject: formValues.subject,
+      teacher: formValues.teacher,
+      duration: formValues.duration,
+      seats: formValues.seats,
+    };
+
+    const savedCourse = selectedCourse
+      ? await updateCourse(record.id, record)
+      : await createCourse(record);
+
+    if (!savedCourse) {
+      return;
+    }
+
+    setCourses((current) => {
+      const updated = current.filter((course) => course.id !== savedCourse.id);
+      return [savedCourse, ...updated];
+    });
+
+    resetForm();
+  }
+
+  async function handleDelete(id: string) {
+    const deleted = await deleteCourse(id);
+    if (!deleted) {
+      return;
+    }
+
+    setCourses((current) => current.filter((course) => course.id !== id));
+    if (selectedCourse?.id === id) {
+      resetForm();
+    }
+  }
+
+  function handleEdit(course: Course) {
+    setSelectedCourse(course);
+    setFormValues({
+      title: course.title,
+      subject: course.subject,
+      teacher: course.teacher,
+      duration: course.duration,
+      seats: course.seats,
+    });
+  }
+
+  async function assignTeacher(courseId: string, teacherName: string) {
+    const updatedCourse = await assignTeacherToCourse(courseId, teacherName);
+    if (!updatedCourse) {
+      return;
+    }
+
+    setCourses((current) => current.map((course) => (course.id === courseId ? updatedCourse : course)));
+  }
+
+  return (
+    <WorkspaceShell
+      title="Courses"
+      description="Organize tutoring courses, manage capacity, and match teachers to live sessions."
+    >
+      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
+        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Available courses</h2>
+              <p className="mt-1 text-sm text-slate-500">Courses available for enrollment, session planning, and assignments.</p>
+            </div>
+            <div className="w-full md:w-80">
+              <label className="block text-sm font-medium text-slate-700">Search courses</label>
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
+                placeholder="Search by title, subject, or teacher"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Title</th>
+                  <th className="px-4 py-3 text-left font-semibold">Subject</th>
+                  <th className="px-4 py-3 text-left font-semibold">Teacher</th>
+                  <th className="px-4 py-3 text-left font-semibold">Duration</th>
+                  <th className="px-4 py-3 text-left font-semibold">Seats</th>
+                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {displayedCourses.map((course) => (
+                  <tr key={course.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-4 text-slate-900">{course.title}</td>
+                    <td className="px-4 py-4 text-slate-600">{course.subject}</td>
+                    <td className="px-4 py-4 text-slate-600">{course.teacher}</td>
+                    <td className="px-4 py-4 text-slate-600">{course.duration}</td>
+                    <td className="px-4 py-4 text-slate-600">{course.seats}</td>
+                    <td className="px-4 py-4 space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(course)}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(course.id)}
+                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">{selectedCourse ? "Edit course" : "Create course"}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {selectedCourse
+                ? "Update an existing course or assign a different teacher."
+                : "Add a new tutoring course and plan capacity for the term."}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">Course title</label>
+            <input
+              value={formValues.title}
+              onChange={(event) => setFormValues({ ...formValues, title: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Προχωρημένη Άλγεβρα"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Subject</label>
+            <input
+              value={formValues.subject}
+              onChange={(event) => setFormValues({ ...formValues, subject: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Μαθηματικά"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Teacher</label>
+            <select
+              value={formValues.teacher}
+              onChange={(event) => setFormValues({ ...formValues, teacher: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+            >
+              <option value="">Select teacher</option>
+              {teachers.map((teacherOption) => (
+                <option key={teacherOption.id} value={teacherOption.fullName}>
+                  {teacherOption.fullName}
+                </option>
+              ))}
+            </select>
+
+            <label className="block text-sm font-medium text-slate-700">Duration</label>
+            <input
+              value={formValues.duration}
+              onChange={(event) => setFormValues({ ...formValues, duration: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="12 weeks"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Seats</label>
+            <input
+              value={formValues.seats}
+              onChange={(event) => setFormValues({ ...formValues, seats: Number(event.target.value) })}
+              type="number"
+              min={0}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="10"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={saveCourse}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              {selectedCourse ? "Update course" : "Save course"}
+            </button>
+            {selectedCourse ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Cancel edit
+              </button>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </WorkspaceShell>
+  );
+}
+
