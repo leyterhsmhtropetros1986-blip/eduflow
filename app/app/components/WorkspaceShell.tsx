@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
+  { href: "/schedule-board", label: "Πίνακας Προγράμματος", icon: "📅" },
   { href: "/", label: "Αρχική", icon: "🏠" },
   { href: "/students", label: "Μαθητές", icon: "👨‍🎓" },
   { href: "/teachers", label: "Καθηγητές", icon: "👨‍🏫" },
