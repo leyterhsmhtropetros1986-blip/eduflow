@@ -198,13 +198,20 @@ export default function StudentsPage() {
               placeholder="Ελένη Παπαδοπούλου"
             />
 
-            <label className="block text-sm font-medium text-slate-700">Grade</label>
-            <input
+            <label className="block text-sm font-medium text-slate-700">Τάξη</label>
+            <select
               value={formValues.grade}
               onChange={(event) => setFormValues({ ...formValues, grade: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="B Λυκείου"
-            />
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
+            >
+              <option value="">Επιλογή Τάξης</option>
+              <option value="Α Γυμνασίου">Α Γυμνασίου</option>
+              <option value="Β Γυμνασίου">Β Γυμνασίου</option>
+              <option value="Γ Γυμνασίου">Γ Γυμνασίου</option>
+              <option value="Α Λυκείου">Α Λυκείου</option>
+              <option value="Β Λυκείου">Β Λυκείου</option>
+              <option value="Γ Λυκείου">Γ Λυκείου</option>
+            </select>
 
             <label className="block text-sm font-medium text-slate-700">Course</label>
             <select

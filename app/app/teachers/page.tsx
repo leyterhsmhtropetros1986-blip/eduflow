@@ -49,7 +49,7 @@ export default function TeachersPage() {
 
   async function saveTeacher() {
     const trimmedName = formValues.fullName.trim();
-    if (!trimmedName || !formValues.subject || !formValues.availability) {
+    if (!trimmedName) {
       return;
     }
 
@@ -184,21 +184,35 @@ export default function TeachersPage() {
               placeholder="Κωνσταντίνος Βασιλείου"
             />
 
-            <label className="block text-sm font-medium text-slate-700">Subject</label>
-            <input
+            <label className="block text-sm font-medium text-slate-700">Ειδικότητα</label>
+            <select
               value={formValues.subject}
               onChange={(event) => setFormValues({ ...formValues, subject: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Φυσική"
-            />
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
+            >
+              <option value="">Επιλογή Ειδικότητας</option>
+              <option value="Μαθηματικός">Μαθηματικός</option>
+              <option value="Φυσικός">Φυσικός</option>
+              <option value="Χημικός">Χημικός</option>
+              <option value="Φιλόλογος">Φιλόλογος</option>
+              <option value="Βιολόγος">Βιολόγος</option>
+              <option value="Πληροφορικής">Πληροφορικής</option>
+              <option value="Οικονομολόγος">Οικονομολόγος</option>
+              <option value="Αγγλικών">Αγγλικών</option>
+            </select>
 
-            <label className="block text-sm font-medium text-slate-700">Availability</label>
-            <input
+            <label className="block text-sm font-medium text-slate-700">Διαθεσιμότητα</label>
+            <select
               value={formValues.availability}
               onChange={(event) => setFormValues({ ...formValues, availability: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Mon, Wed, Fri"
-            />
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
+            >
+              <option value="">Επιλογή Διαθεσιμότητας</option>
+              <option value="Καθημερινά">Καθημερινά</option>
+              <option value="Δευτέρα - Παρασκευή">Δευτέρα - Παρασκευή</option>
+              <option value="Δευτέρα - Τετάρτη - Παρασκευή">Δευτέρα - Τετάρτη - Παρασκευή</option>
+              <option value="Τρίτη - Πέμπτη">Τρίτη - Πέμπτη</option>
+            </select>
           </div>
 
           <div className="flex flex-col gap-3">
