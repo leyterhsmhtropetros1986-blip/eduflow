@@ -14,6 +14,7 @@ const initialTeacherState: Omit<Teacher, "id"> = {
   fullName: "",
   subject: "",
   availability: "",
+  maxHoursPerDay: 5,
   email: "",
   phone: "",
 };
@@ -58,6 +59,7 @@ export default function TeachersPage() {
       fullName: trimmedName,
       subject: formValues.subject,
       availability: formValues.availability,
+      maxHoursPerDay: 5,
       email: formValues.email || `${trimmedName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
       phone: formValues.phone || "+30 210 000 0000",
     };
@@ -96,6 +98,7 @@ export default function TeachersPage() {
       fullName: teacher.fullName,
       subject: teacher.subject,
       availability: teacher.availability,
+      maxHoursPerDay: teacher.maxHoursPerDay,
       email: teacher.email,
       phone: teacher.phone,
     });

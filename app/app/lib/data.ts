@@ -4,20 +4,21 @@ export type Student = {
   grade: string;
   course: string;
   parentName: string;
-  status: "active" | "inactive";
+  status: string;
   email: string;
   phone: string;
 };
+
 
 export type Teacher = {
   id: string;
   fullName: string;
   subject: string;
   availability: string;
+  maxHoursPerDay: number;
   email: string;
   phone: string;
 };
-
 export type Course = {
   id: string;
   title: string;
@@ -121,6 +122,7 @@ export const sampleTeachers: Teacher[] = [
     fullName: "Ελένη Παπαδοπούλου",
     subject: "Μαθηματικά",
     availability: "Tue, Thu, Sat",
+      maxHoursPerDay: 5,
     email: "eleni@example.com",
     phone: "+30 210 123 4567",
   },
@@ -129,6 +131,7 @@ export const sampleTeachers: Teacher[] = [
     fullName: "Κωνσταντίνος Βασιλείου",
     subject: "Φυσική",
     availability: "Mon, Wed, Fri",
+      maxHoursPerDay: 5,
     email: "konstantinos@example.com",
     phone: "+30 210 234 5678",
   },
