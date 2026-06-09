@@ -7,7 +7,7 @@ import {
   Student,
   Teacher,
   TeacherAvailability,
-  AttendanceRecord
+  AttendanceRecord,
   PaymentRecord,
   sampleAttendance,
   sampleClassrooms,
