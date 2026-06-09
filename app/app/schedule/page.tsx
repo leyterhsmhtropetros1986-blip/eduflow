@@ -160,7 +160,7 @@ export default function SchedulePage() {
     courses.forEach((course) => {
       const requestedTeacher = teachers.find((teacher) => teacher.fullName === course.teacher);
       const candidateTeacher = requestedTeacher ?? teachers.find((teacher) => teacher.subject === course.subject) ?? teachers[0];
-      const teacherName = candidateTeacher?.fullName ?? course.teacher || "TBD";
+      (candidateTeacher?.fullName ?? course.teacher) || "TBD"
 
       const teacherSlots = availableSlots.filter((slot) => slot.teacherName === teacherName);
       const courseAssigned = [...days, ...days].some((day) => {
