@@ -1,0 +1,44 @@
+"use client";
+
+import { WorkspaceShell } from "../components/WorkspaceShell";
+
+const classrooms = [
+  { id: 1, name: "Α1", capacity: 20, projector: true, available: true },
+  { id: 2, name: "Α2", capacity: 15, projector: true, available: false },
+  { id: 3, name: "Β1", capacity: 25, projector: false, available: true },
+  { id: 4, name: "Πληροφορικής", capacity: 18, projector: true, available: true },
+];
+
+export default function ClassroomsPage() {
+  return (
+    <WorkspaceShell
+      title="Αίθουσες"
+      description="Διαχείριση αιθουσών και χωρητικότητας"
+    >
+      <div className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <table className="w-full">
+          <thead>
+            <tr>
+              <th className="p-3 text-left">Αίθουσα</th>
+              <th className="p-3 text-left">Χωρητικότητα</th>
+              <th className="p-3 text-left">Προβολέας</th>
+              <th className="p-3 text-left">Κατάσταση</th>
+            </tr>
+          </thead>
+          <tbody>
+            {classrooms.map((room) => (
+              <tr key={room.id}>
+                <td className="p-3">{room.name}</td>
+                <td className="p-3">{room.capacity}</td>
+                <td className="p-3">{room.projector ? "✅" : "❌"}</td>
+                <td className="p-3">
+                  {room.available ? "🟢 Διαθέσιμη" : "🔴 Κατειλημμένη"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </WorkspaceShell>
+  );
+}
