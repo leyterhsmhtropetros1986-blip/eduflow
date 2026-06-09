@@ -248,3 +248,22 @@ export async function saveSchedule(slots: ScheduleSlot[]): Promise<ScheduleSlot[
 
   return data;
 }
+export async function fetchAttendance() {
+  return [...sampleAttendance];
+}
+
+export async function updateAttendance(id: string, status: string) {
+  return sampleAttendance.find((r) => r.id === id) ?? null;
+}
+
+export async function fetchPayments() {
+  return [...samplePayments];
+}
+
+export async function createPayment(payment: PaymentRecord) {
+  return payment;
+}
+
+export async function fetchParents() {
+  return [...sampleParents];
+}
