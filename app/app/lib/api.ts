@@ -60,7 +60,7 @@ export async function searchStudents(term: string): Promise<Student[]> {
   }
 
   const { data, error } = await supabase
-    .from<Student>("students")
+    .from("students")
     .select("*")
     .or(`fullName.ilike.%${term}%,course.ilike.%${term}%,parentName.ilike.%${term}%`);
 
@@ -209,7 +209,7 @@ export async function fetchTeacherAvailability(): Promise<TeacherAvailability[]>
   }
 
   const { data, error } = await supabase
-    .from<TeacherAvailability>("teachers_availability")
+    .from("teachers_availability")
     .select("*")
     .order("teacherName")
     .order("day")
@@ -223,7 +223,7 @@ export async function fetchSchedule(): Promise<ScheduleSlot[]> {
   }
 
   const { data, error } = await supabase
-    .from<ScheduleSlot>("schedules")
+    .from("schedules")
     .select("*")
     .order("day")
     .order("time");
