@@ -1,7 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
+export const supabaseUrl = "";
+export const supabaseKey = "";
+export const hasSupabase = false;
 
-export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-export const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-export const hasSupabase = Boolean(supabaseUrl && supabaseKey);
-
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = null as any;
