@@ -45,7 +45,7 @@ export async function fetchStudents(): Promise<Student[]> {
     return [...localStudents];
   }
 
-  const { data, error } = await supabase.from<Student>("students").select("*").order("fullName");
+  const { data, error } = await supabase.from("students").select("*").order("fullName");
   return error || !data ? [...localStudents] : data;
 }
 
@@ -73,7 +73,7 @@ export async function createStudent(student: Student): Promise<Student> {
     return student;
   }
 
-  const { data, error } = await supabase.from<Student>("students").insert(student).select().single();
+  const { data, error } = await supabase.from("students").insert(student).select().single();
   return error || !data ? student : data;
 }
 
@@ -88,7 +88,7 @@ export async function updateStudent(id: string, updates: Partial<Student>): Prom
     return localStudents[index];
   }
 
-  const { data, error } = await supabase.from<Student>("students").update(updates).eq("id", id).select().single();
+  const { data, error } = await supabase.from("students").update(updates).eq("id", id).select().single();
   return error || !data ? null : data;
 }
 
@@ -98,7 +98,7 @@ export async function deleteStudent(id: string): Promise<boolean> {
     return true;
   }
 
-  const { error } = await supabase.from<Student>("students").delete().eq("id", id);
+  const { error } = await supabase.from("students").delete().eq("id", id);
   return !error;
 }
 
@@ -107,7 +107,7 @@ export async function fetchTeachers(): Promise<Teacher[]> {
     return [...localTeachers];
   }
 
-  const { data, error } = await supabase.from<Teacher>("teachers").select("*").order("fullName");
+  const { data, error } = await supabase.from("teachers").select("*").order("fullName");
   return error || !data ? [...localTeachers] : data;
 }
 
@@ -117,7 +117,7 @@ export async function createTeacher(teacher: Teacher): Promise<Teacher> {
     return teacher;
   }
 
-  const { data, error } = await supabase.from<Teacher>("teachers").insert(teacher).select().single();
+  const { data, error } = await supabase.from("teachers").insert(teacher).select().single();
   return error || !data ? teacher : data;
 }
 
@@ -132,7 +132,7 @@ export async function updateTeacher(id: string, updates: Partial<Teacher>): Prom
     return localTeachers[index];
   }
 
-  const { data, error } = await supabase.from<Teacher>("teachers").update(updates).eq("id", id).select().single();
+  const { data, error } = await supabase.from("teachers").update(updates).eq("id", id).select().single();
   return error || !data ? null : data;
 }
 
@@ -142,7 +142,7 @@ export async function deleteTeacher(id: string): Promise<boolean> {
     return true;
   }
 
-  const { error } = await supabase.from<Teacher>("teachers").delete().eq("id", id);
+  const { error } = await supabase.from("teachers").delete().eq("id", id);
   return !error;
 }
 
@@ -151,7 +151,7 @@ export async function fetchCourses(): Promise<Course[]> {
     return [...localCourses];
   }
 
-  const { data, error } = await supabase.from<Course>("courses").select("*").order("title");
+  const { data, error } = await supabase.from("courses").select("*").order("title");
   return error || !data ? [...localCourses] : data;
 }
 
@@ -161,7 +161,7 @@ export async function createCourse(course: Course): Promise<Course> {
     return course;
   }
 
-  const { data, error } = await supabase.from<Course>("courses").insert(course).select().single();
+  const { data, error } = await supabase.from("courses").insert(course).select().single();
   return error || !data ? course : data;
 }
 
@@ -176,7 +176,7 @@ export async function updateCourse(id: string, updates: Partial<Course>): Promis
     return localCourses[index];
   }
 
-  const { data, error } = await supabase.from<Course>("courses").update(updates).eq("id", id).select().single();
+  const { data, error } = await supabase.from("courses").update(updates).eq("id", id).select().single();
   return error || !data ? null : data;
 }
 
@@ -186,7 +186,7 @@ export async function deleteCourse(id: string): Promise<boolean> {
     return true;
   }
 
-  const { error } = await supabase.from<Course>("courses").delete().eq("id", id);
+  const { error } = await supabase.from("courses").delete().eq("id", id);
   return !error;
 }
 
@@ -199,7 +199,7 @@ export async function fetchClassrooms(): Promise<Classroom[]> {
     return [...localClassrooms];
   }
 
-  const { data, error } = await supabase.from<Classroom>("classrooms").select("*").order("name");
+  const { data, error } = await supabase.from("classrooms").select("*").order("name");
   return error || !data ? [...localClassrooms] : data;
 }
 
@@ -236,12 +236,12 @@ export async function saveSchedule(slots: ScheduleSlot[]): Promise<ScheduleSlot[
     return [...localSchedule];
   }
 
-  const { error: deleteError } = await supabase.from<ScheduleSlot>("schedules").delete().neq("id", "");
+  const { error: deleteError } = await supabase.from("schedules").delete().neq("id", "");
   if (deleteError) {
     throw deleteError;
   }
 
-  const { data, error } = await supabase.from<ScheduleSlot>("schedules").insert(slots).select();
+  const { data, error } = await supabase.from("schedules").insert(slots).select();
   if (error || !data) {
     throw error ?? new Error("Unable to save generated schedule");
   }
