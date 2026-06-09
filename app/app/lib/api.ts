@@ -7,7 +7,8 @@ import {
   Student,
   Teacher,
   TeacherAvailability,
-  AttendanceRecord,
+  AttendanceRecord
+  PaymentRecord,
   sampleAttendance,
   sampleClassrooms,
   sampleCourses,
@@ -17,7 +18,6 @@ import {
   sampleStudents,
   sampleTeachers,
   sampleTeacherAvailability,
-  import { PaymentRecord } from "./data";
 } from "./data";
 
 const hasSupabase = Boolean(supabaseUrl && supabaseKey);
