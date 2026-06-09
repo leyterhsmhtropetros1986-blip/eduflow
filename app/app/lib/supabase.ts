@@ -1,9 +1,27 @@
-import { createClient } from "@supabase/supabase-js";
+export const supabaseUrl = "";
+export const supabaseKey = "";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export const hasSupabase = false;
 
-export const supabase = createClient(
-  supabaseUrl,
-  supabaseKey
-);
+export const supabase = {
+  from: () => ({
+    select: () => ({
+      order: async () => ({ data: [], error: null }),
+    }),
+    insert: () => ({
+      select: () => ({
+        single: async () => ({ data: null, error: null }),
+      }),
+    }),
+    update: () => ({
+      eq: () => ({
+        select: () => ({
+          single: async () => ({ data: null, error: null }),
+        }),
+      }),
+    }),
+    delete: () => ({
+      eq: async () => ({ error: null }),
+    }),
+  }),
+} as any;
