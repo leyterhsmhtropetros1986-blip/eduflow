@@ -17,6 +17,7 @@ import {
   sampleStudents,
   sampleTeachers,
   sampleTeacherAvailability,
+  import { PaymentRecord } from "./data";
 } from "./data";
 
 const hasSupabase = Boolean(supabaseUrl && supabaseKey);
