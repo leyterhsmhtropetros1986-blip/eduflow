@@ -1,15 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { DoorOpen, Trash2, Users } from "lucide-react";
+import { WorkspaceShell } from "../components/WorkspaceShell";
+import { DoorOpen, Trash2 } from "lucide-react";
+
+interface Room {
+  id: string;
+  name: string;
+  capacity: number;
+  availability: Record<string, string[]>;
+}
 
 const AVAILABLE_DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const TIME_SLOTS = ["13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00", "22:00-23:00"];
 
 export default function RoomsPage() {
-  const [rooms, setRooms] = useState<any[]>([]);
-  const [roomName, setRoomName] = useState(""); // Custom Name
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomName, setRoomName] = useState("");
   const [capacity, setCapacity] = useState("");
   const [availability, setAvailability] = useState<Record<string, string[]>>({});
 
@@ -28,18 +35,18 @@ export default function RoomsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roomName || !capacity) {
-      alert("⚠️ Συμπλήρωσε Όνομα (π.χ. Α1) και Χωρητικότητα!");
-      return;
-    }
+    if (!roomName || !capacity) return alert("⚠️ Συμπλήρωσε Όνομα και Χωρητικότητα!");
 
-    const newRoom = { id: `r-${Date.now()}`, name: roomName, capacity, availability };
-    const updated = [...rooms, newRoom];
+    const newRoom: Room = { 
+      id: `r-${Date.now()}`, 
+      name: roomName, 
+      capacity: parseInt(capacity), 
+      availability 
+    };
     
+    const updated = [...rooms, newRoom];
     setRooms(updated);
     localStorage.setItem("eduflow_rooms", JSON.stringify(updated));
-    
-    alert(`✅ Η αίθουσα ${roomName} αποθηκεύτηκε!`);
     setRoomName(""); setCapacity(""); setAvailability({});
   };
 
@@ -50,28 +57,12 @@ export default function RoomsPage() {
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Αιθουσών" description="Ονόμασε ελεύθερα τις αίθουσες και όρισε τη διαθεσιμότητά τους.">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4 pb-20">
-        
-        {/* ΦΟΡΜΑ - CUSTOM ΟΝΟΜΑΣΙΑ */}
+    <WorkspaceShell title="Διαχείριση Αιθουσών" description="Όρισε αίθουσες και χωρητικότητα.">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><DoorOpen className="w-4 h-4 text-amber-400" /> Ορισμός Αίθουσας</h3>
           <form onSubmit={handleSave} className="space-y-4">
-            <input 
-              type="text" 
-              value={roomName} 
-              onChange={e => setRoomName(e.target.value)} 
-              placeholder="π.χ. Α1, Γ2, Εργαστήριο" 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" 
-            />
-            <input 
-              type="number" 
-              value={capacity} 
-              onChange={e => setCapacity(e.target.value)} 
-              placeholder="Χωρητικότητα (μέγιστος αριθμός μαθητών)" 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" 
-            />
-            
+            <input type="text" value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="π.χ. Αίθουσα 1" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            <input type="number" value={capacity} onChange={e => setCapacity(e.target.value)} placeholder="Χωρητικότητα ατόμων" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
             <div className="space-y-2 pt-2 border-t border-slate-800">
               <p className="text-[10px] font-bold text-slate-400">Διαθεσιμότητα</p>
               {AVAILABLE_DAYS.map(day => (
@@ -85,24 +76,20 @@ export default function RoomsPage() {
                 </div>
               ))}
             </div>
-            <button className="w-full bg-amber-600 hover:bg-amber-500 p-3 rounded-xl text-white font-bold text-xs">Αποθήκευση Αίθουσας</button>
+            <button className="w-full bg-amber-600 hover:bg-amber-500 p-3 rounded-xl text-white font-bold text-xs">Αποθήκευση</button>
           </form>
         </div>
-
-        {/* ΛΙΣΤΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-white mb-4">Καταχωρημένες Αίθουσες ({rooms.length})</h3>
-          <div className="space-y-2">
-            {rooms.map(r => (
-              <div key={r.id} className="bg-[#0b0e14] p-3 rounded border border-slate-800 flex justify-between items-center">
-                <div className="text-xs">
-                  <p className="text-white font-bold">{r.name}</p>
-                  <p className="text-amber-400 font-mono text-[10px]">Όριο: {r.capacity} άτομα</p>
-                </div>
-                <button onClick={() => handleDelete(r.id)} className="text-rose-500"><Trash2 className="w-4 h-4"/></button>
+          <h3 className="text-sm font-bold text-white mb-4">Αίθουσες ({rooms.length})</h3>
+          {rooms.map(r => (
+            <div key={r.id} className="bg-[#0b0e14] mb-2 p-3 rounded border border-slate-800 flex justify-between items-center">
+              <div>
+                <p className="text-white font-bold text-xs">{r.name}</p>
+                <p className="text-amber-400 text-[10px]">Χωρητικότητα: {r.capacity}</p>
               </div>
-            ))}
-          </div>
+              <button onClick={() => handleDelete(r.id)} className="text-rose-500"><Trash2 className="w-4 h-4"/></button>
+            </div>
+          ))}
         </div>
       </div>
     </WorkspaceShell>
