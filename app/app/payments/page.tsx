@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import { CreditCard, DollarSign, Calendar, FileText, Trash2, CheckCircle } from "lucide-react";
+import { Trash2, CheckCircle, Search, Bell } from "lucide-react";
 
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<any[]>([]);
@@ -13,7 +13,7 @@ export default function PaymentsPage() {
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [status, setStatus] = useState("Εκκρεμεί");
-  const [paymentMethod, setPaymentMethod] = useState("Κάρτα");
+  const [paymentMethod, setPaymentMethod] = useState("Μετρητά");
   const [description, setDescription] = useState("");
 
   // Φόρτωση από το localStorage
@@ -23,18 +23,16 @@ export default function PaymentsPage() {
     if (stored) {
       setPayments(JSON.parse(stored));
     } else {
-      // Αρχικά default δεδομένα όπως στο UI σου
       const defaults = [
         { id: "p1", studentName: "Γιάννης Παπαδόπουλος", amount: "140", dueDate: "2026-06-14", status: "Εκκρεμεί", method: "Μετρητά", description: "Δίδακτρα Μαΐου" },
-        { id: "p2", studentName: "Μαρία Κωνσταντίνου", amount: "160", dueDate: "2026-06-10", status: "Εξοφλημένο", method: "Κάρτα", description: "Δίδακτρα Ιουνίου + Υλικό" },
-        { id: "p3", studentName: "Νίκος Γεωργίου", amount: "130", dueDate: "2026-06-12", status: "Καθυστερημένο", method: "Κατάθεση", description: "Προκαταβολή" }
+        { id: "p2", studentName: "Μαρία Κωνσταντίνου", amount: "160", dueDate: "2026-06-10", status: "Εξοφλημένο", method: "Κάρτα", description: "Δίδακτρα Ιουνίου" }
       ];
       setPayments(defaults);
       localStorage.setItem("eduflow_payments", JSON.stringify(defaults));
     }
   }, []);
 
-  // Υποβολή νέας πληρωμής
+  // Υποβολή νέας εισπραξης
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!studentName || !amount) return;
@@ -60,7 +58,6 @@ export default function PaymentsPage() {
     setDescription("");
   };
 
-  // Διαγραφή εγγραφής
   const handleDelete = (id: string) => {
     const updated = payments.filter(p => p.id !== id);
     setPayments(updated);
@@ -72,20 +69,18 @@ export default function PaymentsPage() {
   return (
     <WorkspaceShell 
       title="Βιβλίο Πληρωμών & Εσόδων" 
-      description="Παρακολούθηση διδάκτρων, τιμολογήσεων, τρόπων πληρωμής και ιστορικού ανά μαθητή."
+      description="Παρακολούθηση διδάκτρων, τιμολογήσεων και ιστορικού πληρωμών ανά οικογένεια."
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 pb-20">
         
-        {/* ΑΡΙΣΤΕΡΑ: ΒΙΒΛΙΟ ΠΛΗΡΩΜΩΝ (ΛΙΣΤΑ) */}
-        <div className="lg:col-span-2 bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-2xl">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-400" /> Καταγραφή Συναλλαγών
-          </h3>
+        {/* ΑΡΙΣΤΕΡΑ: ΚΑΤΑΓΡΑΦΗ ΣΥΝΑΛΛΑΓΩΝ */}
+        <div className="lg:col-span-2 bg-[#343a4a] border border-slate-700/40 p-6 rounded-3xl shadow-xl">
+          <h3 className="text-sm font-bold text-white mb-5">Καταγραφή Συναλλαγών</h3>
           
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-300">
               <thead>
-                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-bold text-[10px]">
+                <tr className="border-b border-slate-700 text-slate-400 font-medium text-[11px]">
                   <th className="pb-3">Μαθητής</th>
                   <th className="pb-3">Ποσό</th>
                   <th className="pb-3">Τρόπος / Ανάλυση</th>
@@ -94,21 +89,23 @@ export default function PaymentsPage() {
                   <th className="pb-3 text-right">Ενέργειες</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/50">
+              <tbody className="divide-y divide-slate-700/30">
                 {payments.map((p) => (
-                  <tr key={p.id} className="hover:bg-slate-800/10 transition">
-                    <td className="py-4 font-bold text-white">{p.studentName}</td>
-                    <td className="py-4 text-emerald-400 font-mono font-bold">€{p.amount}</td>
-                    <td className="py-4 space-y-0.5">
-                      <div className="text-slate-300 font-medium">{p.method}</div>
-                      <div className="text-slate-500 text-[11px] truncate max-w-[150px]">{p.description}</div>
+                  <tr key={p.id} className="hover:bg-slate-700/10">
+                    <td className="py-4 font-semibold text-white">{p.studentName}</td>
+                    <td className="py-4 text-[#10b981] font-bold">€{p.amount}</td>
+                    <td className="py-4">
+                      <div className="text-slate-200 font-medium">{p.method}</div>
+                      <div className="text-slate-400 text-[10px]">{p.description}</div>
                     </td>
                     <td className="py-4 font-mono text-slate-400">{p.dueDate}</td>
                     <td className="py-4">
-                      <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold ${
-                        p.status === "Εξοφλημένο" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                        p.status === "Καθυστερημένο" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
-                        "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold ${
+                        p.status === "Εξοφλημένο" 
+                          ? "bg-[#10b981]/10 text-[#10b981] border border-[#10b981]/20" 
+                          : p.status === "Καθυστερημένο"
+                          ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                          : "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                       }`}>
                         {p.status}
                       </span>
@@ -116,7 +113,7 @@ export default function PaymentsPage() {
                     <td className="py-4 text-right">
                       <button 
                         onClick={() => handleDelete(p.id)} 
-                        className="text-red-400 hover:text-red-300 p-1 rounded-lg transition"
+                        className="text-red-400 hover:text-red-300 p-1"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -128,71 +125,71 @@ export default function PaymentsPage() {
           </div>
         </div>
 
-        {/* ΔΕΞΙΑ: ΦΟΡΜΑ ΠΡΟΣΘΗΚΗΣ ΠΛΗΡΩΜΗΣ */}
-        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-2xl h-fit">
-          <h3 className="text-sm font-bold text-white mb-5 flex items-center gap-2">
-            <CreditCard className="w-4 h-4 text-emerald-400" /> Νέα Είσπραξη
+        {/* ΔΕΞΙΑ: ΝΕΑ ΕΙΣΠΡΑΞΗ */}
+        <div className="bg-[#343a4a] border border-slate-700/40 p-6 rounded-3xl shadow-xl h-fit">
+          <h3 className="text-sm font-bold text-white mb-5 flex items-center gap-1.5">
+            <span className="text-[#10b981] font-bold">$</span> Νέα Είσπραξη
           </h3>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Όνομα Μαθητή */}
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5 font-medium">Όνομα Μαθητή *</label>
+              <label className="block text-[11px] text-slate-300 mb-1 font-medium">Όνομα Μαθητή</label>
               <input 
                 type="text" 
                 value={studentName} 
                 onChange={(e) => setStudentName(e.target.value)} 
-                placeholder="π.χ. Μαρία Κωνσταντίνου" 
-                className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500" 
+                placeholder="Μαρία Κωνσταντίνου" 
+                className="w-full bg-[#05070c] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none" 
                 required 
               />
             </div>
 
             {/* Ποσό */}
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5 font-medium">Ποσό (€) *</label>
+              <label className="block text-[11px] text-slate-300 mb-1 font-medium">Ποσό (€)</label>
               <input 
                 type="number" 
                 value={amount} 
                 onChange={(e) => setAmount(e.target.value)} 
-                placeholder="e.g. 160" 
-                className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono" 
+                placeholder="160" 
+                className="w-full bg-[#05070c] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none font-mono" 
                 required 
               />
             </div>
 
             {/* Ημερομηνία Λήξης */}
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5 font-medium">Ημερομηνία Λήξης</label>
+              <label className="block text-[11px] text-slate-300 mb-1 font-medium">Ημερομηνία Λήξης</label>
               <input 
                 type="date" 
                 value={dueDate} 
                 onChange={(e) => setDueDate(e.target.value)} 
-                className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 color-scheme-dark" 
+                className="w-full bg-[#05070c] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none [color-scheme:dark]" 
               />
             </div>
 
             {/* Τρόπος Πληρωμής */}
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5 font-medium">Τρόπος Πληρωμής</label>
+              <label className="block text-[11px] text-slate-300 mb-1 font-medium">Τρόπος Πληρωμής</label>
               <select 
                 value={paymentMethod} 
                 onChange={(e) => setPaymentMethod(e.target.value)} 
-                className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                className="w-full bg-[#05070c] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
               >
-                <option value="Κάρτα">💳 Κάρτα / POS</option>
                 <option value="Μετρητά">💵 Μετρητά</option>
+                <option value="Κάρτα">💳 Κάρτα / POS</option>
                 <option value="Κατάθεση">🏦 Τραπεζική Κατάθεση</option>
               </select>
             </div>
 
             {/* Κατάσταση */}
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5 font-medium">Κατάσταση</label>
+              <label className="block text-[11px] text-slate-300 mb-1 font-medium">Κατάσταση</label>
               <select 
                 value={status} 
                 onChange={(e) => setStatus(e.target.value)} 
-                className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                className="w-full bg-[#05070c] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
               >
                 <option value="Εκκρεμεί">Εκκρεμεί</option>
                 <option value="Εξοφλημένο">Εξοφλημένο</option>
@@ -200,23 +197,23 @@ export default function PaymentsPage() {
               </select>
             </div>
 
-            {/* Περαιτέρω Ανάλυση / Σημειώσεις */}
+            {/* Περαιτέρω Ανάλυση */}
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5 font-medium">Περαιτέρω Ανάλυση / Αιτιολογία</label>
-              <textarea 
+              <label className="block text-[11px] text-slate-300 mb-1 font-medium">Περαιτέρω Ανάλυση / Αιτιολογία</label>
+              <input 
+                type="text" 
                 value={description} 
                 onChange={(e) => setDescription(e.target.value)} 
-                placeholder="π.χ. Δίδακτρα Ιουνίου & αγορά βιβλίου Φυσικής" 
-                rows={2}
-                className="w-full bg-[#0b0e14] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 resize-none"
+                placeholder="e.g. Δίδακτρα Ιουνίου" 
+                className="w-full bg-[#05070c] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none" 
               />
             </div>
 
             <button 
               type="submit" 
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-1.5"
+              className="w-full bg-[#00966d] hover:bg-[#00825d] text-white font-semibold text-xs py-3 rounded-xl transition shadow-md flex items-center justify-center gap-1.5"
             >
-              <CheckCircle className="w-4 h-4" /> Αποθήκευση Πληρωμής
+              Αποθήκευση Πληρωμής
             </button>
           </form>
         </div>
