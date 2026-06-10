@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Users, UserPlus, Trash2, Save } from "lucide-react";
 
 export default function ParentsPage() {

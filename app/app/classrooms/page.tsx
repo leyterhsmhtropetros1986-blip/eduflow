@@ -1,6 +1,6 @@
 "use client";
 
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
 
 const rooms = [
   { name: "Αίθουσα Α1", capacity: 20, type: "Κανονική" },

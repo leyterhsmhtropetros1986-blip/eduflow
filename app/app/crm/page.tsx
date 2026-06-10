@@ -1,4 +1,4 @@
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
 
 export default function Home() {
   const stats = [

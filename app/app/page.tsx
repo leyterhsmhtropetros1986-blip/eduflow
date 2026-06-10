@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WorkspaceShell } from "./components/WorkspaceShell";
+// Διορθωμένο Import με βάση το alias που ορίσαμε
+import { WorkspaceShell } from "@/app/app/components/WorkspaceShell"; 
 import { 
   Users, 
   GraduationCap, 

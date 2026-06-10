@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { DollarSign, Wallet, CheckCircle2, AlertCircle } from "lucide-react";
 
 export default function PaymentsPage() {
