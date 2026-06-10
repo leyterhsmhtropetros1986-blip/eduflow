@@ -1,259 +1,241 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import {
-  createStudent,
-  deleteStudent,
-  fetchCourses,
-  fetchStudents,
-  searchStudents,
-  updateStudent,
-} from "../lib/api";
-import type { Course, Student } from "../lib/data";
+import { BookOpen, Calendar, Bell, Check, UserPlus } from "lucide-react";
 
-const initialStudentState: Omit<Student, "id" | "status"> = {
-  fullName: "",
-  grade: "",
-  course: "",
-  parentName: "",
-  email: "",
-  phone: "",
-};
+// Δείγματα δεδομένων για το UI
+const AVAILABLE_COURSES = [
+  { id: "math", name: "Μαθηματικά" },
+  { id: "phys", name: "Φυσική" },
+  { id: "chem", name: "Χημεία" },
+  { id: "bio", name: "Βιολογία" },
+  { id: "hist", name: "Ιστορία" },
+];
 
-export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [formValues, setFormValues] = useState<Omit<Student, "id" | "status">>(initialStudentState);
+const WEEK_DAYS = [
+  { id: "Mon", name: "Δευτέρα" },
+  { id: "Tue", name: "Τρίτη" },
+  { id: "Wed", name: "Τετάρτη" },
+  { id: "Thu", name: "Πέμπτη" },
+  { id: "Fri", name: "Παρασκευή" },
+  { id: "Sat", name: "Σάββατο" },
+];
 
-  useEffect(() => {
-    async function load() {
-      const [studentData, courseData] = await Promise.all([fetchStudents(), fetchCourses()]);
-      setStudents(studentData);
-      setCourses(courseData);
-    }
+export default function StudentManagement() {
+  // States για τη φόρμα μαθητή
+  const [studentName, setStudentName] = useState("");
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  
+  // States για το Push Notification Widget
+  const [notifTitle, setNotifTitle] = useState("");
+  const [notifBody, setNotifBody] = useState("");
+  const [notifTarget, setNotifTarget] = useState("all"); // all, students, parents
 
-    load();
-  }, []);
+  // Handle Multi-select για Μαθήματα
+  const toggleCourse = (courseId: string) => {
+    setSelectedCourses(prev => 
+      prev.includes(courseId) ? prev.filter(id => id !== courseId) : [...prev, courseId]
+    );
+  };
 
-  const displayedStudents = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return students;
-    }
+  // Handle Multi-select για Ημέρες
+  const toggleDay = (dayId: string) => {
+    setSelectedDays(prev => 
+      prev.includes(dayId) ? prev.filter(id => id !== dayId) : [...prev, dayId]
+    );
+  };
 
-    return students.filter((student) => {
-      const term = searchTerm.toLowerCase();
-      return (
-        student.fullName.toLowerCase().includes(term) ||
-        student.course.toLowerCase().includes(term) ||
-        student.parentName.toLowerCase().includes(term)
-      );
-    });
-  }, [students, searchTerm]);
-
-  function resetForm() {
-    setSelectedStudent(null);
-    setFormValues(initialStudentState);
-  }
-
-  async function saveStudent() {
-    const trimmedName = formValues.fullName.trim();
-    if (!trimmedName || !formValues.grade || !formValues.course || !formValues.parentName) {
+  // Υποβολή Μαθητή
+  const handleCreateStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentName || selectedCourses.length === 0 || selectedDays.length === 0) {
+      alert("Παρακαλώ συμπληρώστε όνομα, τουλάχιστον 1 μάθημα και 1 ημέρα!");
       return;
     }
 
-    const record: Student = {
-      id: selectedStudent?.id ?? `stu_${Date.now()}`,
-      status: selectedStudent?.status ?? "active",
-      fullName: trimmedName,
-      grade: formValues.grade,
-      course: formValues.course,
-      parentName: formValues.parentName,
-      email: formValues.email || `${trimmedName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-      phone: formValues.phone || "+30 698 000 0000",
+    const newStudent = {
+      name: studentName,
+      courses: selectedCourses,
+      days: selectedDays
     };
 
-    const savedStudent = selectedStudent
-      ? await updateStudent(record.id, record)
-      : await createStudent(record);
+    console.log("Saving Student Data:", newStudent);
+    alert(`Ο μαθητής ${studentName} αποθηκεύτηκε με ${selectedCourses.length} μαθήματα!`);
+    
+    // Reset φόρμας
+    setStudentName("");
+    setSelectedCourses([]);
+    setSelectedDays([]);
+  };
 
-    if (!savedStudent) {
-      return;
-    }
+  // Προσομοίωση Αποστολής Push Notification
+  const handleSendNotification = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifTitle || !notifBody) return;
 
-    setStudents((current) => {
-      const updated = current.filter((student) => student.id !== savedStudent.id);
-      return [savedStudent, ...updated];
-    });
+    alert(`Στάλθηκε Push Notification στους ${
+      notifTarget === "all" ? "Γονείς & Μαθητές" : notifTarget === "students" ? "Μαθητές" : "Γονείς"
+    }\nΤίτλος: ${notifTitle}`);
 
-    resetForm();
-  }
-
-  async function handleDelete(id: string) {
-    const deleted = await deleteStudent(id);
-    if (!deleted) {
-      return;
-    }
-
-    setStudents((current) => current.filter((student) => student.id !== id));
-    if (selectedStudent?.id === id) {
-      resetForm();
-    }
-  }
-
-  function handleEdit(student: Student) {
-    setSelectedStudent(student);
-    setFormValues({
-      fullName: student.fullName,
-      grade: student.grade,
-      course: student.course,
-      parentName: student.parentName,
-      email: student.email,
-      phone: student.phone,
-    });
-  }
+    setNotifTitle("");
+    setNotifBody("");
+  };
 
   return (
-    <WorkspaceShell
-      title="Μαθητές"
-      description="Διαχείριση προφίλ μαθητών, εγγραφών και ανάθεσης μαθημάτων από ένα κεντρικό περιβάλλον."
+    <WorkspaceShell 
+      title="Διαχείριση Προγραμμάτων & Ειδοποιήσεων" 
+      description="Ρύθμιση πολλαπλών μαθημάτων ανά μαθητή, επιλογή ημερών και άμεση αποστολή push notifications."
     >
-      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
-        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-950">Κατάλογος μαθητών</h2>
-              <p className="mt-1 text-sm text-slate-500">Αναζήτηση, προβολή και ενημέρωση εγγεγραμμένων μαθητών.</p>
-            </div>
-            <div className="w-full md:w-80">
-              <label className="block text-sm font-medium text-slate-700">Αναζήτηση μαθητών</label>
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Αναζήτηση με όνομα, μάθημα ή γονέα"
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-2 sm:p-4 text-slate-100">
+        
+        {/* ΚΑΡΤΑ Α: ΕΓΓΡΑΦΗ ΜΑΘΗΤΗ ΜΕ ΠΟΛΛΑΠΛΑ ΜΑΘΗΜΑΤΑ & ΗΜΕΡΕΣ */}
+        <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-xl">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400"><UserPlus className="w-5 h-5" /></div>
+            <h3 className="text-base font-bold text-white">Καρτέλα Νέου Μαθητή</h3>
+          </div>
+
+          <form onSubmit={handleCreateStudent} className="space-y-5">
+            {/* Όνομα */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-400">Oνοματεπώνυμο Μαθητή</label>
+              <input 
+                type="text" 
+                value={studentName}
+                onChange={(e) => setStudentName(e.target.value)}
+                placeholder="π.χ. Νίκος Παπαδόπουλος"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition"
               />
             </div>
-          </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Όνομα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Τάξη</th>
-                  <th className="px-4 py-3 text-left font-semibold">Μάθημα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Γονέας</th>
-                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {displayedStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-4 text-slate-900">{student.fullName}</td>
-                    <td className="px-4 py-4 text-slate-600">{student.grade}</td>
-                    <td className="px-4 py-4 text-slate-600">{student.course}</td>
-                    <td className="px-4 py-4 text-slate-600">{student.parentName}</td>
-                    <td className="px-4 py-4 space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(student)}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        Επεξεργασία
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(student.id)}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                      >
-                        Διαγραφή
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            {/* Πολλαπλή Επιλογή Μαθημάτων */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                <BookOpen className="w-3.5 h-3.5" /> Επιλογή Μαθημάτων (Πολλαπλή)
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {AVAILABLE_COURSES.map((course) => {
+                  const isSelected = selectedCourses.includes(course.id);
+                  return (
+                    <button
+                      type="button"
+                      key={course.id}
+                      onClick={() => toggleCourse(course.id)}
+                      className={`p-2.5 rounded-xl border text-left text-xs font-medium transition-all flex items-center justify-between ${
+                        isSelected 
+                          ? "bg-indigo-600/20 border-indigo-500 text-white" 
+                          : "bg-slate-950/50 border-slate-800/80 text-slate-400 hover:border-slate-700"
+                      }`}
+                    >
+                      {course.name}
+                      {isSelected && <Check className="w-3.5 h-3.5 text-indigo-400" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">{selectedStudent ? "Επεξεργασία μαθητή" : "Προσθήκη μαθητή"}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedStudent
-                ? "Ενημερώστε τη εγγραφή του μαθητή και αποθηκεύστε τις αλλαγές σας."
-                : "Δημιουργήστε εγγραφές μαθητών και αντιστοιχίστε τους στο επόμενο μάθημα."}
-            </p>
-          </div>
+            {/* Επιλογή Ημερών */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                <Calendar className="w-3.5 h-3.5" /> Διαθέσιμες Ημέρες Μαθημάτων
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {WEEK_DAYS.map((day) => {
+                  const isSelected = selectedDays.includes(day.id);
+                  return (
+                    <button
+                      type="button"
+                      key={day.id}
+                      onClick={() => toggleDay(day.id)}
+                      className={`p-2 rounded-xl border text-center text-xs font-semibold transition-all ${
+                        isSelected 
+                          ? "bg-purple-600/20 border-purple-500 text-white" 
+                          : "bg-slate-950/50 border-slate-800/80 text-slate-400 hover:border-slate-700"
+                      }`}
+                    >
+                      {day.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">Ονοματεπώνυμο</label>
-            <input
-              value={formValues.fullName}
-              onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Ελένη Παπαδοπούλου"
-            />
-
-            <label className="block text-sm font-medium text-slate-700">Τάξη</label>
-            <select
-              value={formValues.grade}
-              onChange={(event) => setFormValues({ ...formValues, grade: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
+            {/* Submit Button */}
+            <button 
+              type="submit"
+              className="w-full mt-2 bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/20"
             >
-              <option value="">Επιλογή Τάξης</option>
-              <option value="Α Γυμνασίου">Α Γυμνασίου</option>
-              <option value="Β Γυμνασίου">Β Γυμνασίου</option>
-              <option value="Γ Γυμνασίου">Γ Γυμνασίου</option>
-              <option value="Α Λυκείου">Α Λυκείου</option>
-              <option value="Β Λυκείου">Β Λυκείου</option>
-              <option value="Γ Λυκείου">Γ Λυκείου</option>
-            </select>
-
-            <label className="block text-sm font-medium text-slate-700">Μάθημα</label>
-            <select
-              value={formValues.course}
-              onChange={(event) => setFormValues({ ...formValues, course: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-            >
-              <option value="">Επιλογή μαθήματος</option>
-              {courses.map((courseOption) => (
-                <option key={courseOption.id} value={courseOption.title}>
-                  {courseOption.title}
-                </option>
-              ))}
-            </select>
-
-            <label className="block text-sm font-medium text-slate-700">Γονέας / Κηδεμόνας</label>
-            <input
-              value={formValues.parentName}
-              onChange={(event) => setFormValues({ ...formValues, parentName: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Μαρία Κωνσταντίνου"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={saveStudent}
-              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              {selectedStudent ? "Ενημέρωση μαθητή" : "Αποθήκευση μαθητή"}
+              Δημιουργία & Υπολογισμός Προγράμματος
             </button>
-            {selectedStudent ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          </form>
+        </div>
+
+        {/* ΚΑΡΤΑ Β: PUSH NOTIFICATIONS CENTER */}
+        <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-xl flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400"><Bell className="w-5 h-5" /></div>
+              <h3 className="text-base font-bold text-white">Live Push Notifications</h3>
+            </div>
+
+            <form onSubmit={handleSendNotification} className="space-y-4">
+              {/* Στόχος Ειδοποίησης */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400">Παραλήπτες</label>
+                <select 
+                  value={notifTarget}
+                  onChange={(e) => setNotifTarget(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition"
+                >
+                  <option value="all">Όλοι (Μαθητές & Γονείς)</option>
+                  <option value="students">Μόνο Μαθητές</option>
+                  <option value="parents">Μόνο Γονείς</option>
+                </select>
+              </div>
+
+              {/* Τίτλος */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400">Τίτλος Μηνύματος</label>
+                <input 
+                  type="text" 
+                  value={notifTitle}
+                  onChange={(e) => setNotifTitle(e.target.value)}
+                  placeholder="π.χ. Αλλαγή ώρας προγράμματος"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition"
+                />
+              </div>
+
+              {/* Περιεχόμενο */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400">Κείμενο Ειδοποίησης</label>
+                <textarea 
+                  rows={3}
+                  value={notifBody}
+                  onChange={(e) => setNotifBody(e.target.value)}
+                  placeholder="Το μάθημα των Μαθηματικών της Πέμπτης θα ξεκινήσει στις 17:00 αντί για τις 16:00."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500 transition resize-none"
+                />
+              </div>
+
+              {/* Send Button */}
+              <button 
+                type="submit"
+                className="w-full bg-amber-600 hover:bg-amber-500 text-white py-3 rounded-xl text-xs font-bold transition shadow-lg shadow-amber-600/20"
               >
-                Ακύρωση
+                Αποστολή Άμεσης Ειδοποίησης
               </button>
-            ) : null}
+            </form>
           </div>
-        </section>
+
+          {/* Τεχνική Σημείωση */}
+          <div className="mt-6 p-3 rounded-xl bg-slate-950/60 border border-slate-800/60 text-[11px] text-slate-500">
+            💡 <strong>Πληροφορία συστήματος:</strong> Τα Push Notifications χρησιμοποιούν Service Workers (Web Push API). Οι χρήστες λαμβάνουν την ειδοποίηση στην αρχική οθόνη του κινητού τους ακόμα και με κλειστό τον browser.
+          </div>
+        </div>
+
       </div>
     </WorkspaceShell>
   );
