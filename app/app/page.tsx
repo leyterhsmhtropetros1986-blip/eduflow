@@ -11,7 +11,6 @@ import {
   Bell, 
   Sparkles, 
   Plus, 
-  Layers, 
   ChevronRight, 
   ArrowUpRight,
   BrainCircuit
@@ -44,10 +43,10 @@ export default function EnterpriseDashboard() {
       title="Enterprise Analytics Executive Dashboard"
       description="Κεντρικός έλεγχος, AI βελτιστοποίηση και οικονομική εποπτεία του εκπαιδευτικού οργανισμού σε πραγματικό χρόνο."
     >
-      <div className="relative min-h-screen pb-24 text-slate-100 selection:bg-indigo-500 selection:text-white">
+      <div className="relative min-h-screen pb-24 text-slate-100 selection:bg-indigo-500 selection:text-white px-2 sm:px-4">
         
-        {/* --- 2. KPI ROW WITH ANIMATIONS --- */}
-        <div className={`grid gap-4 grid-cols-2 lg:grid-cols-5 transition-all duration-700 transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        {/* --- 2. KPI ROW WITH ANIMATIONS (Responsive Grid) --- */}
+        <div className={`grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 transition-all duration-700 transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           
           {/* Μαθητές */}
           <div className="p-5 rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950/40 hover:border-indigo-500/30 transition-all duration-300 group shadow-lg">
@@ -73,7 +72,7 @@ export default function EnterpriseDashboard() {
             </div>
           </div>
 
-          {/* Έσοδα (Gradient Card) */}
+          {/* Έσοδα */}
           <div className="p-5 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-900/60 via-slate-900 to-slate-900 hover:border-indigo-500/50 transition-all duration-300 group shadow-xl relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
             <div className="flex items-center justify-between">
@@ -99,7 +98,7 @@ export default function EnterpriseDashboard() {
           </div>
 
           {/* AI Smart Scheduler Score */}
-          <div className="p-5 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/30 hover:border-emerald-500/40 transition-all duration-300 group shadow-lg col-span-2 lg:col-span-1">
+          <div className="p-5 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/30 hover:border-emerald-500/40 transition-all duration-300 group shadow-lg sm:col-span-2 lg:col-span-1">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-emerald-400" /> Optimization
@@ -119,15 +118,15 @@ export default function EnterpriseDashboard() {
         </div>
 
         {/* MAIN BODY GRID */}
-        <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="mt-6 grid gap-6 grid-cols-1 lg:grid-cols-3">
           
           {/* LEFT & CENTER COLUMN */}
           <div className="lg:col-span-2 space-y-6">
             
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
               
               {/* REVENUE GRAPH */}
-              <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm">
+              <div className="p-4 sm:p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                   <h4 className="text-sm font-bold text-slate-200 tracking-wide uppercase">Συγκριτικό Έσοδων 2026</h4>
                   <span className="text-xs text-slate-500">Ανά τρίμηνο</span>
@@ -157,7 +156,7 @@ export default function EnterpriseDashboard() {
               </div>
 
               {/* PROGRESS CARDS */}
-              <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm space-y-5">
+              <div className="p-4 sm:p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm space-y-5">
                 <h4 className="text-sm font-bold text-slate-200 tracking-wide uppercase">KPIs Λειτουργίας</h4>
                 
                 <div className="space-y-1.5">
@@ -182,7 +181,7 @@ export default function EnterpriseDashboard() {
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span className="text-slate-400">Attendance (Παρουσίες)</span>
+                    <span className="text-slate-400">Attendance</span>
                     <span className="text-emerald-400 font-bold">96%</span>
                   </div>
                   <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
@@ -194,14 +193,14 @@ export default function EnterpriseDashboard() {
             </div>
 
             {/* AI WIDGET */}
-            <div className="p-6 rounded-3xl border border-indigo-500/20 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 shadow-xl relative overflow-hidden">
+            <div className="p-4 sm:p-6 rounded-3xl border border-indigo-500/20 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 animate-pulse">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20">
                   <BrainCircuit className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5 flex-wrap">
                     EduFlow AI Assistant <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md uppercase tracking-wider font-extrabold">Online</span>
                   </h4>
                   <p className="text-xs text-slate-400 mt-0.5">Ρωτήστε με για ανακατανομή αιθουσών, στατιστικά εσόδων ή αυτόματο έλεγχο προγράμματος.</p>
@@ -213,13 +212,13 @@ export default function EnterpriseDashboard() {
                   type="text"
                   value={aiQuery}
                   onChange={(e) => setAiQuery(e.target.value)}
-                  placeholder="Ρώτησε κάτι... π.χ. 'Βρες ποιοι καθηγητές έχουν conflict την Τετάρτη'"
+                  placeholder="Ρώτησε κάτι..."
                   className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 transition shadow-inner"
                 />
                 <button 
                   type="submit"
                   disabled={isAiThinking}
-                  className="bg-indigo-600 hover:bg-indigo-500 transition text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center shadow-md shadow-indigo-600/10"
+                  className="bg-indigo-600 hover:bg-indigo-500 transition text-white px-4 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-center shadow-md shrink-0"
                 >
                   {isAiThinking ? "..." : <ChevronRight className="w-4 h-4" />}
                 </button>
@@ -232,57 +231,49 @@ export default function EnterpriseDashboard() {
           <div className="space-y-6">
             
             {/* NOTIFICATIONS CONTAINER */}
-            <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm">
+            <div className="p-4 sm:p-5 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm">
               <div className="flex justify-between items-center border-b border-slate-800/60 pb-3 mb-3">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Bell className="w-3.5 h-3.5 text-slate-400 animate-bounce" /> Ειδοποιήσεις Συστήματος
+                  <Bell className="w-3.5 h-3.5 text-slate-400" /> Ειδοποιήσεις
                 </h4>
                 <span className="w-2 h-2 rounded-full bg-indigo-500" />
               </div>
 
               <div className="space-y-2.5">
-                <div className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/40 flex items-center justify-between hover:bg-slate-950 transition">
-                  <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                    <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded">🔔 3</span>
-                    <span>Νέες εγγραφές μαθητών</span>
+                <div className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/40 flex items-center justify-between gap-2 hover:bg-slate-950 transition">
+                  <div className="flex items-center gap-2 text-xs text-slate-300 min-w-0">
+                    <span className="text-emerald-400 font-bold bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">🔔 3</span>
+                    <span className="truncate">Νέες εγγραφές μαθητών</span>
                   </div>
-                  <ChevronRight className="w-3 h-3 text-slate-600" />
+                  <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/40 flex items-center justify-between hover:bg-slate-950 transition">
-                  <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                    <span className="text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">💰 2</span>
-                    <span>Εκκρεμείς οικονομικές οφειλές</span>
+                <div className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/40 flex items-center justify-between gap-2 hover:bg-slate-950 transition">
+                  <div className="flex items-center gap-2 text-xs text-slate-300 min-w-0">
+                    <span className="text-amber-400 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">💰 2</span>
+                    <span className="truncate">Εκκρεμείς οφειλές</span>
                   </div>
-                  <ChevronRight className="w-3 h-3 text-slate-600" />
+                  <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />
                 </div>
 
-                <div className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/40 flex items-center justify-between hover:bg-slate-950 transition">
-                  <div className="flex items-center gap-2.5 text-xs text-slate-300">
-                    <span className="text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded">📅 1</span>
-                    <span>Ανιχνεύτηκε σύγκρουση (Conflict)</span>
+                <div className="p-2.5 rounded-xl bg-slate-950/40 border border-slate-800/40 flex items-center justify-between gap-2 hover:bg-slate-950 transition">
+                  <div className="flex items-center gap-2 text-xs text-slate-300 min-w-0">
+                    <span className="text-rose-400 font-bold bg-rose-500/10 px-1.5 py-0.5 rounded shrink-0">📅 1</span>
+                    <span className="truncate">Ανιχνεύτηκε σύγκρουση</span>
                   </div>
-                  <ChevronRight className="w-3 h-3 text-slate-600" />
-                </div>
-
-                <div className="p-2.5 rounded-xl bg-indigo-950/20 border border-indigo-900/30 flex items-center justify-between hover:bg-indigo-950/40 transition">
-                  <div className="flex items-center gap-2.5 text-xs text-indigo-300">
-                    <span className="text-indigo-400 font-bold bg-indigo-500/20 px-1.5 py-0.5 rounded">🤖 AI</span>
-                    <span className="font-medium">Διαθέσιμη πρόταση βελτιστοποίησης</span>
-                  </div>
-                  <Sparkles className="w-3 h-3 text-indigo-400" />
+                  <ChevronRight className="w-3 h-3 text-slate-600 shrink-0" />
                 </div>
               </div>
             </div>
 
             {/* CALENDAR PREVIEW */}
-            <div className="p-5 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm">
+            <div className="p-4 sm:p-5 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Εβδομαδιαία Σύνοψη</h4>
-                <span className="text-[11px] text-indigo-400 font-medium cursor-pointer hover:underline">Πλήρης Προβολή</span>
+                <span className="text-[11px] text-indigo-400 font-medium cursor-pointer hover:underline shrink-0">Πλήρης Προβολή</span>
               </div>
 
-              <div className="grid grid-cols-5 gap-1.5 text-center mb-2">
+              <div className="grid grid-cols-5 gap-1 text-center mb-2">
                 {["Δ", "Τ", "Τ", "Π", "Π"].map((d, idx) => (
                   <div key={idx} className={`p-1.5 rounded-lg text-xs font-bold ${idx === 2 ? 'bg-indigo-600 text-white' : 'bg-slate-950 text-slate-400'}`}>
                     {d}
@@ -291,17 +282,13 @@ export default function EnterpriseDashboard() {
               </div>
 
               <div className="space-y-1.5 mt-3 text-[11px]">
-                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-900 flex justify-between items-center">
-                  <span className="text-slate-300 font-medium">16:00 - Μαθηματικά Γ3</span>
-                  <span className="text-slate-600">Αίθουσα Α</span>
+                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-900 flex justify-between items-center gap-2">
+                  <span className="text-slate-300 font-medium truncate">16:00 - Μαθηματικά Γ3</span>
+                  <span className="text-slate-600 shrink-0">Αίθ. Α</span>
                 </div>
-                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-900 flex justify-between items-center">
-                  <span className="text-slate-300 font-medium">17:00 - Φυσική Β2</span>
-                  <span className="text-slate-600">Αίθουσα Β</span>
-                </div>
-                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-900 flex justify-between items-center">
-                  <span className="text-slate-300 font-medium">18:00 - Πληροφορική</span>
-                  <span className="text-slate-600">Αίθουσα Α</span>
+                <div className="p-2 rounded-xl bg-slate-950/80 border border-slate-900 flex justify-between items-center gap-2">
+                  <span className="text-slate-300 font-medium truncate">17:00 - Φυσική Β2</span>
+                  <span className="text-slate-600 shrink-0">Αίθ. Β</span>
                 </div>
               </div>
             </div>
@@ -318,18 +305,15 @@ export default function EnterpriseDashboard() {
                 👨‍🎓 Νέος Μαθητής
               </button>
               <button onClick={() => { alert("Προσθήκη Καθηγητή"); setShowFloatingMenu(false); }} className="w-full text-left p-2 rounded-xl hover:bg-slate-800 transition text-slate-300 flex items-center gap-2">
-                👨&zwj;🏫 Νέος Καθηγητής
-              </button>
-              <button onClick={() => { alert("Προσθήκη Μαθήματος"); setShowFloatingMenu(false); }} className="w-full text-left p-2 rounded-xl hover:bg-slate-800 transition text-slate-300 flex items-center gap-2">
-                📅 Νέο Μάθημα
+                👨‍🏫 Νέος Καθηγητής
               </button>
             </div>
           )}
           <button 
             onClick={() => setShowFloatingMenu(!showFloatingMenu)}
-            className="w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-indigo-600/30 transition-transform duration-300 active:scale-95 z-50 group"
+            className="w-12 h-12 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full flex items-center justify-center shadow-xl shadow-indigo-600/30 transition-transform duration-300 active:scale-95 z-50"
           >
-            <Plus className={`w-5 h-5 transition-transform duration-300 ${showFloatingMenu ? 'rotate-45' : 'group-hover:rotate-90'}`} />
+            <Plus className={`w-5 h-5 transition-transform duration-300 ${showFloatingMenu ? 'rotate-45' : ''}`} />
           </button>
         </div>
 
