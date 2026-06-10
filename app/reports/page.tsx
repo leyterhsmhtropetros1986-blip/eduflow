@@ -1,6 +1,6 @@
 "use client";
 
-import { WorkspaceShell } from "@/app/components/WorkspaceShell";
+import { WorkspaceShell } from "../components/WorkspaceShell";
 import { FileText, Printer, Users, UserCheck, DoorOpen, Calendar, Clock, List } from "lucide-react";
 import Link from "next/link";
 
