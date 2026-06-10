@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 // Διορθωμένο Import με βάση το alias που ορίσαμε
-import { WorkspaceShell } from "../../components/WorkspaceShell";
+import { WorkspaceShell } from "../components/WorkspaceShell";
 import { 
   Users, 
   GraduationCap, 
