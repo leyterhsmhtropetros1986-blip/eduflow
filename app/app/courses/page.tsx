@@ -1,181 +1,96 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import {
-  assignTeacherToCourse,
-  createCourse,
-  deleteCourse,
-  fetchCourses,
-  fetchTeachers,
-  updateCourse,
-} from "../lib/api";
-import type { Course, Teacher } from "../lib/data";
-
-const initialCourseState: Omit<Course, "id"> = {
-  title: "",
-  subject: "",
-  teacher: "",
-  duration: "",
-  seats: 0,
-};
+import { BookOpen, Plus, Trash2, Save } from "lucide-react";
 
 export default function CoursesPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [formValues, setFormValues] = useState<Omit<Course, "id">>(initialCourseState);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [courses, setCourses] = useState<any[]>([]);
+  const [title, setTitle] = useState("");
+  const [subject, setSubject] = useState("");
+  const [teacher, setTeacher] = useState("");
+  const [duration, setDuration] = useState("12 εβδομάδες");
+  const [seats, setSeats] = useState(10);
 
+  // Φόρτωση από το localStorage κατά το άνοιγμα της σελίδας
   useEffect(() => {
-    async function load() {
-      const [courseData, teacherData] = await Promise.all([fetchCourses(), fetchTeachers()]);
-      setCourses(courseData);
-      setTeachers(teacherData);
+    const stored = localStorage.getItem("eduflow_courses");
+    if (stored) {
+      setCourses(JSON.parse(stored));
+    } else {
+      // Αρχικά δεδομένα αν είναι άδεια η βάση
+      const defaults = [
+        { id: "1", title: "Εφαρμοσμένα Μαθηματικά", subject: "Μαθηματικά", teacher: "Ελένη Παπαδοπούλου", duration: "12 εβδομάδες", seats: 10 },
+        { id: "2", title: "Προχωρημένη Φυσική", subject: "Φυσική", teacher: "Κωνσταντίνος Βασιλείου", duration: "10 εβδομάδες", seats: 8 }
+      ];
+      setCourses(defaults);
+      localStorage.setItem("eduflow_courses", JSON.stringify(defaults));
     }
-
-    load();
   }, []);
 
-  const displayedCourses = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return courses;
-    }
+  // Προσθήκη Νέου Μαθήματος
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !subject) return;
 
-    const lower = searchTerm.toLowerCase();
-    return courses.filter(
-      (course) =>
-        course.title.toLowerCase().includes(lower) ||
-        course.subject.toLowerCase().includes(lower) ||
-        course.teacher.toLowerCase().includes(lower)
-    );
-  }, [searchTerm, courses]);
-
-  function resetForm() {
-    setSelectedCourse(null);
-    setFormValues(initialCourseState);
-  }
-
-  async function saveCourse() {
-    const trimmedTitle = formValues.title.trim();
-    if (!trimmedTitle || !formValues.subject || !formValues.teacher || !formValues.duration) {
-      return;
-    }
-
-    const record: Course = {
-      id: selectedCourse?.id ?? `course_${Date.now()}`,
-      title: trimmedTitle,
-      subject: formValues.subject,
-      teacher: formValues.teacher,
-      duration: formValues.duration,
-      seats: formValues.seats,
+    const newCourse = {
+      id: Date.now().toString(),
+      title,
+      subject,
+      teacher: teacher || "Μη ορισμένος καθηγητής",
+      duration,
+      seats: Number(seats)
     };
 
-    const savedCourse = selectedCourse
-      ? await updateCourse(record.id, record)
-      : await createCourse(record);
+    const updated = [...courses, newCourse];
+    setCourses(updated);
+    localStorage.setItem("eduflow_courses", JSON.stringify(updated));
 
-    if (!savedCourse) {
-      return;
-    }
+    // Καθαρισμός Φόρμας
+    setTitle("");
+    setSubject("");
+    setTeacher("");
+  };
 
-    setCourses((current) => {
-      const updated = current.filter((course) => course.id !== savedCourse.id);
-      return [savedCourse, ...updated];
-    });
-
-    resetForm();
-  }
-
-  async function handleDelete(id: string) {
-    const deleted = await deleteCourse(id);
-    if (!deleted) {
-      return;
-    }
-
-    setCourses((current) => current.filter((course) => course.id !== id));
-    if (selectedCourse?.id === id) {
-      resetForm();
-    }
-  }
-
-  function handleEdit(course: Course) {
-    setSelectedCourse(course);
-    setFormValues({
-      title: course.title,
-      subject: course.subject,
-      teacher: course.teacher,
-      duration: course.duration,
-      seats: course.seats,
-    });
-  }
-
-  async function assignTeacher(courseId: string, teacherName: string) {
-    const updatedCourse = await assignTeacherToCourse(courseId, teacherName);
-    if (!updatedCourse) {
-      return;
-    }
-
-    setCourses((current) => current.map((course) => (course.id === courseId ? updatedCourse : course)));
-  }
+  // Διαγραφή Μαθήματος
+  const handleDelete = (id: string) => {
+    const updated = courses.filter(c => c.id !== id);
+    setCourses(updated);
+    localStorage.setItem("eduflow_courses", JSON.stringify(updated));
+  };
 
   return (
-    <WorkspaceShell
-      title="Μαθήματα"
-      description="Οργάνωση μαθημάτων φροντιστηρίου, διαχείριση θέσεων και αντιστοίχιση καθηγητών σε συνεδρίες."
-    >
-      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
-        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-950">Διαθέσιμα μαθήματα</h2>
-              <p className="mt-1 text-sm text-slate-500">Μαθήματα διαθέσιμα για εγγραφή, προγραμματισμό και ανάθεση σε καθηγητές.</p>
-            </div>
-            <div className="w-full md:w-80">
-              <label className="block text-sm font-medium text-slate-700">Αναζήτηση μαθημάτων</label>
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Αναζήτηση με τίτλο, θέμα ή καθηγητή"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-3xl border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Τίτλος</th>
-                  <th className="px-4 py-3 text-left font-semibold">Θέμα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Καθηγητής</th>
-                  <th className="px-4 py-3 text-left font-semibold">Διάρκεια</th>
-                  <th className="px-4 py-3 text-left font-semibold">Θέσεις</th>
-                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
+    <WorkspaceShell title="Μαθήματα" description="Οργάνωση μαθημάτων φροντιστηρίου, διαχείριση θέσεων και ανάθεση σε καθηγητές.">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 pb-20">
+        
+        {/* ΠΙΝΑΚΑΣ ΜΑΘΗΜΑΤΩΝ */}
+        <div className="lg:col-span-2 bg-slate-900/80 border border-slate-800 p-6 rounded-3xl shadow-2xl">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-indigo-400" /> Διαθέσιμα Μαθήματα
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-bold">
+                  <th className="pb-3">Τίτλος</th>
+                  <th className="pb-3">Θέμα</th>
+                  <th className="pb-3">Καθηγητής</th>
+                  <th className="pb-3">Διάρκεια</th>
+                  <th className="pb-3">Θέσεις</th>
+                  <th className="pb-3 text-right">Ενέργειες</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {displayedCourses.map((course) => (
-                  <tr key={course.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-4 text-slate-900">{course.title}</td>
-                    <td className="px-4 py-4 text-slate-600">{course.subject}</td>
-                    <td className="px-4 py-4 text-slate-600">{course.teacher}</td>
-                    <td className="px-4 py-4 text-slate-600">{course.duration}</td>
-                    <td className="px-4 py-4 text-slate-600">{course.seats}</td>
-                    <td className="px-4 py-4 space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(course)}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        Επεξεργασία
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(course.id)}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                      >
-                        Διαγραφή
+              <tbody className="divide-y divide-slate-800/50">
+                {courses.map((course) => (
+                  <tr key={course.id} className="hover:bg-slate-800/20">
+                    <td className="py-3 font-semibold text-white">{course.title}</td>
+                    <td className="py-3 text-indigo-400 font-medium">{course.subject}</td>
+                    <td className="py-3 text-slate-400">{course.teacher}</td>
+                    <td className="py-3">{course.duration}</td>
+                    <td className="py-3 font-mono font-bold text-amber-400">{course.seats}</td>
+                    <td className="py-3 text-right">
+                      <button onClick={() => handleDelete(course.id)} className="text-red-400 hover:text-red-300 p-1">
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
                   </tr>
@@ -183,86 +98,42 @@ export default function CoursesPage() {
               </tbody>
             </table>
           </div>
-        </section>
+        </div>
 
-        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">{selectedCourse ? "Επεξεργασία μαθήματος" : "Δημιουργία μαθήματος"}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedCourse
-                ? "Ενημερώστε ένα υπάρχον μάθημα ή αντιστοιχίστε διαφορετικό καθηγητή."
-                : "Προσθέστε ένα νέο μάθημα και προγραμματίστε τη χωρητικότητά του."}
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">Τίτλος μαθήματος</label>
-            <input
-              value={formValues.title}
-              onChange={(event) => setFormValues({ ...formValues, title: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Προχωρημένη Άλγεβρα"
-            />
-
-            <label className="block text-sm font-medium text-slate-700">Θέμα</label>
-            <input
-              value={formValues.subject}
-              onChange={(event) => setFormValues({ ...formValues, subject: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Μαθηματικά"
-            />
-
-            <label className="block text-sm font-medium text-slate-700">Καθηγητής</label>
-            <select
-              value={formValues.teacher}
-              onChange={(event) => setFormValues({ ...formValues, teacher: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-            >
-              <option value="">Επιλογή καθηγητή</option>
-              {teachers.map((teacherOption) => (
-                <option key={teacherOption.id} value={teacherOption.fullName}>
-                  {teacherOption.fullName}
-                </option>
-              ))}
-            </select>
-
-            <label className="block text-sm font-medium text-slate-700">Διάρκεια</label>
-            <input
-              value={formValues.duration}
-              onChange={(event) => setFormValues({ ...formValues, duration: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="12 weeks"
-            />
-
-            <label className="block text-sm font-medium text-slate-700">Θέσεις</label>
-            <input
-              value={formValues.seats}
-              onChange={(event) => setFormValues({ ...formValues, seats: Number(event.target.value) })}
-              type="number"
-              min={0}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="10"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={saveCourse}
-              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              {selectedCourse ? "Ενημέρωση μαθήματος" : "Αποθήκευση μαθήματος"}
+        {/* ΦΟΡΜΑ ΠΡΟΣΘΗΚΗΣ */}
+        <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-3xl shadow-2xl h-fit">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Plus className="w-4 h-4 text-indigo-400" /> Δημιουργία Μαθήματος
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[11px] text-slate-400 mb-1 font-medium">Τίτλος Μαθήματος *</label>
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="π.χ. Προχωρημένη Άλγεβρα" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500" required />
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-400 mb-1 font-medium">Θέμα (Κατηγορία) *</label>
+              <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="π.χ. Μαθηματικά" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500" required />
+            </div>
+            <div>
+              <label className="block text-[11px] text-slate-400 mb-1 font-medium">Ονοματεπώνυμο Καθηγητή</label>
+              <input type="text" value={teacher} onChange={(e) => setTeacher(e.target.value)} placeholder="π.χ. Ελένη Παπαδοπούλου" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1 font-medium">Διάρκεια</label>
+                <input type="text" value={duration} onChange={(e) => setDuration(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1 font-medium">Μέγιστες Θέσεις</label>
+                <input type="number" value={seats} onChange={(e) => setSeats(Number(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500" />
+              </div>
+            </div>
+            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-1.5">
+              <Save className="w-4 h-4" /> Αποθήκευση μαθήματος
             </button>
-            {selectedCourse ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Ακύρωση
-              </button>
-            ) : null}
-          </div>
-        </section>
+          </form>
+        </div>
+
       </div>
     </WorkspaceShell>
   );

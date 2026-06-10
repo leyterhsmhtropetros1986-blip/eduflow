@@ -2,226 +2,143 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import { 
-  Users, 
-  UserPlus, 
-  Phone, 
-  Mail, 
-  User, 
-  MessageSquare, 
-  ShieldCheck,
-  AlertCircle
-} from "lucide-react";
+import { Users, UserPlus, Trash2, Save } from "lucide-react";
 
-export default function ParentHub() {
-  const [mounted, setMounted] = useState(false);
-  const [parents, setParents] = useState<any[]>([
-    { id: "1", name: "Ανδρέας Παπαδόπουλος", student: "Γιάννης Παπαδόπουλος", relation: "Πατέρας", phone: "6912345678", email: "andreas@example.com" },
-    { id: "2", name: "Ελένη Κωνσταντίνου", student: "Μαρία Κωνσταντίνου", relation: "Μητέρα", phone: "6987654321", email: "eleni.parent@example.com" }
-  ]);
-  
-  // Φόρμα Γονέα
-  const [name, setName] = useState("");
-  const [student, setStudent] = useState("");
-  const [relation, setRelation] = useState("");
-  const [phone, setPhone] = useState("");
+export default function ParentsPage() {
+  const [parents, setParents] = useState<any[]>([]);
+  const [parentName, setParentName] = useState("");
+  const [studentName, setStudentName] = useState("");
+  const [relation, setRelation] = useState("Πατέρας");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [targetSubject, setTargetSubject] = useState("Μαθηματικά");
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    const stored = localStorage.getItem("eduflow_parents");
+    if (stored) {
+      setParents(JSON.parse(stored));
+    } else {
+      const defaults = [
+        { id: "1", parentName: "Ανδρέας Παπαδόπουλος", studentName: "Γιάννης Παπαδόπουλος", relation: "Πατέρας", email: "andreas@example.com", phone: "6971234567", targetSubject: "Μαθηματικά" },
+        { id: "2", parentName: "Ελένη Κωνσταντίνου", studentName: "Μαρία Κωνσταντίνου", relation: "Μητέρα", email: "eleni.parent@example.com", phone: "6987654321", targetSubject: "Φυσική" }
+      ];
+      setParents(defaults);
+      localStorage.setItem("eduflow_parents", JSON.stringify(defaults));
+    }
+  }, []);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Έλεγχος υποχρεωτικών πεδίων (Το τηλέφωνο είναι πλέον αυστηρά υποχρεωτικό για τα notifications)
-    if (!name || !student || !phone) {
-      alert("⚠️ Τα πεδία: Ονοματεπώνυμο, Μαθητής και Κινητό Τηλέφωνο είναι υποχρεωτικά!");
-      return;
-    }
-
-    // Απλό validation ελληνικού κινητού
-    if (phone.length < 10) {
-      alert("⚠️ Παρακαλώ εισάγετε ένα έγκυρο κινητό τηλέφωνο (τουλάχιστον 10 ψηφία) για τη λήψη Push Notifications.");
-      return;
-    }
+    if (!parentName || !studentName || !phone) return;
 
     const newParent = {
       id: Date.now().toString(),
-      name,
-      student,
-      relation: relation || "Κηδεμόνας",
+      parentName,
+      studentName,
+      relation,
+      email: email || "parent@example.com",
       phone,
-      email: email || "Δεν ορίστηκε"
+      targetSubject
     };
 
-    setParents([...parents, newParent]);
-    setName(""); setStudent(""); setRelation(""); setPhone(""); setEmail("");
-    alert("✅ Ο γονέας/κηδεμόνας καταχωρήθηκε με επιτυχία!");
+    const updated = [...parents, newParent];
+    setParents(updated);
+    localStorage.setItem("eduflow_parents", JSON.stringify(updated));
+
+    setParentName("");
+    setStudentName("");
+    setEmail("");
+    setPhone("");
+  };
+
+  const handleDelete = (id: string) => {
+    const updated = parents.filter(p => p.id !== id);
+    setParents(updated);
+    localStorage.setItem("eduflow_parents", JSON.stringify(updated));
   };
 
   return (
-    <WorkspaceShell 
-      title="Πύλη Γονέων & Κηδεμόνων" 
-      description="Διαχείριση στοιχείων επικοινωνίας. Το κινητό τηλέφωνο είναι υποχρεωτικό για την επιτυχή παράδοση των Live Push Notifications."
-    >
+    <WorkspaceShell title="Πύλη Γονέων" description="Διαχειριστείτε τα στοιχεία κηδεμόνων και στείλτε αυτόματα μηνύματα για την πρόοδο των μαθητών.">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 pb-20">
         
-        {/* ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ ΓΟΝΕΑ */}
-        <div className="lg:col-span-1">
-          <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400"><UserPlus className="w-5 h-5" /></div>
-              <h3 className="text-lg font-bold text-white">Σύνδεση Νέου Γονέα</h3>
-            </div>
-
-            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 mb-5 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-amber-300 font-medium leading-relaxed">
-                Η εισαγωγή έγκυρου αριθμού κινητού είναι απαραίτητη. Το σύστημα χρησιμοποιεί το Service Workers Web Push API για άμεση παράδοση ειδοποιήσεων στην αρχική οθόνη της συσκευής.
-              </p>
-            </div>
-
-            <form onSubmit={handleSave} className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-200 flex items-center gap-1 mb-1.5">
-                  Ονοματεπώνυμο Γονέα <span className="text-rose-500">*</span>
-                </label>
-                <input 
-                  type="text" value={name} onChange={(e) => setName(e.target.value)}
-                  placeholder="π.χ. Ανδρέας Παπαδόπουλος"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-200 flex items-center gap-1 mb-1.5">
-                  Ονοματεπώνυμο Μαθητή <span className="text-rose-500">*</span>
-                </label>
-                <input 
-                  type="text" value={student} onChange={(e) => setStudent(e.target.value)}
-                  placeholder="π.χ. Γιάννης Παπαδόπουλος"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none transition"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-200 mb-1.5 block">Σχέση/Συγγένεια</label>
-                  <select 
-                    value={relation} onChange={(e) => setRelation(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none transition"
-                  >
-                    <option value="">Επιλέξτε</option>
-                    <option value="Πατέρας">Πατέρας</option>
-                    <option value="Μητέρα">Μητέρα</option>
-                    <option value="Κηδεμόνας">Κηδεμόνας</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-emerald-400 flex items-center gap-1 mb-1.5">
-                    Κινητό (SMS/Push) <span className="text-rose-500">*</span>
-                  </label>
-                  <input 
-                    type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                    placeholder="69XXXXXXXX"
-                    className="w-full bg-slate-950 border border-emerald-900/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none transition font-mono"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-200 mb-1.5 block">Email Επικοινωνίας</label>
-                <input 
-                  type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                  placeholder="parent@example.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none transition"
-                />
-              </div>
-
-              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-sm font-bold transition shadow-xl shadow-indigo-600/20 pt-2.5">
-                Ενεργοποίηση Πρόσβασης Γονέα
-              </button>
-            </form>
+        <div className="lg:col-span-2 bg-slate-900/80 border border-slate-800 p-6 rounded-3xl shadow-2xl">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Users className="w-4 h-4 text-emerald-400" /> Επαφές Γονέων
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-slate-300">
+              <thead>
+                <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-bold">
+                  <th className="pb-3">Γονέας</th>
+                  <th className="pb-3">Μαθητής</th>
+                  <th className="pb-3">Σχέση</th>
+                  <th className="pb-3">Επικοινωνία</th>
+                  <th className="pb-3">Αντικείμενο</th>
+                  <th className="pb-3 text-right">Ενέργειες</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/50">
+                {parents.map((p) => (
+                  <tr key={p.id} className="hover:bg-slate-800/20">
+                    <td className="py-3 font-semibold text-white">{p.parentName}</td>
+                    <td className="py-3 text-slate-300">{p.studentName}</td>
+                    <td className="py-3 text-slate-400">{p.relation}</td>
+                    <td className="py-3 font-mono">
+                      <div>{p.email}</div>
+                      <div className="text-slate-500 text-[10px]">{p.phone}</div>
+                    </td>
+                    <td className="py-3 text-emerald-400 font-medium">{p.targetSubject}</td>
+                    <td className="py-3 text-right">
+                      <button onClick={() => handleDelete(p.id)} className="text-red-400 hover:text-red-300 p-1">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        {/* ΛΙΣΤΑ ΕΠΑΦΩΝ ΓΟΝΕΩΝ */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/60 backdrop-blur-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <Users className="w-5 h-5 text-indigo-400" /> Επαφές & Κατάσταση Ειδοποιήσεων
-              </h3>
-              <span className="text-xs bg-slate-800 text-slate-300 font-semibold px-3 py-1 rounded-full">
-                {parents.length} Συνδεδεμένοι Γονείς
-              </span>
+        <div className="bg-slate-900/80 border border-slate-800 p-6 rounded-3xl shadow-2xl h-fit">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-emerald-400" /> Σύνδεση Γονέα - Μαθητή
+          </h3>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-[11px] text-slate-400 mb-1 font-medium">Ονοματεπώνυμο Γονέα *</label>
+              <input type="text" value={parentName} onChange={(e) => setParentName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none" required />
             </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-800">
-                    <th className="pb-3 font-bold">Γονέας / Σχέση</th>
-                    <th className="pb-3 font-bold">Μαθητής</th>
-                    <th className="pb-3 font-bold">Κινητό Τηλέφωνο</th>
-                    <th className="pb-3 font-bold">Κανάλι Push</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {parents.map((p) => (
-                    <tr key={p.id} className="group hover:bg-slate-800/10 transition">
-                      <td className="py-4">
-                        <div>
-                          <div className="text-sm font-bold text-white">{p.name}</div>
-                          <div className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                            <span className="px-1.5 py-0.2 bg-slate-800 rounded text-[10px] text-indigo-300 font-medium">
-                              {p.relation}
-                            </span>
-                            <span>• {p.email}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <div className="text-sm font-medium text-slate-200 flex items-center gap-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                          {p.student}
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <div className="text-sm font-bold text-emerald-400 font-mono flex items-center gap-1">
-                          <Phone className="w-3.5 h-3.5 opacity-70" /> {p.phone}
-                        </div>
-                      </td>
-                      <td className="py-4">
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
-                          <ShieldCheck className="w-3.5 h-3.5" /> Έτοιμο για Push
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div>
+              <label className="block text-[11px] text-slate-400 mb-1 font-medium">Ονοματεπώνυμο Μαθητή *</label>
+              <input type="text" value={studentName} onChange={(e) => setStudentName(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none" required />
             </div>
-          </div>
-
-          {/* ΓΡΗΓΟΡΕΣ ΕΝΕΡΓΕΙΕΣ / ΚΕΝΤΡΟ ΜΗΝΥΜΑΤΩΝ */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/40 hover:border-slate-700 transition">
-              <MessageSquare className="w-5 h-5 text-indigo-400 mb-2" />
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Κέντρο Μηνυμάτων</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">Άμεση αποστολή updates για επικείμενες συνεδρίες και απουσίες.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1 font-medium">Σχέση</label>
+                <select value={relation} onChange={(e) => setRelation(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white">
+                  <option value="Πατέρας">Πατέρας</option>
+                  <option value="Μητέρα">Μητέρα</option>
+                  <option value="Κηδεμόνας">Κηδεμόνας</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1 font-medium">Στόχος Μάθημα</label>
+                <input type="text" value={targetSubject} onChange={(e) => setTargetSubject(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white" />
+              </div>
             </div>
-            <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/40 hover:border-slate-700 transition">
-              <User className="w-5 h-5 text-emerald-400 mb-2" />
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Πρόοδος Μαθητή</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">Αυτόματη σύνδεση των βαθμών με τα προφίλ των πιστοποιημένων γονέων.</p>
+            <div>
+              <label className="block text-[11px] text-slate-400 mb-1 font-medium">Email Κηδεμόνα</label>
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white" />
             </div>
-            <div className="p-4 rounded-2xl border border-slate-800 bg-slate-900/40 hover:border-slate-700 transition">
-              <ShieldCheck className="w-5 h-5 text-purple-400 mb-2" />
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-1">Ασφάλεια Push</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">Κρυπτογραφημένα payloads επικοινωνίας μέσω Web Push προτύπων.</p>
+            <div>
+              <label className="block text-[11px] text-slate-400 mb-1 font-medium">Κινητό Τηλέφωνο (για SMS) *</label>
+              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="69xxxxxxxx" className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white" required />
             </div>
-          </div>
+            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg flex items-center justify-center gap-1.5">
+              <Save className="w-4 h-4" /> Αποθήκευση Σύνδεσης
+            </button>
+          </form>
         </div>
 
       </div>
