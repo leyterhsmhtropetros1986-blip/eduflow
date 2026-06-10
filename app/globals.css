@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #020617;
+  --background: #020617; /* Το σκούρο χρώμα που φαίνεται στο screenshot σου */
   --foreground: #f8fafc;
 }
 
