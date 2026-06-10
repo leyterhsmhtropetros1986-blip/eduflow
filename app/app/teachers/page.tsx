@@ -120,6 +120,8 @@ export default function TeachersHub() {
     alert("✅ Ο καθηγητής προστέθηκε με επιτυχία!");
   };
 
+  if (!mounted) return null;
+
   return (
     <WorkspaceShell 
       title="Διαχείριση Προσωπικού & Σπαστών Ωραρίων" 
@@ -289,10 +291,4 @@ export default function TeachersHub() {
                         <div className="flex flex-wrap gap-1 max-w-[200px]">
                           {teacher.classes.map((c: string) => (
                             <span key={c} className="text-[10px] bg-slate-950 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-800">
-                              {c}
-                            </span>
-                          ))}
-                          {teacher.classes.length === 0 && <span className="text-xs text-slate-600">-</span>}
-                        </div>
-                      </td>
-                      <td
+                              {
