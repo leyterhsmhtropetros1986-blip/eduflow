@@ -89,7 +89,9 @@ export default function StudentsPage() {
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Μαθητών & Ειδοποιήσεων">
+    <WorkspaceShell 
+  title="Διαχείριση Μαθητών & Ειδοποιήσεων" 
+  description="Πλήρης καρτέλα εκπαιδευόμενου και κηδεμόνα με επιλογή ωραρίων διαθεσιμότητας και 3-Way αποστολή ενημερώσεων.">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 pb-20">
         
         {/* ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ */}
