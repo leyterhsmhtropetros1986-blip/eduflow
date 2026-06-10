@@ -43,6 +43,8 @@ const dayNameMap: Record<string, string> = {
   παρασκευή: "Παρασκευή",
 };
 
+// ΣΗΜΕΙΩΣΗ: Η μέθοδος αυτή μοιράζει τις ώρες κυκλικά (09:00, 11:00 κλπ) με βάση τη σειρά των ημερών.
+// Αν στο μέλλον η βάση σου υποστηρίζει συγκεκριμένες ώρες ανά καθηγητή, θα χρειαστεί αναδιαμόρφωση.
 function parseAvailability(availability: string, teacherId: string, teacherName: string): TeacherAvailability[] {
   return availability
     .split(",")
@@ -100,11 +102,11 @@ function validateSchedule(schedule: ScheduleSlot[]) {
     const roomKey = `${slot.room}-${slot.day}-${slot.time}`;
 
     if (teacherBookings.has(teacherKey)) {
-      warnings.push(`Teacher ${slot.teacher} has a conflict at ${slot.day} ${slot.time}.`);
+      warnings.push(`Ο/Η καθηγητής/τρια ${slot.teacher} έχει διένεξη (conflict) την ${slot.day} στις ${slot.time}.`);
     }
 
     if (roomBookings.has(roomKey)) {
-      warnings.push(`Room ${slot.room} has a conflict at ${slot.day} ${slot.time}.`);
+      warnings.push(`Η αίθουσα ${slot.room} είναι ήδη κατειλημμένη την ${slot.day} στις ${slot.time}.`);
     }
 
     teacherBookings.add(teacherKey);
@@ -177,17 +179,18 @@ export default function SchedulePage() {
     courses.forEach((course) => {
       const requestedTeacher = teachers.find((teacher) => teacher.fullName === course.teacher);
       const candidateTeacher =
-  requestedTeacher ??
-  teachers.find((teacher) => teacher.subject === course.subject) ??
-  teachers[0];
+        requestedTeacher ??
+        teachers.find((teacher) => teacher.subject === course.subject) ??
+        teachers[0];
 
-const teacherName =
-  (candidateTeacher?.fullName ?? course.teacher) || "TBD";
+      const teacherName = (candidateTeacher?.fullName ?? course.teacher) || "TBD";
 
-const teacherSlots = availableSlots.filter(
-  (slot) => slot.teacherName === teacherName
-);
-      const courseAssigned = [...days, ...days].some((day) => {
+      const teacherSlots = availableSlots.filter(
+        (slot) => slot.teacherName === teacherName
+      );
+
+      // Διορθώθηκε: Ένα απλό loop στις ημέρες αντί για [...days, ...days]
+      const courseAssigned = days.some((day) => {
         const validTimes = times;
 
         return validTimes.some((time) => {
@@ -273,7 +276,7 @@ const teacherSlots = availableSlots.filter(
       current.map((slot) => (slot.id === editingSlot.id ? editingSlot : slot))
     );
     setEditingSlot(null);
-    setStatusMessage("Slot updated locally.");
+    setStatusMessage("Η θέση ενημερώθηκε τοπικά.");
   }
 
   const editableRoomOptions = classrooms.length ? classrooms.map((room) => room.name) : ["Αίθουσα Α", "Αίθουσα Β", "Αίθουσα Γ"];

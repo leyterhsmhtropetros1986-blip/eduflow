@@ -4,97 +4,141 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { href: "/schedule-board", label: "Πίνακας Προγράμματος", icon: "📅" },
-  { href: "/", label: "Αρχική", icon: "🏠" },
+  { href: "/", label: "Dashboard", icon: "🏠" },
   { href: "/students", label: "Μαθητές", icon: "👨‍🎓" },
   { href: "/teachers", label: "Καθηγητές", icon: "👨‍🏫" },
   { href: "/courses", label: "Μαθήματα", icon: "📚" },
+  { href: "/schedule-board", label: "Πίνακας", icon: "🗓️" },
+  { href: "/schedule", label: "Scheduler", icon: "🤖" },
   { href: "/attendance", label: "Παρουσίες", icon: "✅" },
   { href: "/payments", label: "Πληρωμές", icon: "💳" },
+  { href: "/crm", label: "CRM", icon: "🏢" },
   { href: "/parents", label: "Γονείς", icon: "👪" },
-  { href: "/schedule", label: "Πρόγραμμα", icon: "📅" },
 ];
 
 export function WorkspaceShell({
-  children,
   title,
   description,
-}: Readonly<{
-  children: React.ReactNode;
+  children,
+}: {
   title: string;
   description: string;
-}>) {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-900">
-      <aside className="hidden md:flex md:w-72 xl:w-80 flex-col bg-slate-950 text-slate-100 p-6">
-        <div className="mb-10">
-          <div className="text-3xl font-bold tracking-tight">EduFlow</div>
-          <p className="mt-2 text-sm text-slate-400">
-            Ένα ολοκληρωμένο περιβάλλον για φροντιστήριο
-          </p>
+    <div className="min-h-screen bg-slate-100 flex">
+
+      <aside className="w-72 bg-slate-950 text-white flex flex-col shadow-xl">
+
+        <div className="p-8 border-b border-slate-800">
+
+          <div className="text-3xl font-black tracking-tight bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            EduFlow
+          </div>
+
+          <div className="text-slate-400 mt-2 text-sm">
+            Smart Tutoring ERP
+          </div>
+
         </div>
 
-        <nav className="space-y-1 flex-1">
+        <nav className="flex-1 p-4 space-y-2">
+
           {navItems.map((item) => {
+
             const active = pathname === item.href;
 
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all
+
+                ${
                   active
-                    ? "bg-slate-700 text-white"
-                    : "text-slate-300 hover:bg-slate-900 hover:text-white"
+                    ? "bg-cyan-500 text-white shadow-lg"
+                    : "text-slate-300 hover:bg-slate-800"
                 }`}
               >
-                <span>{item.icon}</span>
+                <span className="text-xl">{item.icon}</span>
+
                 <span>{item.label}</span>
               </Link>
             );
           })}
+
         </nav>
 
-        <div className="mt-8 rounded-3xl border border-slate-800 bg-slate-900 p-5 text-sm text-slate-400">
-          <div className="font-semibold text-slate-100">
-            Έξυπνη διαχείριση
-          </div>
-          Αυτοματοποιημένη δημιουργία προγράμματος, διαχείριση καθηγητών και παρακολούθηση μαθημάτων σε ένα μέρος.
-        </div>
-      </aside>
+        <div className="p-5 border-t border-slate-800">
 
-      <main className="flex-1 p-6 md:p-10">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-              {title}
-            </h1>
-            <p className="mt-2 text-slate-600 max-w-2xl">
-              {description}
-            </p>
-          </div>
+          <div className="rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 p-5">
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/students"
-              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-            >
-              Προσθήκη Μαθητή
-            </Link>
+            <div className="font-bold text-lg">
+              🤖 AI Scheduler
+            </div>
+
+            <div className="text-sm opacity-90 mt-2">
+              Δημιουργία προγράμματος χωρίς συγκρούσεις.
+            </div>
 
             <Link
               href="/schedule"
-              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-slate-800"
+              className="inline-block mt-4 bg-white text-slate-900 px-4 py-2 rounded-xl font-semibold"
             >
-              Δημιουργία Προγράμματος
+              Άνοιγμα
             </Link>
+
           </div>
+
         </div>
 
-        {children}
+      </aside>
+
+      <main className="flex-1">
+
+        <header className="bg-white shadow-sm px-10 py-6 flex items-center justify-between">
+
+          <div>
+
+            <h1 className="text-4xl font-black text-slate-900">
+              {title}
+            </h1>
+
+            <p className="text-slate-500 mt-2">
+              {description}
+            </p>
+
+          </div>
+
+          <div className="flex items-center gap-4">
+
+            <input
+              placeholder="🔍 Αναζήτηση..."
+              className="rounded-xl border px-5 py-3 w-72"
+            />
+
+            <button className="bg-white rounded-xl border px-4 py-3">
+              🔔
+            </button>
+
+            <div className="rounded-full w-12 h-12 bg-cyan-500 flex items-center justify-center text-white font-bold">
+              Λ
+            </div>
+
+          </div>
+
+        </header>
+
+        <div className="p-10">
+
+          {children}
+
+        </div>
+
       </main>
+
     </div>
   );
 }
