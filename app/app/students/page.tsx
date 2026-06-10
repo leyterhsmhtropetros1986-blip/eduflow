@@ -2,24 +2,36 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { Users, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 interface Student {
   id: string;
   name: string;
+  grade: string;
+  course: string;
   groupSize: number;
-  courses: string[];
+  studentPhone: string;
+  parentPhone: string;
+  parentEmail: string;
   availability: Record<string, string[]>;
 }
 
 const AVAILABLE_DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const TIME_SLOTS = ["13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00", "22:00-23:00"];
+const GRADES = ["Α' Γυμνασίου", "Β' Γυμνασίου", "Γ' Γυμνασίου", "Α' Λυκείου", "Β' Λυκείου", "Γ' Λυκείου"];
+const COURSES = ["Μαθηματικά", "Φυσική", "Χημεία", "Βιολογία", "Πληροφορική"];
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  
+  // State για τα πεδία της φόρμας
   const [name, setName] = useState("");
+  const [grade, setGrade] = useState("");
+  const [course, setCourse] = useState("");
   const [groupSize, setGroupSize] = useState("");
-  const [coursesInput, setCoursesInput] = useState(""); // π.χ. "Μαθηματικά, Φυσική"
+  const [studentPhone, setStudentPhone] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
   const [availability, setAvailability] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
@@ -37,13 +49,21 @@ export default function StudentsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !groupSize || !coursesInput) return alert("⚠️ Συμπλήρωσε όλα τα πεδία!");
+    
+    // Έλεγχος υποχρεωτικών πεδίων (το required στο HTML θα το πιάσει, αλλά καλό είναι και εδώ)
+    if (!name || !grade || !course || !groupSize || !studentPhone || !parentPhone || !parentEmail) {
+      return alert("⚠️ Παρακαλώ συμπληρώστε όλα τα υποχρεωτικά πεδία!");
+    }
 
     const newStudent: Student = {
       id: `s-${Date.now()}`,
       name,
+      grade,
+      course,
       groupSize: parseInt(groupSize),
-      courses: coursesInput.split(',').map(c => c.trim()),
+      studentPhone,
+      parentPhone,
+      parentEmail,
       availability
     };
 
@@ -52,7 +72,8 @@ export default function StudentsPage() {
     localStorage.setItem("eduflow_students", JSON.stringify(updated));
 
     // Reset Form
-    setName(""); setGroupSize(""); setCoursesInput(""); setAvailability({});
+    setName(""); setGrade(""); setCourse(""); setGroupSize(""); 
+    setStudentPhone(""); setParentPhone(""); setParentEmail(""); setAvailability({});
   };
 
   const handleDelete = (id: string) => {
@@ -62,18 +83,38 @@ export default function StudentsPage() {
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Μαθητών" description="Όρισε τα μαθήματα και τη διαθεσιμότητα των μαθητών.">
+    <WorkspaceShell title="Διαχείριση Μαθητών" description="Καταχώρηση νέων μαθητών και διαθεσιμότητας.">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
         
         {/* ΦΟΡΜΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
           <form onSubmit={handleSave} className="space-y-4">
-            <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ονοματεπώνυμο Μαθητή" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
-            <input type="number" value={groupSize} onChange={e => setGroupSize(e.target.value)} placeholder="Άτομα στην ομάδα (π.χ. 5)" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
-            <input type="text" value={coursesInput} onChange={e => setCoursesInput(e.target.value)} placeholder="Μαθήματα (με κόμμα, π.χ. Μαθηματικά, Φυσική)" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            <input type="text" required value={name} onChange={e => setName(e.target.value)} placeholder="Ονοματεπώνυμο Μαθητή" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            
+            <div className="grid grid-cols-2 gap-2">
+              <select required value={grade} onChange={e => setGrade(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
+                <option value="">Επιλέξτε Τάξη</option>
+                {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+              <select required value={course} onChange={e => setCourse(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
+                <option value="">Επιλέξτε Μάθημα</option>
+                {COURSES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <select required value={groupSize} onChange={e => setGroupSize(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
+              <option value="">Άτομα στο τμήμα (έως 6)</option>
+              {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} άτομα</option>)}
+            </select>
+
+            <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-800">
+              <input type="tel" required value={studentPhone} onChange={e => setStudentPhone(e.target.value)} placeholder="Τηλέφωνο Μαθητή" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+              <input type="tel" required value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="Τηλέφωνο Γονέα" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+              <input type="email" required value={parentEmail} onChange={e => setParentEmail(e.target.value)} placeholder="Email Γονέα" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            </div>
             
             <div className="space-y-2 pt-2 border-t border-slate-800">
-              <p className="text-[10px] font-bold text-slate-400">Διαθεσιμότητα Μαθητή</p>
+              <p className="text-[10px] font-bold text-slate-400">Διαθεσιμότητα</p>
               {AVAILABLE_DAYS.map(day => (
                 <div key={day} className="flex gap-2 items-center">
                   <span className="w-16 text-[9px] text-slate-500 font-bold">{day}</span>
@@ -97,7 +138,8 @@ export default function StudentsPage() {
               <div key={s.id} className="bg-[#0b0e14] p-3 rounded border border-slate-800 flex justify-between items-center">
                 <div className="text-xs">
                   <p className="text-white font-bold">{s.name}</p>
-                  <p className="text-indigo-400 text-[10px]">Ομάδα: {s.groupSize} άτομα | Μαθήματα: {s.courses.join(", ")}</p>
+                  <p className="text-slate-400 text-[10px]">{s.grade} | {s.course} | Ομάδα: {s.groupSize} άτομα</p>
+                  <p className="text-indigo-400 text-[10px]">Τηλ: {s.studentPhone} | Γονέας: {s.parentPhone} | {s.parentEmail}</p>
                 </div>
                 <button onClick={() => handleDelete(s.id)} className="text-rose-500"><Trash2 className="w-4 h-4"/></button>
               </div>

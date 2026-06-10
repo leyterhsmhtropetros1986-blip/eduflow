@@ -2,92 +2,117 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { DoorOpen, Trash2 } from "lucide-react";
+import { Trash2, Plus, BookOpen } from "lucide-react";
 
-interface Room {
+interface ScheduleSlot {
+  id: string;
+  day: string;
+  time: string;
+  subject: string;
+}
+
+interface SchoolClass {
   id: string;
   name: string;
-  capacity: number;
-  availability: Record<string, string[]>;
+  schedule: ScheduleSlot[];
 }
 
 const AVAILABLE_DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const TIME_SLOTS = ["13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00", "22:00-23:00"];
 
-export default function RoomsPage() {
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [roomName, setRoomName] = useState("");
-  const [capacity, setCapacity] = useState("");
-  const [availability, setAvailability] = useState<Record<string, string[]>>({});
+export default function ClassesPage() {
+  const [classes, setClasses] = useState<SchoolClass[]>([]);
+  const [className, setClassName] = useState("");
+  
+  // States για το προσωρινό μάθημα που προσθέτουμε στην τάξη
+  const [currentSchedule, setCurrentSchedule] = useState<ScheduleSlot[]>([]);
+  const [newDay, setNewDay] = useState(AVAILABLE_DAYS[0]);
+  const [newTime, setNewTime] = useState(TIME_SLOTS[0]);
+  const [newSubject, setNewSubject] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("eduflow_rooms");
-    if (stored) setRooms(JSON.parse(stored));
+    const stored = localStorage.getItem("eduflow_classes");
+    if (stored) setClasses(JSON.parse(stored));
   }, []);
 
-  const toggleSlot = (day: string, slot: string) => {
-    setAvailability(prev => {
-      const daySlots = prev[day] || [];
-      const updated = daySlots.includes(slot) ? daySlots.filter(s => s !== slot) : [...daySlots, slot];
-      return { ...prev, [day]: updated };
-    });
+  const addSlot = () => {
+    if (!newSubject) return alert("Γράψε το όνομα του μαθήματος!");
+    const newEntry: ScheduleSlot = { id: Date.now().toString(), day: newDay, time: newTime, subject: newSubject };
+    setCurrentSchedule([...currentSchedule, newEntry]);
+    setNewSubject("");
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSaveClass = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roomName || !capacity) return alert("⚠️ Συμπλήρωσε Όνομα και Χωρητικότητα!");
+    if (!className || currentSchedule.length === 0) return alert("Δώσε όνομα τάξης και πρόσθεσε τουλάχιστον ένα μάθημα!");
 
-    const newRoom: Room = { 
-      id: `r-${Date.now()}`, 
-      name: roomName, 
-      capacity: parseInt(capacity), 
-      availability 
-    };
+    const newClass: SchoolClass = { id: `c-${Date.now()}`, name: className, schedule: currentSchedule };
+    const updated = [...classes, newClass];
+    setClasses(updated);
+    localStorage.setItem("eduflow_classes", JSON.stringify(updated));
     
-    const updated = [...rooms, newRoom];
-    setRooms(updated);
-    localStorage.setItem("eduflow_rooms", JSON.stringify(updated));
-    setRoomName(""); setCapacity(""); setAvailability({});
+    // Reset
+    setClassName(""); setCurrentSchedule([]);
   };
 
   const handleDelete = (id: string) => {
-    const filtered = rooms.filter(r => r.id !== id);
-    setRooms(filtered);
-    localStorage.setItem("eduflow_rooms", JSON.stringify(filtered));
+    const filtered = classes.filter(c => c.id !== id);
+    setClasses(filtered);
+    localStorage.setItem("eduflow_classes", JSON.stringify(filtered));
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Αιθουσών" description="Όρισε αίθουσες και χωρητικότητα.">
+    <WorkspaceShell title="Διαχείριση Τάξεων" description="Οργάνωσε τάξεις και το πρόγραμμα μαθημάτων τους.">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
+        
+        {/* ΦΟΡΜΑ ΔΗΜΙΟΥΡΓΙΑΣ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
-          <form onSubmit={handleSave} className="space-y-4">
-            <input type="text" value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="π.χ. Αίθουσα 1" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
-            <input type="number" value={capacity} onChange={e => setCapacity(e.target.value)} placeholder="Χωρητικότητα ατόμων" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
-            <div className="space-y-2 pt-2 border-t border-slate-800">
-              <p className="text-[10px] font-bold text-slate-400">Διαθεσιμότητα</p>
-              {AVAILABLE_DAYS.map(day => (
-                <div key={day} className="flex gap-2 items-center">
-                  <span className="w-16 text-[9px] text-slate-500 font-bold">{day}</span>
-                  <div className="grid grid-cols-5 gap-1 flex-1">
-                    {TIME_SLOTS.map(slot => (
-                      <button type="button" key={slot} onClick={() => toggleSlot(day, slot)} className={`p-1 rounded text-[8px] ${availability[day]?.includes(slot) ? "bg-amber-600 text-white" : "bg-slate-800 text-slate-500"}`}>{slot.split('-')[0]}</button>
-                    ))}
-                  </div>
+          <form onSubmit={handleSaveClass} className="space-y-4">
+            <input type="text" value={className} onChange={e => setClassName(e.target.value)} placeholder="π.χ. Α' Γυμνασίου" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            
+            {/* Προσθήκη Μαθήματος */}
+            <div className="p-3 bg-[#0b0e14] rounded-xl border border-slate-800 space-y-2">
+              <p className="text-[10px] font-bold text-slate-400">Προσθήκη Μαθήματος στο Πρόγραμμα</p>
+              <div className="grid grid-cols-1 gap-2">
+                <input type="text" value={newSubject} onChange={e => setNewSubject(e.target.value)} placeholder="Όνομα Μαθήματος (π.χ. Φυσική)" className="w-full bg-[#1e2330] border border-slate-800 p-2 rounded text-xs text-white" />
+                <div className="flex gap-2">
+                  <select value={newDay} onChange={e => setNewDay(e.target.value)} className="w-full bg-[#1e2330] border border-slate-800 p-2 rounded text-xs text-white">{AVAILABLE_DAYS.map(d => <option key={d}>{d}</option>)}</select>
+                  <select value={newTime} onChange={e => setNewTime(e.target.value)} className="w-full bg-[#1e2330] border border-slate-800 p-2 rounded text-xs text-white">{TIME_SLOTS.map(t => <option key={t}>{t}</option>)}</select>
+                  <button type="button" onClick={addSlot} className="bg-emerald-600 p-2 rounded text-white"><Plus className="w-4 h-4"/></button>
+                </div>
+              </div>
+            </div>
+
+            {/* Λίστα προσωρινών μαθημάτων */}
+            <div className="space-y-1">
+              {currentSchedule.map(s => (
+                <div key={s.id} className="text-[10px] text-emerald-400 flex justify-between">
+                  <span>{s.day} {s.time} - {s.subject}</span>
                 </div>
               ))}
             </div>
-            <button className="w-full bg-amber-600 hover:bg-amber-500 p-3 rounded-xl text-white font-bold text-xs">Αποθήκευση</button>
+
+            <button className="w-full bg-emerald-600 hover:bg-emerald-500 p-3 rounded-xl text-white font-bold text-xs">Αποθήκευση Τάξης</button>
           </form>
         </div>
+
+        {/* ΛΙΣΤΑ ΤΑΞΕΩΝ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-white mb-4">Αίθουσες ({rooms.length})</h3>
-          {rooms.map(r => (
-            <div key={r.id} className="bg-[#0b0e14] mb-2 p-3 rounded border border-slate-800 flex justify-between items-center">
-              <div>
-                <p className="text-white font-bold text-xs">{r.name}</p>
-                <p className="text-amber-400 text-[10px]">Χωρητικότητα: {r.capacity}</p>
+          <h3 className="text-sm font-bold text-white mb-4">Τάξεις ({classes.length})</h3>
+          {classes.map(c => (
+            <div key={c.id} className="bg-[#0b0e14] mb-3 p-4 rounded-xl border border-slate-800">
+              <div className="flex justify-between items-start mb-2">
+                <h4 className="text-emerald-400 font-bold text-sm">{c.name}</h4>
+                <button onClick={() => handleDelete(c.id)} className="text-rose-500"><Trash2 className="w-4 h-4"/></button>
               </div>
-              <button onClick={() => handleDelete(r.id)} className="text-rose-500"><Trash2 className="w-4 h-4"/></button>
+              <div className="space-y-1">
+                {c.schedule.map(s => (
+                  <div key={s.id} className="flex items-center gap-2 text-[10px] text-slate-300 bg-[#1e2330] p-1 rounded">
+                    <BookOpen className="w-3 h-3 text-emerald-600"/>
+                    <span>{s.day} | {s.time} | <strong>{s.subject}</strong></span>
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
