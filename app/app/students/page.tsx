@@ -2,175 +2,207 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import { UserPlus, Send, Users, ShieldAlert, CheckCircle } from "lucide-react";
+import { UserPlus, Bell, Users, CheckCircle, Smartphone, Mail, ShieldAlert } from "lucide-react";
 
-export default function StudentManagementPage() {
-  const [students, setStudents] = useState<any[]>([]);
-  const [mounted, setMounted] = useState(false);
-
-  // States για τα Στοιχεία Μαθητή
+export default function StudentsManagementPage() {
+  // States για τη Φόρμα Μαθητή / Γονέα
   const [studentName, setStudentName] = useState("");
+  const [studentPhone, setStudentPhone] = useState(""); // ΝΕΟ ΥΠΟΧΡΕΩΤΙΚΟ
+  const [parentName, setParentName] = useState("");
+  const [parentPhone, setParentPhone] = useState(""); // ΥΠΟΧΡΕΩΤΙΚΟ
+  const [parentEmail, setParentEmail] = useState(""); // ΝΕΟ ΥΠΟΧΡΕΩΤΙΚΟ
+  
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [studentsList, setStudentsList] = useState<any[]>([]);
 
-  // States για τα Στοιχεία Γονέα (Ενιαία Εγγραφή)
-  const [parentName, setParentName] = useState("");
-  const [parentPhone, setParentPhone] = useState("");
-
-  // Διαθέσιμες επιλογές πλατφόρμας
-  const availableCourses = ["Μαθηματικά", "Φυσική", "Χημεία", "Βιολογία", "Ιστορία", "Έκθεση"];
-  const availableDays = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+  // States για τα Push Notifications
+  const [notificationRecipient, setNotificationRecipient] = useState("all");
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationBody, setNotificationBody] = useState("");
+  const [notificationLogs, setNotificationLogs] = useState<string[]>([]);
 
   useEffect(() => {
-    setMounted(true);
-    const storedStudents = localStorage.getItem("eduflow_students");
-    if (storedStudents) {
-      setStudents(JSON.parse(storedStudents));
-    }
+    const stored = localStorage.getItem("eduflow_students") || "[]";
+    setStudentsList(JSON.parse(stored));
   }, []);
 
-  // Διαχείριση πολλαπλής επιλογής μαθημάτων
+  // Διαχείριση επιλογής μαθημάτων (Πολλαπλή)
   const toggleCourse = (course: string) => {
-    setSelectedCourses(prev =>
+    setSelectedCourses(prev => 
       prev.includes(course) ? prev.filter(c => c !== course) : [...prev, course]
     );
   };
 
-  // Διαχείριση πολλαπλής επιλογής ημερών
+  // Διαχείριση επιλογής ημερών (Πολλαπλή)
   const toggleDay = (day: string) => {
-    setSelectedDays(prev =>
+    setSelectedDays(prev => 
       prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
     );
   };
 
-  // Υποβολή Εγγραφής και αυτόματη ενημέρωση και των δύο πινάκων
-  const handleSaveStudent = (e: React.FormEvent) => {
+  // Υποβολή Νέας Καρτέλας με full Validations
+  const handleRegisterStudent = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentName || !parentName || !parentPhone) {
-      alert("⚠️ Παρακαλώ συμπληρώστε τα υποχρεωτικά στοιχεία μαθητή και γονέα.");
+
+    // Αυστηρός έλεγχος για όλα τα υποχρεωτικά στοιχεία
+    if (!studentName.trim() || !studentPhone.trim() || !parentName.trim() || !parentPhone.trim() || !parentEmail.trim()) {
+      alert("⚠️ Σφάλμα: Όλα τα πεδία (Όνομα/Τηλ Μαθητή, Όνομα/Τηλ/Email Γονέα) είναι υποχρεωτικά!");
       return;
     }
 
-    const newStudentId = `stud-${Date.now()}`;
+    if (selectedCourses.length === 0 || selectedDays.length === 0) {
+      alert("⚠️ Σφάλμα: Πρέπει να επιλέξετε τουλάχιστον ένα Μάθημα και μία Διαθέσιμη Ημέρα!");
+      return;
+    }
 
-    // 1. Δομή Μαθητή
     const newStudent = {
-      id: newStudentId,
+      id: `student-${Date.now()}`,
       name: studentName,
+      studentPhone: studentPhone,
+      parentName: parentName,
+      parentPhone: parentPhone,
+      parentEmail: parentEmail,
       courses: selectedCourses,
-      days: selectedDays,
-      parentName: parentName,
-      parentPhone: parentPhone
+      days: selectedDays
     };
 
-    // 2. Δομή Γονέα (για να ενημερώνεται αυτόματα το πεδίο/βάση των γονέων)
-    const newParent = {
-      id: `parent-${Date.now()}`,
-      studentId: newStudentId,
-      studentName: studentName,
-      parentName: parentName,
-      phone: parentPhone
-    };
+    const updatedList = [...studentsList, newStudent];
+    setStudentsList(updatedList);
+    localStorage.setItem("eduflow_students", JSON.stringify(updatedList));
 
-    // Αποθήκευση Μαθητών
-    const updatedStudents = [...students, newStudent];
-    setStudents(updatedStudents);
-    localStorage.setItem("eduflow_students", JSON.stringify(updatedStudents));
-
-    // Αυτόματη ενημέρωση της βάσης γονέων (eduflow_parents)
-    const existingParents = JSON.parse(localStorage.getItem("eduflow_parents") || "[]");
-    localStorage.setItem("eduflow_parents", JSON.stringify([...existingParents, newParent]));
-
-    // Καθαρισμός Φόρμας
+    // Reset Φόρμας
     setStudentName("");
+    setStudentPhone("");
     setParentName("");
     setParentPhone("");
+    setParentEmail("");
     setSelectedCourses([]);
     setSelectedDays([]);
-
-    alert("✨ Η εγγραφή ολοκληρώθηκε! Ενημερώθηκαν αυτόματα οι Μαθητές και οι Επαφές Γονέων.");
+    alert("🎉 Η καρτέλα μαθητή και γονέα δημιουργήθηκε με επιτυχία!");
   };
 
-  if (!mounted) return null;
+  // Αποστολή Ταυτόχρονης Ειδοποίησης σε SMS & Email
+  const handleSendNotification = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!notificationTitle.trim() || !notificationBody.trim()) {
+      alert("⚠️ Παρακαλώ συμπληρώστε Τίτλο και Κείμενο Ειδοποίησης.");
+      return;
+    }
+
+    // Προσομοίωση αποστολής multi-channel
+    const timestamp = new Date().toLocaleTimeString();
+    const newLogs = [
+      `[${timestamp}] 📱 SMS στάλθηκε στα τηλέφωνα μαθητών & γονέων.`,
+      `[${timestamp}] 📧 Email στάλθηκε στις διευθύνσεις των γονέων.`,
+      `[${timestamp}] 🔔 Live Push Notification εμφανίστηκε στην πλατφόρμα.`
+    ];
+
+    setNotificationLogs(prev => [...newLogs, ...prev]);
+    setNotificationTitle("");
+    setNotificationBody("");
+    alert("🚀 Η ειδοποίηση στάλθηκε επιτυχώς και στα 3 κανάλια ταυτόχρονα (SMS Μαθητή/Γονέα & Email Γονέα)!");
+  };
 
   return (
-    <WorkspaceShell
-      title="Διαχείριση Προγραμμάτων & Ειδοποιήσεων"
-      description="Ρύθμιση πολλαπλών μαθημάτων ανά μαθητή, επιλογή ημερών με σπαστά ωράρια και άμεση αποστολή push notifications."
+    <WorkspaceShell 
+      title="Διαχείριση Προγραμμάτων & Ειδοποιήσεων" 
+      description="Πλήρης καρτέλα εκπαιδευόμενου και κηδεμόνα με αυτοματοποιημένη 3-Way αποστολή ενημερώσεων."
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 pb-20">
         
-        {/* ΑΡΙΣΤΕΡΑ: ΕΝΙΑΙΑ ΚΑΡΤΕΛΑ ΝΕΟΥ ΜΑΘΗΤΗ & ΣΤΟΙΧΕΙΑ ΓΟΝΕΑ */}
-        <div className="lg:col-span-2 bg-[#232936] border border-slate-800 p-6 rounded-3xl shadow-2xl">
-          <h3 className="text-sm font-bold text-white mb-5 flex items-center gap-2">
-            <UserPlus className="w-4 h-4 text-indigo-400" /> Καρτέλα Νέου Μαθητή & Γονέα
+        {/* ΑΡΙΣΤΕΡΑ: ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ ΜΕ ΥΠΟΧΡΕΩΤΙΚΑ ΣΤΟΙΧΕΙΑ */}
+        <div className="lg:col-span-2 bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-2xl">
+          <h3 className="text-sm font-bold text-white mb-6 flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-blue-400" /> Καρτέλα Νέου Μαθητή & Γονέα
           </h3>
 
-          <form onSubmit={handleSaveStudent} className="space-y-6">
+          <form onSubmit={handleRegisterStudent} className="space-y-6">
             
-            {/* 1. Στοιχεία Μαθητή */}
-            <div className="bg-[#181d26] p-4 rounded-2xl border border-slate-800/60">
-              <h4 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">📌 Βασικά Στοιχεία Μαθητή</h4>
-              <div>
-                <label className="block text-[11px] text-slate-300 mb-1.5 font-medium">Ονοματεπώνυμο Μαθητή *</label>
-                <input
-                  type="text"
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="π.χ. Νίκος Παπαδόπουλος"
-                  className="w-full bg-[#090d14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-                  required
-                />
+            {/* ΒΑΣΙΚΑ ΣΤΟΙΧΕΙΑ ΜΑΘΗΤΗ */}
+            <div className="space-y-3 bg-[#161a24] p-4 rounded-xl border border-slate-800/80">
+              <span className="text-[10px] font-extrabold tracking-wider uppercase text-blue-400 flex items-center gap-1">
+                📌 Βασικά Στοιχεία Μαθητή
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Ονοματεπώνυμο Μαθητή *</label>
+                  <input
+                    type="text"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder="π.χ. Νίκος Παπαδόπουλος"
+                    className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Κινητό Τηλέφωνο Μαθητή *</label>
+                  <input
+                    type="tel"
+                    value={studentPhone}
+                    onChange={(e) => setStudentPhone(e.target.value)}
+                    placeholder="π.χ. 69XXXXXXXX"
+                    className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* 2. Στοιχεία Γονέα (Ενσωματωμένα) */}
-            <div className="bg-[#181d26] p-4 rounded-2xl border border-slate-800/60 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <h4 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">👨‍👩‍👦 Στοιχεία Γονέα / Κηδεμόνα</h4>
-                <p className="text-[10px] text-slate-500 mb-2">Οι επαφές γονέων θα ενημερωθούν αυτόματα στο σύστημα.</p>
-              </div>
-              
-              <div>
-                <label className="block text-[11px] text-slate-300 mb-1.5 font-medium">Ονοματεπώνυμο Γονέα *</label>
-                <input
-                  type="text"
-                  value={parentName}
-                  onChange={(e) => setParentName(e.target.value)}
-                  placeholder="π.χ. Ιωάννης Παπαδόπουλος"
-                  className="w-full bg-[#090d14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-slate-300 mb-1.5 font-medium">Τηλέφωνο / Κινητό για SMS *</label>
-                <input
-                  type="tel"
-                  value={parentPhone}
-                  onChange={(e) => setParentPhone(e.target.value)}
-                  placeholder="π.χ. 69XXXXXXXX"
-                  className="w-full bg-[#090d14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
-                  required
-                />
+            {/* ΣΤΟΙΧΕΙΑ ΓΟΝΕΑ / ΚΗΔΕΜΟΝΑ */}
+            <div className="space-y-3 bg-[#161a24] p-4 rounded-xl border border-slate-800/80">
+              <span className="text-[10px] font-extrabold tracking-wider uppercase text-emerald-400 flex items-center gap-1">
+                👨‍👩‍👦 Στοιχεία Γονέα / Κηδεμόνα
+              </span>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Ονοματεπώνυμο Γονέα *</label>
+                  <input
+                    type="text"
+                    value={parentName}
+                    onChange={(e) => setParentName(e.target.value)}
+                    placeholder="π.χ. Ιωάννης Παπαδόπουλος"
+                    className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Τηλέφωνο Κινητό (SMS) *</label>
+                  <input
+                    type="tel"
+                    value={parentPhone}
+                    onChange={(e) => setParentPhone(e.target.value)}
+                    placeholder="π.χ. 69XXXXXXXX"
+                    className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-400 mb-1">Email Επικοινωνίας *</label>
+                  <input
+                    type="email"
+                    value={parentEmail}
+                    onChange={(e) => setParentEmail(e.target.value)}
+                    placeholder="parent@example.com"
+                    className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* 3. Επιλογή Μαθημάτων (Πολλαπλή) */}
+            {/* ΕΠΙΛΟΓΗ ΜΑΘΗΜΑΤΩΝ */}
             <div>
-              <label className="block text-[11px] text-slate-300 mb-2 font-medium">Επιλογή Μαθημάτων (Πολλαπλή)</label>
+              <label className="block text-[11px] font-medium text-slate-400 mb-2">Επιλογή Μαθημάτων (Πολλαπλή)</label>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {availableCourses.map((course) => {
+                {["Μαθηματικά", "Φυσική", "Χημεία", "Βιολογία", "Ιστορία", "Έκθεση"].map((course) => {
                   const isSelected = selectedCourses.includes(course);
                   return (
                     <button
                       type="button"
                       key={course}
                       onClick={() => toggleCourse(course)}
-                      className={`py-2 px-1 text-center rounded-xl text-[11px] font-medium transition border ${
-                        isSelected
-                          ? "bg-indigo-600/20 text-indigo-400 border-indigo-500"
-                          : "bg-[#090d14] text-slate-400 border-slate-800 hover:border-slate-700"
+                      className={`py-2 px-1 text-[11px] font-semibold rounded-lg border transition text-center ${
+                        isSelected 
+                          ? "bg-blue-600/20 text-blue-400 border-blue-500" 
+                          : "bg-[#0b0e14] text-slate-400 border-slate-800 hover:border-slate-700"
                       }`}
                     >
                       {course}
@@ -180,21 +212,21 @@ export default function StudentManagementPage() {
               </div>
             </div>
 
-            {/* 4. Διαθέσιμες Ημέρες Μαθητή */}
+            {/* ΔΙΑΘΕΣΙΜΕΣ ΗΜΕΡΕΣ */}
             <div>
-              <label className="block text-[11px] text-slate-300 mb-2 font-medium">Διαθέσιμες Ημέρες Μαθητή</label>
+              <label className="block text-[11px] font-medium text-slate-400 mb-2">Διαθέσιμες Ημέρες Μαθητή</label>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {availableDays.map((day) => {
+                {["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"].map((day) => {
                   const isSelected = selectedDays.includes(day);
                   return (
                     <button
                       type="button"
                       key={day}
                       onClick={() => toggleDay(day)}
-                      className={`py-2 px-1 text-center rounded-xl text-[11px] font-medium transition border ${
-                        isSelected
-                          ? "bg-purple-600/20 text-purple-400 border-purple-500"
-                          : "bg-[#090d14] text-slate-400 border-slate-800 hover:border-slate-700"
+                      className={`py-2 px-1 text-[11px] font-semibold rounded-lg border transition text-center ${
+                        isSelected 
+                          ? "bg-indigo-600/20 text-indigo-400 border-indigo-500" 
+                          : "bg-[#0b0e14] text-slate-400 border-slate-800 hover:border-slate-700"
                       }`}
                     >
                       {day}
@@ -204,69 +236,80 @@ export default function StudentManagementPage() {
               </div>
             </div>
 
-            {/* Κουμπί Αποθήκευσης */}
             <button
               type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs py-3.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2"
+              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3.5 rounded-xl transition shadow-lg"
             >
               Δημιουργία & Υπολογισμός Προγράμματος
             </button>
-
           </form>
         </div>
 
-        {/* ΔΕΞΙΑ: LIVE PUSH NOTIFICATIONS / ΣΥΝΟΨΗ */}
+        {/* ΔΕΞΙΑ: LIVE PUSH NOTIFICATIONS ΣΕ ΤΡΙΑ ΚΑΝΑΛΙΑ */}
         <div className="space-y-6">
-          <div className="bg-[#232936] border border-slate-800 p-6 rounded-3xl shadow-2xl">
+          <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-2xl">
             <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
-              <Send className="w-4 h-4 text-amber-500" /> Live Push Notifications
+              <Bell className="w-4 h-4 text-amber-400" /> Live Push Notifications
             </h3>
-            
-            <div className="space-y-4">
+
+            <form onSubmit={handleSendNotification} className="space-y-4">
               <div>
-                <label className="block text-[11px] text-slate-300 mb-1 font-medium">Παραλήπτες</label>
-                <select className="w-full bg-[#090d14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none">
-                  <option>Όλοι (Μαθητές & Γονείς)</option>
-                  <option>Μόνο Γονείς (SMS)</option>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Παραλήπτες</label>
+                <select
+                  value={notificationRecipient}
+                  onChange={(e) => setNotificationRecipient(e.target.value)}
+                  className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
+                >
+                  <option value="all">Όλοι (Μαθητές & Γονείς)</option>
+                  <option value="active">Μόνο Γονείς (Email & SMS)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-300 mb-1 font-medium">Τίτλος Μηνύματος</label>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Τίτλος Μηνύματος</label>
                 <input
                   type="text"
+                  value={notificationTitle}
+                  onChange={(e) => setNotificationTitle(e.target.value)}
                   placeholder="π.χ. Αλλαγή ώρας προγράμματος"
-                  className="w-full bg-[#090d14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none"
+                  className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-300 mb-1 font-medium">Κείμενο Ειδοποίησης</label>
+                <label className="block text-[11px] font-medium text-slate-400 mb-1">Κείμενο Ειδοποίησης</label>
                 <textarea
                   rows={3}
-                  placeholder="Το μάθημα των Μαθηματικών της Πέμπτης..."
-                  className="w-full bg-[#090d14] border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none resize-none"
+                  value={notificationBody}
+                  onChange={(e) => setNotificationBody(e.target.value)}
+                  placeholder="Το μάθημα των Μαθηματικών της Πέμπτης θα ξεκινήσει στις 17:00 αντί για τις 16:00."
+                  className="w-full bg-[#0b0e14] border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none resize-none"
                 />
               </div>
 
-              <button className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs py-3 rounded-xl transition">
+              <button
+                type="submit"
+                className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs py-3 rounded-xl transition shadow-lg"
+              >
                 Αποστολή Άμεσης Ειδοποίησης
               </button>
-            </div>
+            </form>
           </div>
 
-          {/* Στατιστικό Πάνελ */}
-          <div className="bg-[#181d26]/40 border border-slate-800/70 p-4 rounded-2xl flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
-                <Users className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-[11px] text-slate-400">Σύνολο Εγγεγραμμένων</div>
-                <div className="text-xs font-bold text-white">{students.length} Μαθητές</div>
-              </div>
+          {/* LIVE LOGS ΓΙΑ ΕΠΙΒΕΒΑΙΩΣΗ ΤΩΝ 3 ΚΑΝΑΛΙΩΝ */}
+          <div className="bg-[#1e2330] border border-slate-800 p-4 rounded-2xl">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+              📜 Αναφορά Παράδοσης Δικτύου
+            </span>
+            <div className="bg-[#0b0e14] rounded-xl p-3 max-h-40 overflow-y-auto space-y-2 border border-slate-800/50">
+              {notificationLogs.length === 0 ? (
+                <p className="text-[10px] text-slate-500 italic">Δεν υπάρχουν πρόσφατες αποστολές.</p>
+              ) : (
+                notificationLogs.map((log, i) => (
+                  <p key={i} className="text-[10px] font-mono text-slate-300 leading-relaxed">{log}</p>
+                ))
+              )}
             </div>
-            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400 font-medium">Live</span>
           </div>
         </div>
 
