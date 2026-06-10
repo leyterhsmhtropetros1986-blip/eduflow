@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { User, Trash2 } from "lucide-react";
 
 interface Teacher {
