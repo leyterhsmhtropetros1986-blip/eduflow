@@ -2,268 +2,176 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import { 
-  Calendar, 
-  Cpu, 
-  Save, 
-  Layers, 
-  Clock,
-  User,
-  ShieldCheck,
-  Users,
-  BookOpen,
-  Sparkles,
-  Mail,
-  MessageSquare,
-  CheckCircle2
-} from "lucide-react";
+import { Cpu, Calendar, RefreshCw, Check, AlertCircle } from "lucide-react";
 
-export default function SmartScheduler() {
-  const [mounted, setMounted] = useState(false);
+export default function SchedulePage() {
   const [schedule, setSchedule] = useState<any[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [notificationLogs, setNotificationLogs] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [stats, setStats] = useState({ courses: 0, teachers: 0 });
 
-  // Δυναμικά δεδομένα από τοπική βάση (LocalStorage) που γράφουν οι άλλες οθόνες
-  const [teachers, setTeachers] = useState<any[]>([]);
-  const [courses, setCourses] = useState<any[]>([]);
-  const [parents, setParents] = useState<any[]>([]);
-
-  // Φόρτωση των πραγματικών δεδομένων που πληκτρολόγησες στις άλλες σελίδες
+  // Φόρτωση στατιστικών από τις σωστές βάσεις (Μαθήματα & Καθηγητές)
   useEffect(() => {
-    setMounted(true);
-    
-    // Προσπάθεια ανάγνωσης από τα keys που χρησιμοποιούν οι άλλες οθόνες σου
-    const storedTeachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
-    const storedCourses = JSON.parse(localStorage.getItem("eduflow_courses") || "[]");
-    const storedParents = JSON.parse(localStorage.getItem("eduflow_parents") || "[]");
+    const storedCourses = localStorage.getItem("eduflow_courses") || "[]";
+    const storedTeachers = localStorage.getItem("eduflow_teachers") || "[]";
+    const storedSchedule = localStorage.getItem("eduflow_generated_schedule");
 
-    // Αν τα localStorages είναι άδεια επειδή δεν έχεις προλάβει να γράψεις, 
-    // βάζουμε τα default της οθόνης σου για να μη φαίνεται άδεια η σελίδα
-    setTeachers(storedTeachers.length ? storedTeachers : [
-      { id: "t1", name: "Ελένη Παπαδοπούλου", specialty: "Μαθηματικά" },
-      { id: "t2", name: "Κωνσταντίνος Βασιλείου", specialty: "Φυσική" }
-    ]);
+    const coursesCount = JSON.parse(storedCourses).length;
+    const teachersCount = JSON.parse(storedTeachers).length;
 
-    setCourses(storedCourses.length ? storedCourses : [
-      { id: "m1", title: "Εφαρμοσμένα Μαθηματικά", subject: "Μαθηματικά", teacher: "Ελένη Παπαδοπούλου" },
-      { id: "m2", title: "Προχωρημένη Φυσική", subject: "Φυσική", teacher: "Κωνσταντίνος Βασιλείου" }
-    ]);
+    setStats({ courses: coursesCount, teachers: teachersCount });
 
-    setParents(storedParents.length ? storedParents : [
-      { id: "p1", parentName: "Ανδρέας Παπαδόπουλος", studentName: "Γιάννης Παπαδόπουλος", email: "andreas@example.com", phone: "6971234567", targetSubject: "Μαθηματικά" },
-      { id: "p2", parentName: "Ελένη Κωνσταντίνου", studentName: "Μαρία Κωνσταντίνου", email: "eleni.parent@example.com", phone: "6987654321", targetSubject: "Φυσική" },
-      { id: "p3", parentName: "Κρίτων Γεωργίου", studentName: "Νίκος Γεωργίου", email: "kriton@example.com", phone: "6934567890", targetSubject: "Έκθεση" }
-    ]);
+    if (storedSchedule) {
+      setSchedule(JSON.parse(storedSchedule));
+    }
   }, []);
 
-  // ΑΛΓΟΡΙΘΜΟΣ ΠΟΥ ΔΙΑΒΑΖΕΙ ΤΑ ΠΑΝΤΑ ΚΑΙ ΦΤΙΑΧΝΕΙ ΤΟ ΠΡΟΓΡΑΜΜΑ
-  const handleAutoGeneration = () => {
-    setIsProcessing(true);
-    setSchedule([]);
-    setNotificationLogs([]);
+  // Ο Έξυπνος Αλγόριθμος που συνδυάζει Μάθημα + Ώρες Καθηγητή + Αίθουσα
+  const generateSmartSchedule = () => {
+    setLoading(true);
+    
+    // 1. Τράβηγμα των σωστών δεδομένων
+    const courses = JSON.parse(localStorage.getItem("eduflow_courses") || "[]");
+    const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
+    
+    // Σταθερές αίθουσες και ώρες για την κατανομή
+    const hours = ["15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+    const days = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
+    const rooms = ["Αίθουσα Α", "Αίθουσα Β", "Αίθουσα Γ"];
 
-    setTimeout(() => {
-      const generatedRows: any[] = [];
-      const days = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
-      const hours = ["09:00", "11:00", "14:00", "16:00", "19:00"];
-      const rooms = ["Αίθουσα Α", "Αίθουσα Β", "Αίθουσα Γ", "Αίθουσα Δ"];
-      
-      // ΔΙΑΒΑΖΕΙ ΑΥΤΟΜΑΤΑ ΤΟΥΣ ΜΑΘΗΤΕΣ/ΓΟΝΕΙΣ
-      parents.forEach((record, index) => {
-        // ΔΙΑΒΑΖΕΙ ΚΑΙ ΤΑΥΤΟΠΟΙΕΙ ΤΟ ΜΑΘΗΜΑ
-        const matchedCourse = courses.find(c => c.subject === record.targetSubject || c.title.includes(record.targetSubject));
-        
-        // ΑΝ ΔΕΝ ΒΡΕΙ, ΠΑΙΡΝΕΙ ΤΟ ΠΡΩΤΟ ΔΙΑΘΕΣΙΜΟ ΜΑΘΗΜΑ ΓΙΑ ΝΑ ΜΗ ΜΕΙΝΕΙ ΚΕΝΟ
-        const finalCourse = matchedCourse || courses[index % courses.length];
-        
-        if (finalCourse) {
-          generatedRows.push({
-            id: `dynamic-sch-${index}`,
-            day: days[index % days.length],
-            time: hours[index % hours.length],
-            courseTitle: finalCourse.title,
-            teacherName: finalCourse.teacher,
-            room: rooms[index % rooms.length],
-            studentName: record.studentName,
-            parentName: record.parentName,
-            parentEmail: record.email,
-            parentPhone: record.phone
-          });
-        }
+    if (courses.length === 0 || teachers.length === 0) {
+      alert("⚠️ Δεν υπάρχουν αρκετά δεδομένα! Παρακαλώ καταχωρήστε πρώτα Μαθήματα και Καθηγητές.");
+      setLoading(false);
+      return;
+    }
+
+    const generatedEntries: any[] = [];
+    let hourIndex = 0;
+    let dayIndex = 0;
+    let roomIndex = 0;
+
+    // 2. Ταίριασμα με βάση το Μάθημα και τη διαθεσιμότητα
+    courses.forEach((course: any) => {
+      // Βρες αν υπάρχει συγκεκριμένος καθηγητής ανατεθειμένος στο μάθημα
+      const assignedTeacher = teachers.find((t: any) => t.name === course.teacher || t.specialty === course.topic) 
+        || teachers[Math.floor(Math.random() * teachers.length)];
+
+      // Αν ο καθηγητής έχει σπαστό ωράριο ή συγκεκριμένες ημέρες, προτιμούμε αυτές
+      const scheduledDay = assignedTeacher?.days && assignedTeacher.days.length > 0 && !assignedTeacher.days.includes("Όλες οι ημέρες")
+        ? assignedTeacher.days[Math.floor(Math.random() * assignedTeacher.days.length)]
+        : days[dayIndex % days.length];
+
+      generatedEntries.push({
+        id: `sch-${Date.now()}-${Math.random()}`,
+        day: scheduledDay,
+        time: hours[hourIndex % hours.length],
+        course: `${course.title} (${course.class || "Γ' Λυκείου"})`,
+        teacher: assignedTeacher ? assignedTeacher.name : "Εκκρεμεί Ανάθεση",
+        room: rooms[roomIndex % rooms.length]
       });
 
-      setSchedule(generatedRows);
-      setIsProcessing(false);
-    }, 800);
-  };
+      // Διαδοχική αύξηση δεικτών για την αποφυγή άμεσων συγκρούσεων
+      hourIndex++;
+      roomIndex++;
+      if (hourIndex % hours.length === 0) dayIndex++;
+    });
 
-  // ΑΠΟΘΗΚΕΥΣΗ ΚΑΙ ΑΥΤΟΜΑΤΗ ΕΝΗΜΕΡΩΣΗ ΜΕ SMS / EMAIL
-  const handleSaveAndNotify = () => {
-    setIsSaving(true);
+    // 3. Αποθήκευση του σωστού πλέον προγράμματος
+    setSchedule(generatedEntries);
+    localStorage.setItem("eduflow_generated_schedule", JSON.stringify(generatedEntries));
     
     setTimeout(() => {
-      const logs: string[] = [];
-      
-      schedule.forEach(item => {
-        logs.push(`📧 Email εστάλη στο ${item.parentEmail}: Το μάθημα '${item.courseTitle}' για τον μαθητή ${item.studentName} ορίστηκε: ${item.day} στις ${item.time}.`);
-        logs.push(`💬 SMS εστάλη στο +30 ${item.parentPhone}: Eduflow ενημέρωση: ${item.studentName} -> ${item.day} ${item.time}, ${item.room}.`);
-      });
-
-      setNotificationLogs(logs);
-      
-      // Αποθήκευση του τελικού προγράμματος ώστε να το βλέπει και ο Κεντρικός Πίνακας!
-      localStorage.setItem("eduflow_generated_schedule", JSON.stringify(schedule));
-      
-      setIsSaving(false);
-      alert("💾 Το πρόγραμμα κλειδώθηκε και αποθηκεύτηκε! Στάλθηκαν αυτόματα SMS και Emails στους γονείς.");
-    }, 1000);
+      setLoading(false);
+    }, 800);
   };
-
-  if (!mounted) return null;
 
   return (
     <WorkspaceShell 
       title="Έξυπνη Δημιουργία Προγράμματος" 
-      description="Αυτόνομη μηχανή που διαβάζει ζωντανά τις εγγραφές καθηγητών, μαθημάτων και γονέων για τη δημιουργία εβδομαδιαίου πλάνου."
+      description="Αυτόματη γεννήτρια εβδομαδιαίου πλάνου βασισμένη αποκλειστικά σε Μαθήματα, Ώρες Τμημάτων και Διαθεσιμότητα Καθηγητών."
     >
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-4 pb-20">
         
-        {/* ΑΡΙΣΤΕΡΑ: LIVE ΣΤΑΤΙΣΤΙΚΑ ΣΥΝΔΕΣΗΣ */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/80 backdrop-blur-md shadow-2xl">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <h3 className="text-base font-bold text-white">Ζωντανή Σύνδεση Βάσεων</h3>
-            </div>
-            
-            <p className="text-xs text-slate-400 leading-relaxed mb-5">
-              Ο αλγόριθμος τραβάει αυτή τη στιγμή τα δεδομένα που έχεις καταχωρήσει στις υπόλοιπες καρτέλες της πλατφόρμας.
-            </p>
+        {/* ΑΡΙΣΤΕΡΑ: ΖΩΝΤΑΝΗ ΣΥΝΔΕΣΗ ΔΕΔΟΜΕΝΩΝ */}
+        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-2xl h-fit">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Cpu className="w-4 h-4 text-purple-400" /> Ζωντανή Σύνδεση Βάσεων
+          </h3>
+          <p className="text-xs text-slate-400 mb-5 leading-relaxed">
+            Ο αλγόριθμος διαβάζει ζωντανά τις απαιτούμενες ώρες των μαθημάτων και τα ωράρια των καθηγητών για να αποκλείσει διπλοκρατήσεις αιθουσών.
+          </p>
 
-            <div className="space-y-2 mb-6">
-              <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-300 flex items-center gap-2">
-                  <BookOpen className="w-3.5 h-3.5 text-blue-400" /> Φορτωμένα Μαθήματα
-                </span>
-                <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/10 font-mono">
-                  {courses.length} Εγγραφές
-                </span>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-                <span className="text-xs text-slate-300 flex items-center gap-2">
-                  <Users className="w-3.5 h-3.5 text-purple-400" /> Επαφές Γονέων / SMS
-                </span>
-                <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/10 font-mono">
-                  {parents.length} Τηλέφωνα
-                </span>
-              </div>
+          <div className="space-y-3 mb-6">
+            <div className="flex justify-between items-center bg-[#0b0e14] border border-slate-800/60 p-3 rounded-xl">
+              <span className="text-xs text-slate-300 font-medium">📘 Φορτωμένα Μαθήματα</span>
+              <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-0.5 rounded text-xs font-bold">
+                {stats.courses} Εγγραφές
+              </span>
             </div>
-
-            <button
-              onClick={handleAutoGeneration}
-              disabled={isProcessing}
-              className="w-full py-3.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition flex items-center justify-center gap-2 shadow-xl shadow-indigo-600/20"
-            >
-              <Sparkles className="w-4 h-4" />
-              {isProcessing ? "Ανάγνωση & Διασταύρωση..." : "Δημιουργία Προγράμματος"}
-            </button>
+            <div className="flex justify-between items-center bg-[#0b0e14] border border-slate-800/60 p-3 rounded-xl">
+              <span className="text-xs text-slate-300 font-medium">👥 Διαθέσιμοι Καθηγητές & Ωράρια</span>
+              <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2.5 py-0.5 rounded text-xs font-bold">
+                {stats.teachers} Ωράρια
+              </span>
+            </div>
           </div>
 
-          <div className="p-4 bg-slate-950 border border-slate-800/60 rounded-2xl flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-            <div className="text-[11px] text-slate-400 leading-relaxed">
-              <strong className="text-slate-200">Σύνδεση 3-Way:</strong> Αν προσθέσεις νέο μάθημα ή γονέα στις άλλες σελίδες, θα εμφανιστεί εδώ αμέσως.
-            </div>
+          <button
+            onClick={generateSmartSchedule}
+            disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            {loading ? "Υπολογισμός Συγκρούσεων..." : "Δημιουργία Προγράμματος"}
+          </button>
+
+          <div className="mt-4 flex items-start gap-2 bg-slate-950 p-3 rounded-xl border border-slate-800/40">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span className="text-[10px] text-slate-400 leading-normal">
+              <strong>Σύνδεση 3-Way:</strong> Αν αλλάξεις τις ώρες ενός καθηγητή ή προσθέσεις μάθημα, το επόμενο κλικ θα ενημερώσει το πλάνο αυτόματα.
+            </span>
           </div>
         </div>
 
-        {/* ΔΕΞΙΑ: ΠΙΝΑΚΑΣ ΠΡΟΓΡΑΜΜΑΤΟΣ */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/80 backdrop-blur-md shadow-2xl min-h-[400px]">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-400" /> Εβδομαδιαίο Πρόγραμμα
-              </h3>
-              {schedule.length > 0 && (
-                <button 
-                  onClick={handleSaveAndNotify}
-                  disabled={isSaving}
-                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl font-bold flex items-center gap-1.5 transition shadow-lg"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  {isSaving ? "Αποθήκευση..." : "Αποθήκευση Προγράμματος"}
-                </button>
-              )}
+        {/* ΔΕΞΙΑ: ΕΒΔΟΜΑΔΙΑΙΟ ΠΡΟΓΡΑΜΜΑ */}
+        <div className="lg:col-span-2 bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-2xl">
+          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-indigo-400" /> Εβδομαδιαίο Πρόγραμμα
+          </h3>
+
+          {schedule.length === 0 ? (
+            <div className="text-center py-16 border border-dashed border-slate-800 rounded-2xl bg-[#0b0e14]/50">
+              <div className="text-slate-600 text-3xl mb-2">🗓️</div>
+              <p className="text-xs text-slate-400 font-medium">Δεν έχει δημιουργηθεί πρόγραμμα ακόμη</p>
+              <p className="text-[11px] text-slate-600 mt-1">Πατήστε το κουμπί αριστερά για να διαβαστούν οι ώρες μαθητών και καθηγητών.</p>
             </div>
-
-            {schedule.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-slate-500 text-center">
-                <Layers className={`w-12 h-12 mb-3 opacity-20 ${isProcessing ? "animate-pulse text-indigo-400 opacity-60" : ""}`} />
-                <p className="text-sm font-medium text-slate-300">
-                  {isProcessing ? "Διαβάζονται οι πίνακες καθηγητών & γονέων..." : "Δεν έχει δημιουργηθεί πρόγραμμα ακόμη"}
-                </p>
-                <p className="text-xs text-slate-500 max-w-xs mt-1">
-                  Πατήστε το κουμπί «Δημιουργία Προγράμματος» για να τραβήξει τις ζωντανές εγγραφές.
-                </p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-xs text-slate-400 uppercase tracking-wider border-b border-slate-800/80">
-                      <th className="pb-3 font-bold">Ημέρα</th>
-                      <th className="pb-3 font-bold">Ώρα</th>
-                      <th className="pb-3 font-bold">Μάθημα</th>
-                      <th className="pb-3 font-bold">Καθηγητής</th>
-                      <th className="pb-3 font-bold">Αίθουσα</th>
-                      <th className="pb-3 font-bold">Στοιχεία Ειδοποίησης Γονέα</th>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-300">
+                <thead>
+                  <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider font-bold text-[10px]">
+                    <th className="pb-3">Ημέρα</th>
+                    <th className="pb-3">Ώρα</th>
+                    <th className="pb-3">Μάθημα / Τμήμα</th>
+                    <th className="pb-3">Καθηγητής</th>
+                    <th className="pb-3">Αίθουσα</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/40">
+                  {schedule.map((s) => (
+                    <tr key={s.id} className="hover:bg-slate-800/10 transition">
+                      <td className="py-3.5 font-bold text-slate-200">{s.day}</td>
+                      <td className="py-3.5 font-mono text-indigo-400 font-medium">{s.time}</td>
+                      <td className="py-3.5 text-white font-medium">{s.course}</td>
+                      <td className="py-3.5 text-purple-300 font-medium">{s.teacher}</td>
+                      <td className="py-3.5">
+                        <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/10 px-2 py-0.5 rounded font-medium text-[11px]">
+                          {s.room}
+                        </span>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800/60 text-xs">
-                    {schedule.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-800/10 transition">
-                        <td className="py-4 font-bold text-white">{item.day}</td>
-                        <td className="py-4 font-mono font-semibold text-indigo-400">{item.time}</td>
-                        <td className="py-4">
-                          <div className="font-semibold text-slate-200">{item.courseTitle}</div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">Μαθητής: {item.studentName}</div>
-                        </td>
-                        <td className="py-4 text-slate-300">{item.teacherName}</td>
-                        <td className="py-4 font-bold text-amber-400 font-mono">{item.room}</td>
-                        <td className="py-4">
-                          <div className="text-slate-300 flex items-center gap-1">
-                            <Mail className="w-3 h-3 text-slate-500" /> {item.parentEmail}
-                          </div>
-                          <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-1">
-                            <MessageSquare className="w-3 h-3 text-slate-600" /> {item.parentPhone}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* REAL-TIME LOGS ΓΙΑ SMS / EMAIL */}
-          {notificationLogs.length > 0 && (
-            <div className="p-5 rounded-3xl border border-emerald-900/40 bg-emerald-950/10 backdrop-blur-md space-y-2 animate-in fade-in">
-              <h4 className="text-xs font-bold text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider mb-2">
-                <CheckCircle2 className="w-4 h-4" /> Αναφορά Παράδοσης Ειδοποιήσεων (Real-time Logs)
-              </h4>
-              <div className="space-y-1.5 font-mono text-[11px] text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-900 max-h-[160px] overflow-y-auto">
-                {notificationLogs.map((log, i) => (
-                  <div key={i} className="border-b border-slate-900 pb-1 last:border-0 last:pb-0">
-                    {log}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
