@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Trash2 } from "lucide-react";
 
-// Ορισμός τύπου δεδομένων
 interface Student {
   id: string;
   name: string;
@@ -17,16 +16,15 @@ interface Student {
   availability: Record<string, string[]>;
 }
 
-// Σταθερές επιλογών
+// Κρατάμε μόνο τις σταθερές που δεν αλλάζουν (Μέρες, Ώρες, Τάξεις)
 const AVAILABLE_DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const TIME_SLOTS = ["13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00", "22:00-23:00"];
 const GRADES = ["Α' Γυμνασίου", "Β' Γυμνασίου", "Γ' Γυμνασίου", "Α' Λυκείου", "Β' Λυκείου", "Γ' Λυκείου"];
-const COURSES = ["Μαθηματικά", "Φυσική", "Χημεία", "Βιολογία", "Πληροφορική"];
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [classesList, setClassesList] = useState<{name: string}[]>([]); // ΝΕΟ: Λίστα Τμημάτων
   
-  // State φόρμας
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [course, setCourse] = useState("");
@@ -36,10 +34,14 @@ export default function StudentsPage() {
   const [parentEmail, setParentEmail] = useState("");
   const [availability, setAvailability] = useState<Record<string, string[]>>({});
 
-  // Φόρτωση από LocalStorage
   useEffect(() => {
-    const stored = localStorage.getItem("eduflow_students");
-    if (stored) setStudents(JSON.parse(stored));
+    // Φόρτωση Μαθητών
+    const storedStudents = localStorage.getItem("eduflow_students");
+    if (storedStudents) setStudents(JSON.parse(storedStudents));
+    
+    // Φόρτωση Τμημάτων από το localStorage
+    const storedClasses = localStorage.getItem("eduflow_classes");
+    if (storedClasses) setClassesList(JSON.parse(storedClasses));
   }, []);
 
   const toggleSlot = (day: string, slot: string) => {
@@ -69,7 +71,6 @@ export default function StudentsPage() {
     setStudents(updated);
     localStorage.setItem("eduflow_students", JSON.stringify(updated));
 
-    // Reset Form
     setName(""); setGrade(""); setCourse(""); setGroupSize(""); 
     setStudentPhone(""); setParentPhone(""); setParentEmail(""); setAvailability({});
   };
@@ -84,7 +85,7 @@ export default function StudentsPage() {
     <WorkspaceShell title="Διαχείριση Μαθητών" description="Καταχώρηση μαθητών και διαθεσιμότητας.">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
         
-        {/* ΦΟΡΜΑ - Αριστερά */}
+        {/* ΦΟΡΜΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
           <form onSubmit={handleSave} className="space-y-4">
             <input required type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Ονοματεπώνυμο Μαθητή" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
@@ -94,9 +95,11 @@ export default function StudentsPage() {
                 <option value="">Τάξη</option>
                 {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
+
+              {/* ΔΥΝΑΜΙΚΗ ΛΙΣΤΑ ΤΜΗΜΑΤΩΝ */}
               <select required value={course} onChange={e => setCourse(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
-                <option value="">Μάθημα</option>
-                {COURSES.map(c => <option key={c} value={c}>{c}</option>)}
+                <option value="">Επίλεξε Τμήμα</option>
+                {classesList.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
               </select>
             </div>
 
@@ -105,7 +108,7 @@ export default function StudentsPage() {
               {[1, 2, 3, 4, 5, 6].map(n => <option key={n} value={n}>{n} άτομα</option>)}
             </select>
 
-            {/* Επικοινωνία (Υποχρεωτικά) */}
+            {/* Επικοινωνία */}
             <div className="grid grid-cols-1 gap-2 pt-2 border-t border-slate-800">
               <input required type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)} placeholder="Τηλέφωνο Μαθητή" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
               <input required type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="Τηλέφωνο Γονέα" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
@@ -131,7 +134,7 @@ export default function StudentsPage() {
           </form>
         </div>
 
-        {/* ΛΙΣΤΑ - Δεξιά */}
+        {/* ΛΙΣΤΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
           <h3 className="text-sm font-bold text-white mb-4">Μαθητές ({students.length})</h3>
           <div className="space-y-2">
