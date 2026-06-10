@@ -7,7 +7,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="el">
-      <body className="min-h-screen bg-slate-950 text-white">
+      <body className="bg-slate-950 min-h-screen text-slate-50">
         {children}
       </body>
     </html>

@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --background: #020617; /* Το σκούρο χρώμα που φαίνεται στο screenshot σου */
-  --foreground: #f8fafc;
+  --background: #0f172a; /* Slate 900 */
+  --foreground: #f8fafc; /* Slate 50 */
 }
 
 body {
