@@ -1,241 +1,248 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import {
-  createTeacher,
-  deleteTeacher,
-  fetchTeachers,
-  updateTeacher,
-} from "../lib/api";
-import type { Teacher } from "../lib/data";
+import { 
+  Users, 
+  UserPlus, 
+  GraduationCap, 
+  Calendar, 
+  Clock, 
+  Check, 
+  X, 
+  Mail, 
+  Briefcase,
+  AlertCircle
+} from "lucide-react";
 
-const initialTeacherState: Omit<Teacher, "id"> = {
-  fullName: "",
-  subject: "",
-  availability: "",
-  maxHoursPerDay: 5,
-  email: "",
-  phone: "",
-};
+// Δείγματα Ειδικοτήτων
+const SPECIALTIES = [
+  "Μαθηματικός", "Φυσικός", "Χημικός", "Βιολόγος", 
+  "Φιλόλογος", "Πληροφορικός", "Αγγλικών", "Γερμανικών"
+];
 
-export default function TeachersPage() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
-  const [formValues, setFormValues] = useState<Omit<Teacher, "id">>(initialTeacherState);
-  const [searchTerm, setSearchTerm] = useState("");
+const DAYS = [
+  { id: "Mon", name: "Δευτέρα" },
+  { id: "Tue", name: "Τρίτη" },
+  { id: "Wed", name: "Τετάρτη" },
+  { id: "Thu", name: "Πέμπτη" },
+  { id: "Fri", name: "Παρασκευή" },
+  { id: "Sat", name: "Σάββατο" },
+];
 
-  useEffect(() => {
-    fetchTeachers().then(setTeachers);
-  }, []);
+export default function TeacherHub() {
+  const [mounted, setMounted] = useState(false);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  
+  // Φόρμα
+  const [name, setName] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [email, setEmail] = useState("");
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [availability, setAvailability] = useState<any>({});
 
-  const displayedTeachers = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return teachers;
-    }
+  useEffect(() => { setMounted(true); }, []);
 
-    const lower = searchTerm.toLowerCase();
-    return teachers.filter(
-      (teacher) =>
-        teacher.fullName.toLowerCase().includes(lower) ||
-        teacher.subject.toLowerCase().includes(lower) ||
-        teacher.availability.toLowerCase().includes(lower)
+  const toggleDay = (dayId: string) => {
+    setSelectedDays(prev => 
+      prev.includes(dayId) ? prev.filter(id => id !== dayId) : [...prev, dayId]
     );
-  }, [searchTerm, teachers]);
+    if (!availability[dayId]) {
+      setAvailability({ ...availability, [dayId]: { start: "16:00", end: "21:00" } });
+    }
+  };
 
-  function resetForm() {
-    setSelectedTeacher(null);
-    setFormValues(initialTeacherState);
-  }
-
-  async function saveTeacher() {
-    const trimmedName = formValues.fullName.trim();
-    if (!trimmedName) {
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !specialty) {
+      alert("⚠️ Το Ονοματεπώνυμο και η Ειδικότητα είναι υποχρεωτικά!");
       return;
     }
 
-    const record: Teacher = {
-      id: selectedTeacher?.id ?? `tea_${Date.now()}`,
-      fullName: trimmedName,
-      subject: formValues.subject,
-      availability: formValues.availability,
-      maxHoursPerDay: 5,
-      email: formValues.email || `${trimmedName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-      phone: formValues.phone || "+30 210 000 0000",
+    const newTeacher = {
+      id: Date.now().toString(),
+      name,
+      specialty,
+      email,
+      schedule: selectedDays.map(day => ({
+        day,
+        times: availability[day]
+      }))
     };
 
-    const savedTeacher = selectedTeacher
-      ? await updateTeacher(record.id, record)
-      : await createTeacher(record);
-
-    if (!savedTeacher) {
-      return;
-    }
-
-    setTeachers((current) => {
-      const updated = current.filter((teacher) => teacher.id !== savedTeacher.id);
-      return [savedTeacher, ...updated];
-    });
-
-    resetForm();
-  }
-
-  async function handleDelete(id: string) {
-    const deleted = await deleteTeacher(id);
-    if (!deleted) {
-      return;
-    }
-
-    setTeachers((current) => current.filter((teacher) => teacher.id !== id));
-    if (selectedTeacher?.id === id) {
-      resetForm();
-    }
-  }
-
-  function handleEdit(teacher: Teacher) {
-    setSelectedTeacher(teacher);
-    setFormValues({
-      fullName: teacher.fullName,
-      subject: teacher.subject,
-      availability: teacher.availability,
-      maxHoursPerDay: teacher.maxHoursPerDay,
-      email: teacher.email,
-      phone: teacher.phone,
-    });
-  }
+    setTeachers([...teachers, newTeacher]);
+    setName(""); setSpecialty(""); setEmail(""); setSelectedDays([]);
+    alert("✅ Ο καθηγητής προστέθηκε με επιτυχία!");
+  };
 
   return (
-    <WorkspaceShell
-      title="Καθηγητές"
-      description="Παρακολούθηση διαθεσιμότητας, ειδικοτήτων και ανάθεσης τάξεων στο εκπαιδευτικό προσωπικό."
+    <WorkspaceShell 
+      title="Educator Enterprise Hub" 
+      description="Διαχείριση προσωπικού, εξειδικεύσεων και ωραρίου σε Premium Dark περιβάλλον."
     >
-      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
-        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-950">Κατάλογος καθηγητών</h2>
-              <p className="mt-1 text-sm text-slate-500">Επισκόπηση του εκπαιδευτικού προσωπικού και ανάθεση των επόμενων μαθημάτων.</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 px-2 sm:px-4 pb-20">
+        
+        {/* FORM COLUMN */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-xl">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400"><UserPlus className="w-5 h-5" /></div>
+              <h3 className="text-base font-bold text-white">Προσθήκη Καθηγητή</h3>
             </div>
-            <div className="w-full md:w-80">
-              <label className="block text-sm font-medium text-slate-700">Αναζήτηση καθηγητών</label>
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Αναζήτηση με όνομα, ειδικότητα ή διαθεσιμότητα"
-              />
-            </div>
-          </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Όνομα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Ειδικότητα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Διαθεσιμότητα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Επικοινωνία</th>
-                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {displayedTeachers.map((teacher) => (
-                  <tr key={teacher.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-4 text-slate-900">{teacher.fullName}</td>
-                    <td className="px-4 py-4 text-slate-600">{teacher.subject}</td>
-                    <td className="px-4 py-4 text-slate-600">{teacher.availability}</td>
-                    <td className="px-4 py-4 text-slate-600">{teacher.email}</td>
-                    <td className="px-4 py-4 space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(teacher)}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        Επεξεργασία
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(teacher.id)}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                      >
-                        Διαγραφή
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            <form onSubmit={handleSave} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                  Ονοματεπώνυμο <span className="text-rose-500">*</span>
+                </label>
+                <input 
+                  type="text" value={name} onChange={(e) => setName(e.target.value)}
+                  placeholder="π.χ. Ιωάννης Παππάς"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none transition"
+                />
+              </div>
 
-        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">{selectedTeacher ? "Επεξεργασία καθηγητή" : "Προσθήκη καθηγητή"}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedTeacher
-                ? "Ενημερώστε τη διαθεσιμότητα και τα στοιχεία επικοινωνίας του καθηγητή."
-                : "Καταχωρίστε νέους καθηγητές και το ωράριο διαθεσιμότητάς τους."}
-            </p>
-          </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400 flex items-center gap-1">
+                  Ειδικότητα <span className="text-rose-500">*</span>
+                </label>
+                <select 
+                  value={specialty} onChange={(e) => setSpecialty(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none transition"
+                >
+                  <option value="">Επιλέξτε Ειδικότητα</option>
+                  {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
 
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">Ονοματεπώνυμο</label>
-            <input
-              value={formValues.fullName}
-              onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Κωνσταντίνος Βασιλείου"
-            />
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-400">Email Επικοινωνίας</label>
+                <input 
+                  type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                  placeholder="teacher@eduflow.gr"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:border-indigo-500 focus:outline-none transition"
+                />
+              </div>
 
-            <label className="block text-sm font-medium text-slate-700">Ειδικότητα</label>
-            <select
-              value={formValues.subject}
-              onChange={(event) => setFormValues({ ...formValues, subject: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
-            >
-              <option value="">Επιλογή Ειδικότητας</option>
-              <option value="Μαθηματικός">Μαθηματικός</option>
-              <option value="Φυσικός">Φυσικός</option>
-              <option value="Χημικός">Χημικός</option>
-              <option value="Φιλόλογος">Φιλόλογος</option>
-              <option value="Βιολόγος">Βιολόγος</option>
-              <option value="Πληροφορικής">Πληροφορικής</option>
-              <option value="Οικονομολόγος">Οικονομολόγος</option>
-              <option value="Αγγλικών">Αγγλικών</option>
-            </select>
+              <div className="pt-4 border-t border-slate-800/60">
+                <label className="text-xs font-semibold text-slate-400 mb-3 block">Διαθεσιμότητα ανά Ημέρα</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {DAYS.map(day => (
+                    <button
+                      type="button" key={day.id} onClick={() => toggleDay(day.id)}
+                      className={`p-2 rounded-xl border text-[10px] font-bold transition-all ${
+                        selectedDays.includes(day.id) 
+                          ? "bg-indigo-600/20 border-indigo-500 text-white" 
+                          : "bg-slate-950 border-slate-800 text-slate-500"
+                      }`}
+                    >
+                      {day.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <label className="block text-sm font-medium text-slate-700">Διαθεσιμότητα</label>
-            <select
-              value={formValues.availability}
-              onChange={(event) => setFormValues({ ...formValues, availability: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
-            >
-              <option value="">Επιλογή Διαθεσιμότητας</option>
-              <option value="Καθημερινά">Καθημερινά</option>
-              <option value="Δευτέρα - Παρασκευή">Δευτέρα - Παρασκευή</option>
-              <option value="Δευτέρα - Τετάρτη - Παρασκευή">Δευτέρα - Τετάρτη - Παρασκευή</option>
-              <option value="Τρίτη - Πέμπτη">Τρίτη - Πέμπτη</option>
-            </select>
-          </div>
+              {selectedDays.length > 0 && (
+                <div className="space-y-3 mt-4 animate-in fade-in slide-in-from-top-2">
+                  <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Ωράριο Επιλεγμένων Ημερών</label>
+                  {selectedDays.map(dayId => (
+                    <div key={dayId} className="flex items-center justify-between bg-slate-950/50 p-2 rounded-lg border border-slate-800">
+                      <span className="text-xs text-slate-300">{DAYS.find(d => d.id === dayId)?.name}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="time" value={availability[dayId]?.start}
+                          onChange={(e) => setAvailability({...availability, [dayId]: {...availability[dayId], start: e.target.value}})}
+                          className="bg-transparent text-[10px] text-white focus:outline-none"
+                        />
+                        <span className="text-slate-600">-</span>
+                        <input 
+                          type="time" value={availability[dayId]?.end}
+                          onChange={(e) => setAvailability({...availability, [dayId]: {...availability[dayId], end: e.target.value}})}
+                          className="bg-transparent text-[10px] text-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={saveTeacher}
-              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              {selectedTeacher ? "Ενημέρωση καθηγητή" : "Αποθήκευση καθηγητή"}
-            </button>
-            {selectedTeacher ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Ακύρωση
+              <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl text-xs font-bold transition shadow-xl shadow-indigo-600/20">
+                Αποθήκευση Καθηγητή
               </button>
-            ) : null}
+            </form>
           </div>
-        </section>
+        </div>
+
+        {/* LIST COLUMN */}
+        <div className="lg:col-span-2">
+          <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/40 backdrop-blur-md shadow-xl min-h-[400px]">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-400" /> Ενεργό Προσωπικό
+              </h3>
+              <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded-full uppercase tracking-tighter">
+                {teachers.length} Καθηγητές
+              </span>
+            </div>
+
+            {teachers.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-500">
+                <Briefcase className="w-12 h-12 mb-4 opacity-20" />
+                <p className="text-xs font-medium">Δεν υπάρχουν καταχωρημένοι καθηγητές.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-[10px] text-slate-500 uppercase tracking-wider border-b border-slate-800">
+                      <th className="pb-3 font-semibold">Καθηγητής</th>
+                      <th className="pb-3 font-semibold">Ειδικότητα</th>
+                      <th className="pb-3 font-semibold">Ωράριο</th>
+                      <th className="pb-3 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/50">
+                    {teachers.map((t) => (
+                      <tr key={t.id} className="group hover:bg-slate-800/20 transition">
+                        <td className="py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center text-indigo-400 text-xs font-bold">
+                              {t.name.charAt(0)}
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-slate-200">{t.name}</div>
+                              <div className="text-[10px] text-slate-500">{t.email || 'No email'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-4">
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">
+                            {t.specialty}
+                          </span>
+                        </td>
+                        <td className="py-4">
+                          <div className="flex flex-wrap gap-1">
+                            {t.schedule.map((s: any) => (
+                              <span key={s.day} className="text-[9px] bg-indigo-500/10 text-indigo-300 px-1.5 py-0.5 rounded-md">
+                                {s.day} ({s.times.start})
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="py-4">
+                          <div className="flex items-center gap-1.5 text-[10px] text-emerald-400">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> Ενεργός
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
     </WorkspaceShell>
   );
