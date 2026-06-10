@@ -22,14 +22,14 @@ export default function AttendancePage() {
 
   return (
     <WorkspaceShell
-      title="Attendance"
-      description="Record attendance quickly and keep student presence data up to date."
+      title="Παρουσίες"
+      description="Καταγραφή παρουσιών γρήγορα και ενημέρωση των δεδομένων παρακολούθησης μαθητών."
     >
       <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-slate-950">Attendance tracker</h2>
-            <p className="mt-1 text-sm text-slate-500">Mark students present, absent, or late and review recent attendance history.</p>
+            <h2 className="text-xl font-semibold text-slate-950">Παρακολούθηση παρουσιών</h2>
+            <p className="mt-1 text-sm text-slate-500">Σημειώστε τους μαθητές ως παρόντες, απώντες ή αργοπορημένους και ελέγξτε το ιστορικό τους.</p>
           </div>
           <div className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">
             Last sync: 2 minutes ago
@@ -40,11 +40,11 @@ export default function AttendancePage() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-slate-700">
               <tr>
-                <th className="px-4 py-3 text-left font-semibold">Student</th>
-                <th className="px-4 py-3 text-left font-semibold">Course</th>
-                <th className="px-4 py-3 text-left font-semibold">Date</th>
-                <th className="px-4 py-3 text-left font-semibold">Status</th>
-                <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                <th className="px-4 py-3 text-left font-semibold">Μαθητής</th>
+                <th className="px-4 py-3 text-left font-semibold">Μάθημα</th>
+                <th className="px-4 py-3 text-left font-semibold">Ημερομηνία</th>
+                <th className="px-4 py-3 text-left font-semibold">Κατάσταση</th>
+                <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 bg-white">
@@ -56,22 +56,22 @@ export default function AttendancePage() {
                   <td className="px-4 py-4 text-slate-900">{record.status}</td>
                   <td className="px-4 py-4 space-x-2">
                     <button
-                      onClick={() => updateStatus(record.id, "Present")}
+                      onClick={() => updateStatus(record.id, "Παρών")}
                       className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700"
                     >
-                      Present
+                      Παρών
                     </button>
                     <button
-                      onClick={() => updateStatus(record.id, "Absent")}
+                      onClick={() => updateStatus(record.id, "Απών")}
                       className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold text-rose-700"
                     >
-                      Absent
+                      Απών
                     </button>
                     <button
-                      onClick={() => updateStatus(record.id, "Late")}
+                      onClick={() => updateStatus(record.id, "Αργοπορημένος")}
                       className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700"
                     >
-                      Late
+                      Αργοπορημένος
                     </button>
                   </td>
                 </tr>

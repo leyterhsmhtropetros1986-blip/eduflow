@@ -117,23 +117,23 @@ export default function StudentsPage() {
 
   return (
     <WorkspaceShell
-      title="Students"
-      description="Manage student profiles, enrollment status, and course assignments from one workspace."
+      title="Μαθητές"
+      description="Διαχείριση προφίλ μαθητών, εγγραφών και ανάθεσης μαθημάτων από ένα κεντρικό περιβάλλον."
     >
       <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
         <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">Student roster</h2>
-              <p className="mt-1 text-sm text-slate-500">Search, browse, and update enrolled learners.</p>
+              <h2 className="text-xl font-semibold text-slate-950">Κατάλογος μαθητών</h2>
+              <p className="mt-1 text-sm text-slate-500">Αναζήτηση, προβολή και ενημέρωση εγγεγραμμένων μαθητών.</p>
             </div>
             <div className="w-full md:w-80">
-              <label className="block text-sm font-medium text-slate-700">Search students</label>
+              <label className="block text-sm font-medium text-slate-700">Αναζήτηση μαθητών</label>
               <input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Search by name, course, or parent"
+                placeholder="Αναζήτηση με όνομα, μάθημα ή γονέα"
               />
             </div>
           </div>
@@ -142,11 +142,11 @@ export default function StudentsPage() {
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-slate-700">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Grade</th>
-                  <th className="px-4 py-3 text-left font-semibold">Course</th>
-                  <th className="px-4 py-3 text-left font-semibold">Parent</th>
-                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                  <th className="px-4 py-3 text-left font-semibold">Όνομα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Τάξη</th>
+                  <th className="px-4 py-3 text-left font-semibold">Μάθημα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Γονέας</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
@@ -162,14 +162,14 @@ export default function StudentsPage() {
                         onClick={() => handleEdit(student)}
                         className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                       >
-                        Edit
+                        Επεξεργασία
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(student.id)}
                         className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
                       >
-                        Delete
+                        Διαγραφή
                       </button>
                     </td>
                   </tr>
@@ -181,16 +181,16 @@ export default function StudentsPage() {
 
         <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div>
-            <h2 className="text-xl font-semibold text-slate-950">{selectedStudent ? "Edit student" : "Add student"}</h2>
+            <h2 className="text-xl font-semibold text-slate-950">{selectedStudent ? "Επεξεργασία μαθητή" : "Προσθήκη μαθητή"}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {selectedStudent
-                ? "Update the student record and save your changes."
-                : "Create student records and assign them to your next course."}
+                ? "Ενημερώστε τη εγγραφή του μαθητή και αποθηκεύστε τις αλλαγές σας."
+                : "Δημιουργήστε εγγραφές μαθητών και αντιστοιχίστε τους στο επόμενο μάθημα."}
             </p>
           </div>
 
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">Full name</label>
+            <label className="block text-sm font-medium text-slate-700">Ονοματεπώνυμο</label>
             <input
               value={formValues.fullName}
               onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
@@ -213,13 +213,13 @@ export default function StudentsPage() {
               <option value="Γ Λυκείου">Γ Λυκείου</option>
             </select>
 
-            <label className="block text-sm font-medium text-slate-700">Course</label>
+            <label className="block text-sm font-medium text-slate-700">Μάθημα</label>
             <select
               value={formValues.course}
               onChange={(event) => setFormValues({ ...formValues, course: event.target.value })}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
             >
-              <option value="">Select course</option>
+              <option value="">Επιλογή μαθήματος</option>
               {courses.map((courseOption) => (
                 <option key={courseOption.id} value={courseOption.title}>
                   {courseOption.title}
@@ -227,7 +227,7 @@ export default function StudentsPage() {
               ))}
             </select>
 
-            <label className="block text-sm font-medium text-slate-700">Parent / Guardian</label>
+            <label className="block text-sm font-medium text-slate-700">Γονέας / Κηδεμόνας</label>
             <input
               value={formValues.parentName}
               onChange={(event) => setFormValues({ ...formValues, parentName: event.target.value })}
@@ -241,7 +241,7 @@ export default function StudentsPage() {
               onClick={saveStudent}
               className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              {selectedStudent ? "Update student" : "Save student"}
+              {selectedStudent ? "Ενημέρωση μαθητή" : "Αποθήκευση μαθητή"}
             </button>
             {selectedStudent ? (
               <button
@@ -249,7 +249,7 @@ export default function StudentsPage() {
                 onClick={resetForm}
                 className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Cancel edit
+                Ακύρωση
               </button>
             ) : null}
           </div>

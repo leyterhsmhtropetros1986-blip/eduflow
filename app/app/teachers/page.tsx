@@ -106,23 +106,23 @@ export default function TeachersPage() {
 
   return (
     <WorkspaceShell
-      title="Teachers"
-      description="Track tutor availability, subjects, and classroom assignments across your teaching team."
+      title="Καθηγητές"
+      description="Παρακολούθηση διαθεσιμότητας, ειδικοτήτων και ανάθεσης τάξεων στο εκπαιδευτικό προσωπικό."
     >
       <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
         <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">Teacher roster</h2>
-              <p className="mt-1 text-sm text-slate-500">Review your teaching staff and assign their next lessons.</p>
+              <h2 className="text-xl font-semibold text-slate-950">Κατάλογος καθηγητών</h2>
+              <p className="mt-1 text-sm text-slate-500">Επισκόπηση του εκπαιδευτικού προσωπικού και ανάθεση των επόμενων μαθημάτων.</p>
             </div>
             <div className="w-full md:w-80">
-              <label className="block text-sm font-medium text-slate-700">Search teachers</label>
+              <label className="block text-sm font-medium text-slate-700">Αναζήτηση καθηγητών</label>
               <input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Search by name, subject, or availability"
+                placeholder="Αναζήτηση με όνομα, ειδικότητα ή διαθεσιμότητα"
               />
             </div>
           </div>
@@ -131,11 +131,11 @@ export default function TeachersPage() {
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-slate-700">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Name</th>
-                  <th className="px-4 py-3 text-left font-semibold">Subject</th>
-                  <th className="px-4 py-3 text-left font-semibold">Availability</th>
-                  <th className="px-4 py-3 text-left font-semibold">Contact</th>
-                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                  <th className="px-4 py-3 text-left font-semibold">Όνομα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ειδικότητα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Διαθεσιμότητα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Επικοινωνία</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
@@ -151,14 +151,14 @@ export default function TeachersPage() {
                         onClick={() => handleEdit(teacher)}
                         className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                       >
-                        Edit
+                        Επεξεργασία
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(teacher.id)}
                         className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
                       >
-                        Delete
+                        Διαγραφή
                       </button>
                     </td>
                   </tr>
@@ -170,16 +170,16 @@ export default function TeachersPage() {
 
         <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div>
-            <h2 className="text-xl font-semibold text-slate-950">{selectedTeacher ? "Edit teacher" : "Add teacher"}</h2>
+            <h2 className="text-xl font-semibold text-slate-950">{selectedTeacher ? "Επεξεργασία καθηγητή" : "Προσθήκη καθηγητή"}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {selectedTeacher
-                ? "Update tutor availability and contact details."
-                : "Register new tutors and capture their teaching availability."}
+                ? "Ενημερώστε τη διαθεσιμότητα και τα στοιχεία επικοινωνίας του καθηγητή."
+                : "Καταχωρίστε νέους καθηγητές και το ωράριο διαθεσιμότητάς τους."}
             </p>
           </div>
 
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">Full name</label>
+            <label className="block text-sm font-medium text-slate-700">Ονοματεπώνυμο</label>
             <input
               value={formValues.fullName}
               onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
@@ -223,7 +223,7 @@ export default function TeachersPage() {
               onClick={saveTeacher}
               className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              {selectedTeacher ? "Update teacher" : "Save teacher"}
+              {selectedTeacher ? "Ενημέρωση καθηγητή" : "Αποθήκευση καθηγητή"}
             </button>
             {selectedTeacher ? (
               <button
@@ -231,7 +231,7 @@ export default function TeachersPage() {
                 onClick={resetForm}
                 className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Cancel edit
+                Ακύρωση
               </button>
             ) : null}
           </div>

@@ -21,24 +21,41 @@ import type {
   TeacherAvailability,
 } from "../lib/data";
 
-const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const days = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
 const times = ["09:00", "11:00", "13:00", "15:00", "17:00"];
 const dayNameMap: Record<string, string> = {
-  mon: "Monday",
-  tue: "Tuesday",
-  wed: "Wednesday",
-  thu: "Thursday",
-  fri: "Friday",
-  sat: "Saturday",
-  sun: "Sunday",
+  mon: "Δευτέρα",
+  tue: "Τρίτη",
+  wed: "Τετάρτη",
+  thu: "Πέμπτη",
+  fri: "Παρασκευή",
+  sat: "Σάββατο",
+  sun: "Κυριακή",
+  δευ: "Δευτέρα",
+  δευτέρα: "Δευτέρα",
+  τρι: "Τρίτη",
+  τρίτη: "Τρίτη",
+  τετ: "Τετάρτη",
+  τετάρτη: "Τετάρτη",
+  πεμ: "Πέμπτη",
+  πέμπτη: "Πέμπτη",
+  παρ: "Παρασκευή",
+  παρασκευή: "Παρασκευή",
 };
 
 function parseAvailability(availability: string, teacherId: string, teacherName: string): TeacherAvailability[] {
   return availability
     .split(",")
     .map((segment) => segment.trim())
-    .map((segment) => segment.slice(0, 3).toLowerCase())
-    .map((key) => dayNameMap[key] ?? "")
+    .map((segment) => {
+      const normalized = segment
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zα-ω]/g, "");
+
+      return dayNameMap[normalized] ?? dayNameMap[normalized.slice(0, 3)] ?? "";
+    })
     .filter(Boolean)
     .map((day, index) => ({
       id: `${teacherId}-${day}-${index}`,
@@ -150,7 +167,7 @@ export default function SchedulePage() {
     const roomConflict = new Set<string>();
     const studentConflict = new Set<string>();
 
-    const classroomNames = classrooms.length ? classrooms.map((room) => room.name) : ["Room A", "Room B", "Room C"];
+    const classroomNames = classrooms.length ? classrooms.map((room) => room.name) : ["Αίθουσα Α", "Αίθουσα Β", "Αίθουσα Γ"];
 
     const courseStudents = courses.reduce<Record<string, Student[]>>((acc, course) => {
       acc[course.title] = students.filter((student) => student.course === course.title);
@@ -214,26 +231,26 @@ const teacherSlots = availableSlots.filter(
       if (!courseAssigned) {
         courseSchedule.push({
           id: `schedule_${course.id}_unassigned`,
-          day: "TBD",
-          time: "TBD",
+          day: "Αναμονή",
+          time: "Αναμονή",
           course: course.title,
           teacher: teacherName,
-          room: "TBD",
+          room: "Αναμονή",
         });
       }
     });
 
     setSchedule(sortSlots(courseSchedule));
     setIsGenerating(false);
-    setStatusMessage("Schedule generated. Review and save or edit any slot manually.");
+    setStatusMessage("Το πρόγραμμα δημιουργήθηκε. Ελέγξτε και αποθηκεύστε ή επεξεργαστείτε κάθε θέση χειροκίνητα.");
   }
 
   async function saveCurrentSchedule() {
     try {
       await saveSchedule(schedule);
-      setStatusMessage("Schedule saved to Supabase.");
+      setStatusMessage("Το πρόγραμμα αποθηκεύτηκε στο Supabase.");
     } catch (error) {
-      setStatusMessage("Unable to save schedule. Please ensure your database is configured.");
+      setStatusMessage("Δεν ήταν δυνατή η αποθήκευση του προγράμματος. Ελέγξτε τη διαμόρφωση της βάσης δεδομένων.");
     }
   }
 
@@ -259,20 +276,20 @@ const teacherSlots = availableSlots.filter(
     setStatusMessage("Slot updated locally.");
   }
 
-  const editableRoomOptions = classrooms.length ? classrooms.map((room) => room.name) : ["Room A", "Room B", "Room C"];
+  const editableRoomOptions = classrooms.length ? classrooms.map((room) => room.name) : ["Αίθουσα Α", "Αίθουσα Β", "Αίθουσα Γ"];
 
   return (
     <WorkspaceShell
-      title="Smart Schedule Generator"
-      description="Generate and refine a weekly timetable that avoids teacher, room, and student conflicts."
+      title="Έξυπνη Δημιουργία Προγράμματος"
+      description="Δημιουργία και βελτίωση εβδομαδιαίου προγράμματος χωρίς συγκρούσεις μεταξύ καθηγητών, αιθουσών και μαθητών."
     >
       <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
         <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">Weekly schedule</h2>
+              <h2 className="text-xl font-semibold text-slate-950">Εβδομαδιαίο πρόγραμμα</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Generate a conflict-free weekly timetable using teachers, classrooms, and student enrollment.
+                Δημιουργήστε ένα αδιάκοπο εβδομαδιαίο πρόγραμμα με βάση καθηγητές, αίθουσες και εγγραφές μαθητών.
               </p>
             </div>
 
@@ -282,14 +299,14 @@ const teacherSlots = availableSlots.filter(
                 disabled={isLoading || isGenerating}
                 className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
-                {isGenerating ? "Generating…" : "Generate schedule"}
+                {isGenerating ? "Δημιουργία…" : "Δημιουργία προγράμματος"}
               </button>
               <button
                 onClick={saveCurrentSchedule}
                 disabled={isLoading || schedule.length === 0}
                 className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
               >
-                Save schedule
+                Αποθήκευση προγράμματος
               </button>
             </div>
           </div>
@@ -298,12 +315,12 @@ const teacherSlots = availableSlots.filter(
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-slate-700">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Day</th>
-                  <th className="px-4 py-3 text-left font-semibold">Time</th>
-                  <th className="px-4 py-3 text-left font-semibold">Course</th>
-                  <th className="px-4 py-3 text-left font-semibold">Teacher</th>
-                  <th className="px-4 py-3 text-left font-semibold">Room</th>
-                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ημέρα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ώρα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Μάθημα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Καθηγητής</th>
+                  <th className="px-4 py-3 text-left font-semibold">Αίθουσα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
@@ -320,7 +337,7 @@ const teacherSlots = availableSlots.filter(
                         onClick={() => startEdit(slot)}
                         className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                       >
-                        Edit
+                        Επεξεργασία
                       </button>
                     </td>
                   </tr>
@@ -337,7 +354,7 @@ const teacherSlots = availableSlots.filter(
 
           {warnings.length > 0 ? (
             <div className="rounded-3xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-              <p className="font-semibold">Conflict warnings</p>
+              <p className="font-semibold">Προειδοποιήσεις διενέξεων</p>
               <ul className="mt-2 list-disc pl-5">
                 {warnings.map((warning) => (
                   <li key={warning}>{warning}</li>
@@ -349,16 +366,16 @@ const teacherSlots = availableSlots.filter(
 
         <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div>
-            <h2 className="text-xl font-semibold text-slate-950">Manual editing</h2>
+            <h2 className="text-xl font-semibold text-slate-950">Χειροκίνητη επεξεργασία</h2>
             <p className="mt-2 text-sm text-slate-500">
-              Select a slot to adjust day, time, teacher, or classroom manually.
+              Επιλέξτε μια εγγραφή για να αλλάξετε χειροκίνητα την ημέρα, την ώρα, τον καθηγητή ή την αίθουσα.
             </p>
           </div>
 
           {editingSlot ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700">Day</label>
+                <label className="block text-sm font-medium text-slate-700">Ημέρα</label>
                 <select
                   value={editingSlot.day}
                   onChange={(event) => updateEditingSlot("day", event.target.value)}
@@ -373,7 +390,7 @@ const teacherSlots = availableSlots.filter(
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Time</label>
+                <label className="block text-sm font-medium text-slate-700">Ώρα</label>
                 <select
                   value={editingSlot.time}
                   onChange={(event) => updateEditingSlot("time", event.target.value)}
@@ -388,7 +405,7 @@ const teacherSlots = availableSlots.filter(
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Course</label>
+                <label className="block text-sm font-medium text-slate-700">Μάθημα</label>
                 <select
                   value={editingSlot.course}
                   onChange={(event) => updateEditingSlot("course", event.target.value)}
@@ -403,7 +420,7 @@ const teacherSlots = availableSlots.filter(
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Teacher</label>
+                <label className="block text-sm font-medium text-slate-700">Καθηγητής</label>
                 <select
                   value={editingSlot.teacher}
                   onChange={(event) => updateEditingSlot("teacher", event.target.value)}
@@ -418,7 +435,7 @@ const teacherSlots = availableSlots.filter(
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Room</label>
+                <label className="block text-sm font-medium text-slate-700">Αίθουσα</label>
                 <select
                   value={editingSlot.room}
                   onChange={(event) => updateEditingSlot("room", event.target.value)}
@@ -438,26 +455,26 @@ const teacherSlots = availableSlots.filter(
                   onClick={applySlotChanges}
                   className="rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
-                  Save changes
+                  Αποθήκευση αλλαγών
                 </button>
                 <button
                   type="button"
                   onClick={() => setEditingSlot(null)}
                   className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Cancel
+                  Ακύρωση
                 </button>
               </div>
             </div>
           ) : (
             <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-              Select a row above to edit a schedule slot manually.
+              Επιλέξτε μια γραμμή παραπάνω για χειροκίνητη επεξεργασία μιας εγγραφής προγράμματος.
             </div>
           )}
 
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-            <div className="text-sm font-semibold text-slate-900">Schedule summary</div>
-            <p className="mt-2 text-sm text-slate-600">Use the generator to build a weekly plan, then save it to Supabase.</p>
+            <div className="text-sm font-semibold text-slate-900">Σύνοψη προγράμματος</div>
+            <p className="mt-2 text-sm text-slate-600">Χρησιμοποιήστε τη δημιουργία για να φτιάξετε το εβδομαδιαίο πρόγραμμα και μετά αποθηκεύστε το στο Supabase.</p>
           </div>
         </section>
       </div>

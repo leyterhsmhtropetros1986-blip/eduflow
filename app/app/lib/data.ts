@@ -33,7 +33,7 @@ export type AttendanceRecord = {
   student: string;
   course: string;
   date: string;
-  status: "Present" | "Absent" | "Late";
+  status: "Παρών" | "Απών" | "Αργοπορημένος";
 };
 
 export type PaymentRecord = {
@@ -41,7 +41,7 @@ export type PaymentRecord = {
   student: string;
   amount: string;
   dueDate: string;
-  status: "Paid" | "Pending" | "Overdue";
+  status: "Εξοφλημένο" | "Εκκρεμεί" | "Καθυστερημένο";
 };
 
 export type ParentContact = {
@@ -77,10 +77,10 @@ export type Classroom = {
 };
 
 export const dashboardStats = [
-  { title: "Students", value: "245" },
-  { title: "Teachers", value: "18" },
-  { title: "Active Courses", value: "32" },
-  { title: "Monthly Revenue", value: "€12,450" },
+  { title: "Μαθητές", value: "245" },
+  { title: "Καθηγητές", value: "18" },
+  { title: "Ενεργά Μαθήματα", value: "32" },
+  { title: "Μηνιαία Έσοδα", value: "€12,450" },
 ];
 
 export const sampleStudents: Student[] = [
@@ -121,7 +121,7 @@ export const sampleTeachers: Teacher[] = [
     id: "tea_1",
     fullName: "Ελένη Παπαδοπούλου",
     subject: "Μαθηματικά",
-    availability: "Tue, Thu, Sat",
+    availability: "Τρίτη, Πέμπτη, Σάββατο",
       maxHoursPerDay: 5,
     email: "eleni@example.com",
     phone: "+30 210 123 4567",
@@ -130,7 +130,7 @@ export const sampleTeachers: Teacher[] = [
     id: "tea_2",
     fullName: "Κωνσταντίνος Βασιλείου",
     subject: "Φυσική",
-    availability: "Mon, Wed, Fri",
+    availability: "Δευτέρα, Τετάρτη, Παρασκευή",
       maxHoursPerDay: 5,
     email: "konstantinos@example.com",
     phone: "+30 210 234 5678",
@@ -210,21 +210,21 @@ export const sampleAttendance: AttendanceRecord[] = [
     student: "Γιάννης Παπαδόπουλος",
     course: "Μαθηματικά",
     date: "2026-06-06",
-    status: "Present",
+    status: "Παρών",
   },
   {
     id: "att_2",
     student: "Μαρία Κωνσταντίνου",
     course: "Φυσική",
     date: "2026-06-06",
-    status: "Absent",
+    status: "Απών",
   },
   {
     id: "att_3",
     student: "Νίκος Γεωργίου",
     course: "Έκθεση",
     date: "2026-06-06",
-    status: "Late",
+    status: "Αργοπορημένος",
   },
 ];
 
@@ -234,21 +234,21 @@ export const samplePayments: PaymentRecord[] = [
     student: "Γιάννης Παπαδόπουλος",
     amount: "€140",
     dueDate: "2026-06-14",
-    status: "Pending",
+    status: "Εκκρεμεί",
   },
   {
     id: "pay_2",
     student: "Μαρία Κωνσταντίνου",
     amount: "€160",
     dueDate: "2026-06-10",
-    status: "Paid",
+    status: "Εξοφλημένο",
   },
   {
     id: "pay_3",
     student: "Νίκος Γεωργίου",
     amount: "€130",
     dueDate: "2026-06-12",
-    status: "Overdue",
+    status: "Καθυστερημένο",
   },
 ];
 
@@ -257,7 +257,7 @@ export const sampleParents: ParentContact[] = [
     id: "parent_1",
     parentName: "Ανδρέας Παπαδόπουλος",
     student: "Γιάννης Παπαδόπουλος",
-    relationship: "Father",
+    relationship: "Πατέρας",
     email: "andreas@example.com",
     phone: "+30 694 123 4568",
   },
@@ -265,7 +265,7 @@ export const sampleParents: ParentContact[] = [
     id: "parent_2",
     parentName: "Ελένη Κωνσταντίνου",
     student: "Μαρία Κωνσταντίνου",
-    relationship: "Mother",
+    relationship: "Μητέρα",
     email: "eleni.parent@example.com",
     phone: "+30 697 234 5679",
   },
@@ -274,19 +274,19 @@ export const sampleParents: ParentContact[] = [
 export const sampleSchedule: ScheduleSlot[] = [
   {
     id: "slot_1",
-    day: "Monday",
+    day: "Δευτέρα",
     time: "09:00",
     course: "Εφαρμοσμένα Μαθηματικά",
     teacher: "Ελένη Παπαδοπούλου",
-    room: "Room A",
+    room: "Αίθουσα Α",
   },
   {
     id: "slot_2",
-    day: "Wednesday",
+    day: "Τετάρτη",
     time: "11:00",
     course: "Προχωρημένη Φυσική",
     teacher: "Κωνσταντίνος Βασιλείου",
-    room: "Room B",
+    room: "Αίθουσα Β",
   },
 ];
 
@@ -295,34 +295,34 @@ export const sampleTeacherAvailability: TeacherAvailability[] = [
     id: "avail_1",
     teacherId: "tea_1",
     teacherName: "Ελένη Παπαδοπούλου",
-    day: "Monday",
+    day: "Δευτέρα",
     time: "09:00",
   },
   {
     id: "avail_2",
     teacherId: "tea_1",
     teacherName: "Ελένη Παπαδοπούλου",
-    day: "Wednesday",
+    day: "Τετάρτη",
     time: "11:00",
   },
   {
     id: "avail_3",
     teacherId: "tea_2",
     teacherName: "Κωνσταντίνος Βασιλείου",
-    day: "Tuesday",
+    day: "Τρίτη",
     time: "10:00",
   },
   {
     id: "avail_4",
     teacherId: "tea_2",
     teacherName: "Κωνσταντίνος Βασιλείου",
-    day: "Thursday",
+    day: "Πέμπτη",
     time: "15:00",
   },
 ];
 
 export const sampleClassrooms: Classroom[] = [
-  { id: "room_1", name: "Room A", capacity: 16 },
-  { id: "room_2", name: "Room B", capacity: 12 },
-  { id: "room_3", name: "Room C", capacity: 10 },
+  { id: "room_1", name: "Αίθουσα Α", capacity: 16 },
+  { id: "room_2", name: "Αίθουσα Β", capacity: 12 },
+  { id: "room_3", name: "Αίθουσα Γ", capacity: 10 },
 ];

@@ -32,10 +32,20 @@ const schedule = [
 export default function ScheduleBoardPage() {
   return (
     <WorkspaceShell
-      title="📅 Εβδομαδιαίο Πρόγραμμα"
-      description="Προβολή μαθημάτων ανά ημέρα και ώρα"
+      title="Εβδομαδιαίο Πρόγραμμα"
+      description="Προβολή των μαθημάτων ανά ημέρα και ώρα, για γρήγορη εποπτεία του εβδομαδιαίου πλάνου."
     >
-      <div className="overflow-x-auto rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+      <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">Πίνακας προγράμματος</h2>
+            <p className="mt-1 text-sm text-slate-500">Μια γρήγορη επισκόπηση για το τρέχον εβδομαδιαίο πρόγραμμα των μαθημάτων.</p>
+          </div>
+          <div className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700">Ενημέρωση σε πραγματικό χρόνο</div>
+        </div>
+
+        <div className="overflow-x-auto rounded-3xl border border-slate-200">
+
         <table className="w-full">
           <thead>
             <tr>
@@ -61,7 +71,8 @@ export default function ScheduleBoardPage() {
             ))}
           </tbody>
         </table>
-      </div>
+        </div>
+      </section>
     </WorkspaceShell>
   );
 }

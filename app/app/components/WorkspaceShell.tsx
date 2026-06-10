@@ -32,7 +32,7 @@ export function WorkspaceShell({
         <div className="mb-10">
           <div className="text-3xl font-bold tracking-tight">EduFlow</div>
           <p className="mt-2 text-sm text-slate-400">
-            Πλατφόρμα Διαχείρισης Φροντιστηρίου
+            Ένα ολοκληρωμένο περιβάλλον για φροντιστήριο
           </p>
         </div>
 
@@ -59,9 +59,9 @@ export function WorkspaceShell({
 
         <div className="mt-8 rounded-3xl border border-slate-800 bg-slate-900 p-5 text-sm text-slate-400">
           <div className="font-semibold text-slate-100">
-            Έξυπνο Πρόγραμμα
+            Έξυπνη διαχείριση
           </div>
-          Αυτόματη δημιουργία προγράμματος μαθημάτων, καθηγητών και αιθουσών.
+          Αυτοματοποιημένη δημιουργία προγράμματος, διαχείριση καθηγητών και παρακολούθηση μαθημάτων σε ένα μέρος.
         </div>
       </aside>
 
@@ -81,7 +81,7 @@ export function WorkspaceShell({
               href="/students"
               className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
             >
-              Νέος Μαθητής
+              Προσθήκη Μαθητή
             </Link>
 
             <Link

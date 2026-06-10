@@ -121,23 +121,23 @@ export default function CoursesPage() {
 
   return (
     <WorkspaceShell
-      title="Courses"
-      description="Organize tutoring courses, manage capacity, and match teachers to live sessions."
+      title="Μαθήματα"
+      description="Οργάνωση μαθημάτων φροντιστηρίου, διαχείριση θέσεων και αντιστοίχιση καθηγητών σε συνεδρίες."
     >
       <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
         <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-slate-950">Available courses</h2>
-              <p className="mt-1 text-sm text-slate-500">Courses available for enrollment, session planning, and assignments.</p>
+              <h2 className="text-xl font-semibold text-slate-950">Διαθέσιμα μαθήματα</h2>
+              <p className="mt-1 text-sm text-slate-500">Μαθήματα διαθέσιμα για εγγραφή, προγραμματισμό και ανάθεση σε καθηγητές.</p>
             </div>
             <div className="w-full md:w-80">
-              <label className="block text-sm font-medium text-slate-700">Search courses</label>
+              <label className="block text-sm font-medium text-slate-700">Αναζήτηση μαθημάτων</label>
               <input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Search by title, subject, or teacher"
+                placeholder="Αναζήτηση με τίτλο, θέμα ή καθηγητή"
               />
             </div>
           </div>
@@ -146,12 +146,12 @@ export default function CoursesPage() {
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50 text-slate-700">
                 <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Title</th>
-                  <th className="px-4 py-3 text-left font-semibold">Subject</th>
-                  <th className="px-4 py-3 text-left font-semibold">Teacher</th>
-                  <th className="px-4 py-3 text-left font-semibold">Duration</th>
-                  <th className="px-4 py-3 text-left font-semibold">Seats</th>
-                  <th className="px-4 py-3 text-left font-semibold">Actions</th>
+                  <th className="px-4 py-3 text-left font-semibold">Τίτλος</th>
+                  <th className="px-4 py-3 text-left font-semibold">Θέμα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Καθηγητής</th>
+                  <th className="px-4 py-3 text-left font-semibold">Διάρκεια</th>
+                  <th className="px-4 py-3 text-left font-semibold">Θέσεις</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
@@ -168,14 +168,14 @@ export default function CoursesPage() {
                         onClick={() => handleEdit(course)}
                         className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                       >
-                        Edit
+                        Επεξεργασία
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDelete(course.id)}
                         className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
                       >
-                        Delete
+                        Διαγραφή
                       </button>
                     </td>
                   </tr>
@@ -187,16 +187,16 @@ export default function CoursesPage() {
 
         <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
           <div>
-            <h2 className="text-xl font-semibold text-slate-950">{selectedCourse ? "Edit course" : "Create course"}</h2>
+            <h2 className="text-xl font-semibold text-slate-950">{selectedCourse ? "Επεξεργασία μαθήματος" : "Δημιουργία μαθήματος"}</h2>
             <p className="mt-1 text-sm text-slate-500">
               {selectedCourse
-                ? "Update an existing course or assign a different teacher."
-                : "Add a new tutoring course and plan capacity for the term."}
+                ? "Ενημερώστε ένα υπάρχον μάθημα ή αντιστοιχίστε διαφορετικό καθηγητή."
+                : "Προσθέστε ένα νέο μάθημα και προγραμματίστε τη χωρητικότητά του."}
             </p>
           </div>
 
           <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">Course title</label>
+            <label className="block text-sm font-medium text-slate-700">Τίτλος μαθήματος</label>
             <input
               value={formValues.title}
               onChange={(event) => setFormValues({ ...formValues, title: event.target.value })}
@@ -204,7 +204,7 @@ export default function CoursesPage() {
               placeholder="Προχωρημένη Άλγεβρα"
             />
 
-            <label className="block text-sm font-medium text-slate-700">Subject</label>
+            <label className="block text-sm font-medium text-slate-700">Θέμα</label>
             <input
               value={formValues.subject}
               onChange={(event) => setFormValues({ ...formValues, subject: event.target.value })}
@@ -212,13 +212,13 @@ export default function CoursesPage() {
               placeholder="Μαθηματικά"
             />
 
-            <label className="block text-sm font-medium text-slate-700">Teacher</label>
+            <label className="block text-sm font-medium text-slate-700">Καθηγητής</label>
             <select
               value={formValues.teacher}
               onChange={(event) => setFormValues({ ...formValues, teacher: event.target.value })}
               className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
             >
-              <option value="">Select teacher</option>
+              <option value="">Επιλογή καθηγητή</option>
               {teachers.map((teacherOption) => (
                 <option key={teacherOption.id} value={teacherOption.fullName}>
                   {teacherOption.fullName}
@@ -226,7 +226,7 @@ export default function CoursesPage() {
               ))}
             </select>
 
-            <label className="block text-sm font-medium text-slate-700">Duration</label>
+            <label className="block text-sm font-medium text-slate-700">Διάρκεια</label>
             <input
               value={formValues.duration}
               onChange={(event) => setFormValues({ ...formValues, duration: event.target.value })}
@@ -234,7 +234,7 @@ export default function CoursesPage() {
               placeholder="12 weeks"
             />
 
-            <label className="block text-sm font-medium text-slate-700">Seats</label>
+            <label className="block text-sm font-medium text-slate-700">Θέσεις</label>
             <input
               value={formValues.seats}
               onChange={(event) => setFormValues({ ...formValues, seats: Number(event.target.value) })}
@@ -250,7 +250,7 @@ export default function CoursesPage() {
               onClick={saveCourse}
               className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
-              {selectedCourse ? "Update course" : "Save course"}
+              {selectedCourse ? "Ενημέρωση μαθήματος" : "Αποθήκευση μαθήματος"}
             </button>
             {selectedCourse ? (
               <button
@@ -258,7 +258,7 @@ export default function CoursesPage() {
                 onClick={resetForm}
                 className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
               >
-                Cancel edit
+                Ακύρωση
               </button>
             ) : null}
           </div>

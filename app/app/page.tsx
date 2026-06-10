@@ -1,150 +1,289 @@
-import Link from "next/link";
-export default function Home() {
-const stats = [
-{ title: "Students", value: 245 },
-{ title: "Teachers", value: 18 },
-{ title: "Courses", value: 32 },
-{ title: "Revenue", value: "€12,450" },
-];
-const students = [
-{
-id: 1,
-name: "Γιάννης Παπαδόπουλος",
-className: "Γ Λυκείου",
-course: "Μαθηματικά",
-},
-{
-id: 2,
-name: "Μαρία Κωνσταντίνου",
-className: "Β Λυκείου",
-course: "Φυσική",
-},
-{
-id: 3,
-name: "Νίκος Γεωργίου",
-className: "Α Λυκείου",
-course: "Έκθεση",
-},
-];
-const schedule = [
-{
-day: "Δευτέρα",
-time: "18:00",
-course: "Μαθηματικά Γ3",
-teacher: "Παπαδόπουλος",
-},
-{
-day: "Τρίτη",
-time: "19:00",
-course: "Φυσική Β2",
-teacher: "Κωνσταντίνου",
-},
-];
-return ( <div className="min-h-screen flex bg-gray-100"> <aside className="w-64 bg-gray-900 text-white p-6"> <h1 className="text-3xl font-bold mb-10">
-EduFlow </h1>
-```
-    <nav className="space-y-4 flex flex-col">
-      <Link href="/" className="hover:text-blue-300">
-        📊 Dashboard
-      </Link>
+"use client";
 
-      <Link href="/students" className="hover:text-blue-300">
-        👨‍🎓 Students
-      </Link>
-      <Link href="/teachers" className="hover:text-blue-300">
-        👨‍🏫 Teachers
-      </Link>
-      <Link href="/courses" className="hover:text-blue-300">
-        📚 Courses
-      </Link>
-      <Link href="/schedule" className="hover:text-blue-300">
-        📅 Schedule
-      </Link>
-      <Link href="/attendance" className="hover:text-blue-300">
-        ✅ Attendance
-      </Link>
-      <Link href="/payments" className="hover:text-blue-300">
-        💰 Payments
-      </Link>
-    </nav>
-  </aside>
-  <main className="flex-1 p-8">
-    <h2 className="text-4xl font-bold mb-2">
-      EduFlow Dashboard
-    </h2>
-    <p className="text-gray-500 mb-8">
-      Tutoring Management Platform
-    </p>
-    <div className="grid md:grid-cols-4 gap-6 mb-8">
-      {stats.map((item) => (
-        <div
-          key={item.title}
-          className="bg-white rounded-xl shadow p-6"
-        >
-          <div className="text-gray-500">
-            {item.title}
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { WorkspaceShell } from "./components/WorkspaceShell";
+import {
+  fetchStudents,
+  fetchTeachers,
+  fetchCourses,
+  fetchSchedule,
+} from "./lib/api";
+
+export default function Home() {
+  const [students, setStudents] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [courses, setCourses] = useState<any[]>([]);
+  const [schedule, setSchedule] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function load() {
+      const [s, t, c, sch] = await Promise.all([
+        fetchStudents(),
+        fetchTeachers(),
+        fetchCourses(),
+        fetchSchedule(),
+      ]);
+
+      setStudents(s);
+      setTeachers(t);
+      setCourses(c);
+      setSchedule(sch);
+    }
+
+    load();
+  }, []);
+
+  const todayLessons = useMemo(() => schedule.slice(0, 5), [schedule]);
+
+  return (
+    <WorkspaceShell
+      title="🏠 Πίνακας Ελέγχου"
+      description="Επισκόπηση λειτουργίας του φροντιστηρίου σε πραγματικό χρόνο."
+    >
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+
+        <StatCard
+          title="Μαθητές"
+          value={students.length}
+          icon="👨‍🎓"
+          color="bg-blue-500"
+        />
+
+        <StatCard
+          title="Καθηγητές"
+          value={teachers.length}
+          icon="👨‍🏫"
+          color="bg-green-500"
+        />
+
+        <StatCard
+          title="Μαθήματα"
+          value={courses.length}
+          icon="📚"
+          color="bg-purple-500"
+        />
+
+        <StatCard
+          title="Προγραμματισμένα"
+          value={schedule.length}
+          icon="📅"
+          color="bg-orange-500"
+        />
+      </div>
+
+      <div className="grid xl:grid-cols-2 gap-8 mt-8">
+
+        <div className="bg-white rounded-3xl shadow-sm p-6">
+
+          <div className="flex justify-between items-center mb-5">
+            <h2 className="text-xl font-bold">
+              👨‍🎓 Πρόσφατοι Μαθητές
+            </h2>
+
+            <Link
+              href="/students"
+              className="text-blue-600 text-sm"
+            >
+              Προβολή όλων
+            </Link>
           </div>
-          <div className="text-3xl font-bold mt-2">
-            {item.value}
-          </div>
-        </div>
-      ))}
-    </div>
-    <div className="grid md:grid-cols-2 gap-8">
-      <div className="bg-white rounded-xl shadow p-6">
-        <h3 className="text-xl font-bold mb-4">
-          Students
-        </h3>
-        <table className="w-full">
-          <thead>
-            <tr>
-              <th className="text-left">Name</th>
-              <th className="text-left">Class</th>
-              <th className="text-left">Course</th>
-            </tr>
-          </thead>
-          <tbody>
-            {students.map((student) => (
-              <tr key={student.id}>
-                <td>{student.name}</td>
-                <td>{student.className}</td>
-                <td>{student.course}</td>
-              </tr>
+
+          <div className="space-y-4">
+
+            {students.slice(0, 5).map((student: any) => (
+              <div
+                key={student.id}
+                className="border rounded-xl p-4 flex justify-between"
+              >
+                <div>
+                  <div className="font-semibold">
+                    {student.fullName}
+                  </div>
+
+                  <div className="text-sm text-gray-500">
+                    {student.grade}
+                  </div>
+                </div>
+
+                <div className="text-sm text-gray-500">
+                  {student.course}
+                </div>
+              </div>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="bg-white rounded-xl shadow p-6">
-        <h3 className="text-xl font-bold mb-4">
-          Auto Generated Schedule
-        </h3>
-        {schedule.map((item, index) => (
-          <div
-            key={index}
-            className="border-b py-3"
-          >
-            <div className="font-semibold">
-              {item.course}
-            </div>
-            <div className="text-sm text-gray-500">
-              {item.day} - {item.time}
-            </div>
-            <div className="text-sm">
-              {item.teacher}
-            </div>
+
           </div>
-        ))}
+
+        </div>
+
+        <div className="bg-white rounded-3xl shadow-sm p-6">
+
+          <div className="flex justify-between items-center mb-5">
+
+            <h2 className="text-xl font-bold">
+              📅 Σημερινό Πρόγραμμα
+            </h2>
+
+            <Link
+              href="/schedule-board"
+              className="text-blue-600 text-sm"
+            >
+              Αναλυτικά
+            </Link>
+
+          </div>
+
+          <div className="space-y-4">
+
+            {todayLessons.map((lesson: any, index) => (
+              <div
+                key={index}
+                className="border-l-4 border-blue-500 pl-4 py-2"
+              >
+                <div className="font-semibold">
+                  {lesson.course}
+                </div>
+
+                <div className="text-sm text-gray-500">
+                  {lesson.day} • {lesson.time}
+                </div>
+
+                <div className="text-sm">
+                  👨‍🏫 {lesson.teacher}
+                </div>
+              </div>
+            ))}
+
+          </div>
+
+        </div>
+
       </div>
+
+      <div className="mt-8 bg-white rounded-3xl shadow-sm p-6">
+
+        <h2 className="text-xl font-bold mb-5">
+          ⚡ Γρήγορες Ενέργειες
+        </h2>
+
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+
+          <QuickButton
+            href="/students"
+            label="Νέος Μαθητής"
+            icon="👨‍🎓"
+          />
+
+          <QuickButton
+            href="/teachers"
+            label="Νέος Καθηγητής"
+            icon="👨‍🏫"
+          />
+
+          <QuickButton
+            href="/courses"
+            label="Νέο Μάθημα"
+            icon="📚"
+          />
+
+          <QuickButton
+            href="/schedule"
+            label="Πρόγραμμα"
+            icon="📅"
+          />
+
+          <QuickButton
+            href="/crm"
+            label="CRM"
+            icon="🏢"
+          />
+
+          <QuickButton
+            href="/payments"
+            label="Πληρωμές"
+            icon="💳"
+          />
+
+        </div>
+
+      </div>
+
+      <div className="mt-8 rounded-3xl bg-gradient-to-r from-slate-900 to-slate-700 text-white p-8">
+
+        <h2 className="text-2xl font-bold mb-3">
+          🤖 Smart Scheduler
+        </h2>
+
+        <p className="text-slate-300 mb-5">
+          Δημιουργία βέλτιστου προγράμματος μαθημάτων χωρίς συγκρούσεις.
+        </p>
+
+        <Link
+          href="/schedule"
+          className="inline-flex rounded-xl bg-white text-slate-900 px-6 py-3 font-semibold"
+        >
+          Δημιουργία Προγράμματος
+        </Link>
+
+      </div>
+
+    </WorkspaceShell>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  icon,
+  color,
+}: any) {
+  return (
+    <div className="bg-white rounded-3xl shadow-sm p-6">
+
+      <div className="flex justify-between items-center">
+
+        <div>
+
+          <div className="text-gray-500 text-sm">
+            {title}
+          </div>
+
+          <div className="text-4xl font-bold mt-2">
+            {value}
+          </div>
+
+        </div>
+
+        <div
+          className={`${color} text-white text-3xl rounded-2xl w-16 h-16 flex items-center justify-center`}
+        >
+          {icon}
+        </div>
+
+      </div>
+
     </div>
-    <div className="mt-8 bg-white rounded-xl shadow p-6">
-      <h3 className="text-xl font-bold mb-4">
-        Smart Schedule Generator
-      </h3>
-      <button className="bg-blue-600 text-white px-6 py-3 rounded-lg">
-        Generate Schedule
-      </button>
-    </div>
-  </main>
-</div>
-);
+  );
+}
+
+function QuickButton({
+  href,
+  label,
+  icon,
+}: any) {
+  return (
+    <Link
+      href={href}
+      className="rounded-2xl border bg-slate-50 hover:bg-slate-100 p-5 text-center"
+    >
+      <div className="text-3xl mb-2">
+        {icon}
+      </div>
+
+      <div className="font-medium text-sm">
+        {label}
+      </div>
+
+    </Link>
+  );
 }
