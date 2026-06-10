@@ -50,7 +50,9 @@ export default function TeachersHub() {
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [availability, setAvailability] = useState<Record<string, Array<{ start: string; end: string }>>>({});
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => { 
+    setMounted(true); 
+  }, []);
 
   const toggleClass = (cls: string) => {
     setSelectedClasses(prev => 
@@ -116,7 +118,11 @@ export default function TeachersHub() {
     };
 
     setTeachers([...teachers, newTeacher]);
-    setName(""); setSpecialty(""); setSelectedClasses([]); setSelectedDays([]); setAvailability({});
+    setName(""); 
+    setSpecialty(""); 
+    setSelectedClasses([]); 
+    setSelectedDays([]); 
+    setAvailability({});
     alert("✅ Ο καθηγητής προστέθηκε με επιτυχία!");
   };
 
@@ -133,7 +139,9 @@ export default function TeachersHub() {
         <div className="lg:col-span-1">
           <div className="p-6 rounded-3xl border border-slate-800 bg-slate-900/80 backdrop-blur-md shadow-2xl">
             <div className="flex items-center gap-2 mb-6">
-              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400"><UserPlus className="w-5 h-5" /></div>
+              <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400">
+                <UserPlus className="w-5 h-5" />
+              </div>
               <h3 className="text-base font-bold text-white">Προσθήκη Καθηγητή</h3>
             </div>
 
@@ -143,7 +151,9 @@ export default function TeachersHub() {
                   Ονοματεπώνυμο <span className="text-rose-500">*</span>
                 </label>
                 <input 
-                  type="text" value={name} onChange={(e) => setName(e.target.value)}
+                  type="text" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)}
                   placeholder="π.χ. Κωνσταντίνος Βασιλείου"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:border-indigo-500 focus:outline-none transition"
                 />
@@ -154,7 +164,8 @@ export default function TeachersHub() {
                   Ειδικότητα / Μάθημα <span className="text-rose-500">*</span>
                 </label>
                 <select 
-                  value={specialty} onChange={(e) => setSpecialty(e.target.value)}
+                  value={specialty} 
+                  onChange={(e) => setSpecialty(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:border-indigo-500 focus:outline-none transition"
                 >
                   <option value="" className="text-slate-500">Επιλέξτε Ειδικότητα</option>
@@ -170,7 +181,9 @@ export default function TeachersHub() {
                 <div className="grid grid-cols-2 gap-2">
                   {CLASSES.map(cls => (
                     <button
-                      type="button" key={cls} onClick={() => toggleClass(cls)}
+                      type="button" 
+                      key={cls} 
+                      onClick={() => toggleClass(cls)}
                       className={`p-2 rounded-xl border text-[11px] font-bold text-center transition-all ${
                         selectedClasses.includes(cls) 
                           ? "bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20" 
@@ -189,7 +202,9 @@ export default function TeachersHub() {
                 <div className="grid grid-cols-3 gap-2">
                   {DAYS.map(day => (
                     <button
-                      type="button" key={day.id} onClick={() => toggleDay(day.id)}
+                      type="button" 
+                      key={day.id} 
+                      onClick={() => toggleDay(day.id)}
                       className={`p-2 rounded-xl border text-xs font-bold transition-all ${
                         selectedDays.includes(day.id) 
                           ? "bg-purple-600 border-purple-500 text-white shadow-lg shadow-purple-600/20" 
@@ -214,7 +229,8 @@ export default function TeachersHub() {
                           {DAYS.find(d => d.id === dayId)?.name}
                         </span>
                         <button
-                          type="button" onClick={() => addSlot(dayId)}
+                          type="button" 
+                          onClick={() => addSlot(dayId)}
                           className="text-[10px] bg-indigo-600/20 text-indigo-400 font-bold px-2 py-0.5 rounded flex items-center gap-1 hover:bg-indigo-600/30 transition"
                         >
                           <Plus className="w-3 h-3" /> Προσθήκη Slot
@@ -225,18 +241,21 @@ export default function TeachersHub() {
                         {availability[dayId]?.map((slot, index) => (
                           <div key={index} className="flex items-center gap-2 bg-slate-900/40 p-1.5 rounded-xl border border-slate-800/60">
                             <input 
-                              type="time" value={slot.start}
+                              type="time" 
+                              value={slot.start}
                               onChange={(e) => updateSlot(dayId, index, "start", e.target.value)}
                               className="bg-slate-950 text-xs text-white p-1 rounded border border-slate-800 focus:outline-none w-full font-mono"
                             />
                             <span className="text-slate-600 text-xs">-</span>
                             <input 
-                              type="time" value={slot.end}
+                              type="time" 
+                              value={slot.end}
                               onChange={(e) => updateSlot(dayId, index, "end", e.target.value)}
                               className="bg-slate-950 text-xs text-white p-1 rounded border border-slate-800 focus:outline-none w-full font-mono"
                             />
                             <button
-                              type="button" onClick={() => removeSlot(dayId, index)}
+                              type="button" 
+                              onClick={() => removeSlot(dayId, index)}
                               className="p-1 text-rose-400 hover:bg-rose-500/10 rounded transition"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -289,6 +308,44 @@ export default function TeachersHub() {
                       </td>
                       <td className="py-4">
                         <div className="flex flex-wrap gap-1 max-w-[200px]">
-                          {teacher.classes.map((c: string) => (
-                            <span key={c} className="text-[10px] bg-slate-950 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-800">
-                              {
+                          {teacher.classes.length === 0 ? (
+                            <span className="text-xs text-slate-600">-</span>
+                          ) : (
+                            teacher.classes.map((c: string) => (
+                              <span key={c} className="text-[10px] bg-slate-950 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-800">
+                                {c}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4">
+                        <div className="space-y-1">
+                          {teacher.schedule.map((s: any) => (
+                            <div key={s.day} className="flex items-center gap-2 text-xs">
+                              <span className="font-bold text-slate-400 min-w-[50px]">
+                                {DAYS.find(d => d.id === s.day)?.name}:
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {s.slots.map((slot: any, idx: number) => (
+                                  <span key={idx} className="bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/10 text-[11px] font-mono">
+                                    {slot.start}-{slot.end}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </WorkspaceShell>
+  );
+}
