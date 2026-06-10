@@ -84,7 +84,9 @@ export default function SchedulePage() {
   };
 
   return (
-    <WorkspaceShell title="Έξυπνη Δημιουργία Προγράμματος">
+    <WorkspaceShell 
+  title="Έξυπνη Δημιουργία Προγράμματος" 
+  description="Αυτόματη γεννήτρια εβδομαδιαίου πλάνου βασισμένη αποκλειστικά στις διαθέσιμες ώρες Μαθητών, Καθηγητών και Αιθουσών.">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 px-4 pb-20">
         
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
