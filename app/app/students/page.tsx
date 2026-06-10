@@ -2,54 +2,65 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../components/WorkspaceShell";
-import { UserPlus, Bell, Clock, Trash2, Users } from "lucide-react";
+import { UserPlus, Clock, Trash2, Users } from "lucide-react";
 
 const AVAILABLE_DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const TIME_SLOTS = ["13:00-14:00", "14:00-15:00", "15:00-16:00", "16:00-17:00", "17:00-18:00", "18:00-19:00", "19:00-20:00", "20:00-21:00", "21:00-22:00", "22:00-23:00"];
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<any[]>([]); // ΕΔΩ ΑΠΟΘΗΚΕΥΟΝΤΑΙ ΟΙ ΜΑΘΗΤΕΣ ΓΙΑ ΤΗ ΛΙΣΤΑ
+  const [students, setStudents] = useState<any[]>([]);
   
   // States Φόρμας
-  const [studentName, setStudentName] = useState("");
+  const [name, setName] = useState("");
   const [studentPhone, setStudentPhone] = useState("");
   const [parentName, setParentName] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
-  const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
+  const [courses, setCourses] = useState<string[]>([]);
   const [availability, setAvailability] = useState<Record<string, string[]>>({});
 
-  // Φόρτωση λίστας κατά το άνοιγμα
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
     setStudents(stored);
   }, []);
 
-  const toggleCourse = (course: string) => {
-    setSelectedCourses(prev => prev.includes(course) ? prev.filter(c => c !== course) : [...prev, course]);
-  };
+  const toggleCourse = (c: string) => setCourses(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]);
 
-  const toggleTimeSlot = (day: string, slot: string) => {
+  const toggleSlot = (day: string, slot: string) => {
     setAvailability(prev => {
       const daySlots = prev[day] || [];
-      const updatedSlots = daySlots.includes(slot) ? daySlots.filter(s => s !== slot) : [...daySlots, slot];
-      return { ...prev, [day]: updatedSlots };
+      const updated = daySlots.includes(slot) ? daySlots.filter(s => s !== slot) : [...daySlots, slot];
+      return { ...prev, [day]: updated };
     });
   };
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentName.trim()) return alert("Συμπληρώστε όνομα μαθητή!");
 
-    const newStudent = { id: `student-${Date.now()}`, name: studentName, studentPhone, parentName, parentPhone, parentEmail, courses: selectedCourses, availability };
+    // Validation
+    if (!name || !studentPhone || !parentName || !parentPhone || !parentEmail || courses.length === 0) {
+      alert("⚠️ ΠΡΟΣΟΧΗ: Συμπλήρωσε όλα τα πεδία και επίλεξε τουλάχιστον ένα μάθημα!");
+      return;
+    }
+
+    const newStudent = {
+      id: `student-${Date.now()}`,
+      name,
+      studentPhone,
+      parentName,
+      parentPhone,
+      parentEmail,
+      courses,
+      availability // ΑΥΤΟ ΕΙΝΑΙ ΤΟ ΚΛΕΙΔΙ ΓΙΑ ΤΟΝ SCHEDULER
+    };
+
+    const updated = [...students, newStudent];
+    setStudents(updated);
+    localStorage.setItem("eduflow_students", JSON.stringify(updated));
     
-    // Ανανέωση Λίστας
-    const updatedList = [...students, newStudent];
-    setStudents(updatedList);
-    localStorage.setItem("eduflow_students", JSON.stringify(updatedList));
-
-    // Reset φόρμας
-    setStudentName(""); setSelectedCourses([]); setAvailability({});
+    // Reset
+    setName(""); setStudentPhone(""); setParentName(""); setParentPhone(""); setParentEmail(""); setCourses([]); setAvailability({});
+    alert("✅ Ο μαθητής αποθηκεύτηκε και συνδέθηκε στον Scheduler!");
   };
 
   const handleDelete = (id: string) => {
@@ -59,31 +70,52 @@ export default function StudentsPage() {
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Μαθητών" description="Εγγραφή νέων μαθητών και προβολή λίστας.">
+    <WorkspaceShell title="Εγγραφή & Λίστα Μαθητών" description="Καταγραφή μαθητή με πλήρη στοιχεία γονέα και διαθεσιμότητα 13:00-23:00.">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4 pb-20">
         
-        {/* ΑΡΙΣΤΕΡΑ: ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ */}
+        {/* ΦΟΡΜΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><UserPlus className="w-4 h-4 text-blue-400" /> Νέα Εγγραφή</h3>
           <form onSubmit={handleRegister} className="space-y-4">
-            <input type="text" value={studentName} onChange={e => setStudentName(e.target.value)} placeholder="Ονοματεπώνυμο Μαθητή *" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
-            <input type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)} placeholder="Κινητό Μαθητή" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
-            
-            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-3 rounded-xl">Αποθήκευση & Προσθήκη στη Λίστα</button>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Όνομα Μαθητή *" className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+              <input type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)} placeholder="Κινητό Μαθητή *" className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            </div>
+            <input type="text" value={parentName} onChange={e => setParentName(e.target.value)} placeholder="Όνομα Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            <div className="grid grid-cols-2 gap-2">
+              <input type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="Κινητό Γονέα *" className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+              <input type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} placeholder="Email Γονέα *" className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            </div>
+
+            {/* Διαθεσιμότητα */}
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold text-slate-400">Διαθεσιμότητα (13:00-23:00)</p>
+              {AVAILABLE_DAYS.map(day => (
+                <div key={day} className="flex gap-2 items-center">
+                  <span className="w-16 text-[9px] font-bold text-slate-500">{day}</span>
+                  <div className="grid grid-cols-5 gap-1">
+                    {TIME_SLOTS.map(slot => (
+                      <button type="button" key={slot} onClick={() => toggleSlot(day, slot)} className={`p-1 rounded text-[8px] ${availability[day]?.includes(slot) ? "bg-emerald-600 text-white" : "bg-slate-800 text-slate-500"}`}>{slot.split(':')[0]}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button type="submit" className="w-full bg-indigo-600 p-3 rounded-xl text-white font-bold text-xs">Αποθήκευση Μαθητή</button>
           </form>
         </div>
 
-        {/* ΔΕΞΙΑ: ΛΙΣΤΑ ΜΑΘΗΤΩΝ (ΕΔΩ ΕΙΝΑΙ ΤΟ ΖΗΤΟΥΜΕΝΟ) */}
-        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-2xl">
-          <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2"><Users className="w-4 h-4 text-emerald-400" /> Κατάλογος Μαθητών ({students.length})</h3>
-          <div className="space-y-3">
+        {/* ΛΙΣΤΑ */}
+        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
+          <h3 className="text-sm font-bold text-white mb-4">Εγγεγραμμένοι Μαθητές ({students.length})</h3>
+          <div className="space-y-2">
             {students.map(s => (
-              <div key={s.id} className="bg-[#0b0e14] p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+              <div key={s.id} className="bg-[#0b0e14] p-3 rounded border border-slate-800 flex justify-between items-center">
                 <div>
-                  <p className="text-white font-bold text-xs">{s.name}</p>
-                  <p className="text-[10px] text-slate-500">{s.studentPhone}</p>
+                  <p className="text-xs font-bold text-white">{s.name}</p>
+                  <p className="text-[9px] text-slate-400">Γονέας: {s.parentName} | Email: {s.parentEmail}</p>
                 </div>
-                <button onClick={() => handleDelete(s.id)} className="text-rose-500 hover:text-rose-400"><Trash2 className="w-4 h-4" /></button>
+                <button onClick={() => handleDelete(s.id)} className="text-rose-500"><Trash2 className="w-4 h-4"/></button>
               </div>
             ))}
           </div>
