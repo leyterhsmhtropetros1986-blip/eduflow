@@ -1,6 +1,6 @@
 "use client";
 
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
 
 export default function ClassesPage() {
   return (

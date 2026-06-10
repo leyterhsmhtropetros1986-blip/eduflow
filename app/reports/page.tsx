@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { WorkspaceShell } from "../components/WorkspaceShell";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Eye, EyeOff, BarChart3, Users, BookOpen, Building, GraduationCap } from "lucide-react";
 
 export default function ReportsPage() {
