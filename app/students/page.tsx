@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { AvailabilityMatrix } from "../../components/AvailabilityMatrix";
-import { Trash2, Edit2, UserPlus, Plus, X, Clock, GraduationCap, AlertTriangle, BookOpen, Layers } from "lucide-react";
+import { Trash2, Edit2, UserPlus, Plus, X, GraduationCap, AlertTriangle, BookOpen, Layers } from "lucide-react";
 
 interface AvailabilitySlot { day: string; start: string; end: string; }
 
@@ -30,9 +30,8 @@ interface Student {
 interface ClassItem {
   id?: string;
   name: string;      
-  course?: string;    
-  capacity?: number;  
-  grade?: string; // Η relational προσθήκη για σύνδεση τμήματος ανά τάξη
+  maxStudents: number; // Ενημέρωση με το νέο σχήμα
+  grade: string;       // Η καθαρή relational σύνδεση
 }
 
 export default function StudentsPage() {
@@ -72,15 +71,15 @@ export default function StudentsPage() {
   const loadData = () => {
     if (typeof window !== "undefined") {
       const rawStudents = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
-      const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_sections") || "[]");
+      const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
       const rawLessons = JSON.parse(localStorage.getItem("eduflow_lessons") || "[]");
 
       const normalizedClasses = rawClasses.map((c: any) => {
-        if (typeof c === "string") return { name: c, capacity: 20 };
         return { 
-          ...c, 
+          id: c.id || `class-${Date.now()}-${Math.random()}`,
           name: c.name || c.className || "",
-          grade: c.grade || "" 
+          grade: c.grade || "",
+          maxStudents: Number(c.maxStudents) || Number(c.capacity) || 20
         };
       }).filter((c: ClassItem) => c.name !== "");
 
@@ -102,28 +101,10 @@ export default function StudentsPage() {
     }
   };
 
-  // 🎯 ΤΡΙΠΛΟΣ ΜΗΧΑΝΙΣΜΟΣ ΦΙΛΤΡΑΡΙΣΜΑΤΟΣ ΑΝΑ ΤΑΞΗ (FAIL-SAFE)
+  // 🎯 ΑΥΣΤΗΡΟ ΦΙΛΤΡΑΡΙΣΜΑ: Δείχνει ΜΟΝΟ τα τμήματα που ανήκουν στην επιλεγμένη τάξη
   const filteredSections = useMemo(() => {
     if (!grade) return [];
-
-    // Προσπάθεια 1: Φιλτράρισμα με βάση το πεδίο grade (Καθαρή ERP δομή)
-    let matches = classesList.filter(sec => sec.grade === grade);
-
-    // Προσπάθεια 2: Αν δεν βρει τίποτα, φιλτράρισμα με το πρώτο γράμμα (π.χ. Α για Α Λυκείου)
-    if (matches.length === 0) {
-      const firstLetter = grade.trim().charAt(0).toUpperCase();
-      matches = classesList.filter(sec => {
-        const name = (sec.name || "").trim().toUpperCase();
-        return name.startsWith(firstLetter) || name.includes(firstLetter);
-      });
-    }
-
-    // Προσπάθεια 3: Αν ΠΑΛΙ είναι κενό, δείξε ΟΛΑ τα τμήματα της βάσης για να μην κολλήσει ο χρήστης
-    if (matches.length === 0) {
-      return classesList;
-    }
-
-    return matches;
+    return classesList.filter(sec => sec.grade === grade);
   }, [classesList, grade]);
 
   const sectionCounts = useMemo(() => {
@@ -157,13 +138,13 @@ export default function StudentsPage() {
 
     const studentData: Student = {
       id: editingId || `s-${Date.now()}`,
-      firstName,
-      lastName,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       grade,
-      phone,
-      parentName,
-      parentPhone,
-      parentEmail,
+      phone: phone.trim(),
+      parentName: parentName.trim(),
+      parentPhone: parentPhone.trim(),
+      parentEmail: parentEmail.trim(),
       enrollments: formEnrollments,
       isLockedHours,
       lockedSlots: isLockedHours ? lockedSlots : [],
@@ -251,10 +232,10 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            {/* 📘 ΔΥΝΑΜΙΚΑ Dropdowns ΜΕ ΕΓΓΥΗΜΕΝΟ FAIL-SAFE */}
+            {/* 📘 ΔΥΝΑΜΙΚΑ Dropdowns ΜΕ ΑΥΣΤΗΡΟ ΦΙΛΤΡΑΡΙΣΜΑ */}
             <div className="bg-[#0b0e14] border border-slate-800 rounded-xl p-4 space-y-3">
               <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold border-b border-slate-900 pb-1 flex items-center gap-1">
-                <Layers size={12}/> Επιλογή Τμημάτων (Συνδεδεμένα με {grade || "Τάξη"})
+                <Layers size={12}/> Επιλογή Τμημάτων (Μόνο για {grade || "Τάξη"})
               </p>
               
               <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
@@ -286,18 +267,18 @@ export default function StudentsPage() {
                           <option value="">-- Χωρίς εγγραφή --</option>
                           
                           {classesList.length === 0 ? (
-                            <option value="" disabled>⚠️ Δεν υπάρχουν τμήματα στο σύστημα. Δημιουργήστε τα πρώτα.</option>
+                            <option value="" disabled>⚠️ Δεν υπάρχουν τμήματα στο σύστημα.</option>
                           ) : filteredSections.length === 0 ? (
-                            <option value="" disabled>⚠️ Κανένα τμήμα δεν ταιριάζει με την {grade}</option>
+                            <option value="" disabled>⚠️ Κανένα τμήμα δεν έχει δηλωθεί για την {grade}</option>
                           ) : (
                             filteredSections.map((sec, sIdx) => {
-                              const maxCap = sec.capacity || 20;
+                              const maxCap = sec.maxStudents || 20;
                               const currentStudents = sectionCounts[`${lesson}_${sec.name}`] || 0;
                               const isFull = currentStudents >= maxCap && currentSelection !== sec.name;
 
                               return (
                                 <option key={sIdx} value={sec.name} disabled={isFull}>
-                                  {sec.name} {sec.grade ? `(${sec.grade})` : ""} — ({currentStudents}/{maxCap} μαθητές) {isFull ? "🔒 FULL" : ""}
+                                  {sec.name} — ({currentStudents}/{maxCap} μαθητές) {isFull ? "🔒 FULL" : ""}
                                 </option>
                               );
                             })
