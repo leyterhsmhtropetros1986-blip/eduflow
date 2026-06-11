@@ -2,16 +2,10 @@
 
 import { useState } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { RefreshCw, Layers, Users, MapPin, CheckCircle2, AlertCircle, Lock } from "lucide-react";
+import { RefreshCw, Layers, Users, MapPin, Lock, Calendar, CheckCircle2 } from "lucide-react";
 
 interface ScheduleItem {
-  id: number;
-  day: string;
-  time: string;
-  groupName: string;
-  teacher: string;
-  room: string;
-  type: "Locked" | "Auto" | "TeacherBusy";
+  id: string; day: string; time: string; groupName: string; teacher: string; room: string; type: "Auto" | "TeacherBusy";
 }
 
 export default function SchedulePage() {
@@ -21,23 +15,20 @@ export default function SchedulePage() {
   const generateSmartSchedule = () => {
     setLoading(true);
 
-    // 1. Λήψη δεδομένων
-    const students = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
     const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
     const rooms = JSON.parse(localStorage.getItem("eduflow_rooms") || "[]");
-    const classes = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
+    const classes = JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]");
 
     const newSchedule: ScheduleItem[] = [];
-    const occupiedSlots: Record<string, boolean> = {}; // key: "day-time-teacherId" ή "day-time-roomId"
+    const occupiedSlots: Record<string, boolean> = {}; 
 
-    // 2. ΠΡΟΕΠΕΞΕΡΓΑΣΙΑ: Κλείδωμα ωρών καθηγητών (Hard Constraints)
+    // 1. Προετοιμασία: Κλείδωμα Busy Ωρών Καθηγητών
     teachers.forEach((t: any) => {
       if (t.isLockedHours && t.lockedSlots) {
         t.lockedSlots.forEach((slot: any) => {
           occupiedSlots[`${slot.day}-${slot.time}-teacher-${t.id}`] = true;
-          
           newSchedule.push({
-            id: Math.random(),
+            id: `busy-${t.id}-${slot.day}-${slot.time}`,
             day: slot.day,
             time: slot.time,
             groupName: "Μη Διαθέσιμος",
@@ -49,33 +40,41 @@ export default function SchedulePage() {
       }
     });
 
-    // 3. Scheduling logic (απλοποιημένη προσέγγιση για 1 slot ανά τμήμα)
-    const days = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
-    const times = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
+    // 2. Scheduling logic με έλεγχο διαθεσιμότητας
+    const days = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+    const hours = Array.from({length: 15}, (_, i) => `${i + 9 < 10 ? '0' : ''}${i + 9}:00`);
 
     classes.forEach((c: any) => {
-      const teacher = teachers.find((t: any) => t.subject === c.subject); // ή κατάλληλο matching
+      let teacher = teachers.find((t: any) => t.subject === c.course) || teachers[0];
       if (!teacher) return;
 
-      // Προσπάθεια εύρεσης ελεύθερης ώρας
+      // Έλεγχος αν ο καθηγητής έχει κλειδωμένο τμήμα (αν ναι, έλεγχος ID)
+      if (teacher.isLockedClass && teacher.assignedClassId !== c.id) return;
+
+      let scheduled = false;
+      
       for (const day of days) {
-        for (const time of times) {
-          const teacherKey = `${day}-${time}-teacher-${teacher.id}`;
+        if (scheduled) break;
+        for (const time of hours) {
           
-          // Έλεγχος αν ο καθηγητής είναι απασχολημένος
+          // --- ΕΛΕΓΧΟΣ ΔΙΑΘΕΣΙΜΟΤΗΤΑΣ ---
+          // 1. Είναι μέσα στα slots διαθεσιμότητας του καθηγητή;
+          const isAvailable = teacher.availability?.some((slot: any) => 
+            slot.day === day && time >= slot.start && time < slot.end
+          );
+          if (!isAvailable) continue;
+
+          // 2. Είναι ήδη απασχολημένος;
+          const teacherKey = `${day}-${time}-teacher-${teacher.id}`;
           if (occupiedSlots[teacherKey]) continue;
 
-          // Έλεγχος αν ο καθηγητής έχει LockedClass και δεν είναι αυτό το τμήμα
-          if (teacher.isLockedClass && teacher.assignedClassId !== c.name) continue;
-
-          // Έλεγχος για διαθέσιμη αίθουσα
+          // 3. Είναι διαθέσιμη η αίθουσα;
           const room = rooms.find((r: any) => !occupiedSlots[`${day}-${time}-room-${r.id}`]);
-
+          
           if (room) {
             newSchedule.push({
-              id: Math.random(),
-              day,
-              time,
+              id: `sched-${c.id}-${day}-${time}`,
+              day, time,
               groupName: c.name,
               teacher: teacher.name,
               room: room.name,
@@ -84,7 +83,8 @@ export default function SchedulePage() {
 
             occupiedSlots[teacherKey] = true;
             occupiedSlots[`${day}-${time}-room-${room.id}`] = true;
-            return; // Βρήκαμε ώρα για αυτό το τμήμα, πάμε στο επόμενο
+            scheduled = true;
+            break; 
           }
         }
       }
@@ -95,7 +95,7 @@ export default function SchedulePage() {
   };
 
   return (
-    <WorkspaceShell title="Scheduler" description="Αυτόματη δημιουργία προγράμματος με βάση τις δεσμεύσεις.">
+    <WorkspaceShell title="Scheduler" description="Αυτόματη δημιουργία προγράμματος βάσει διαθεσιμότητας.">
       <div className="px-4">
         <button 
           onClick={generateSmartSchedule} 
@@ -107,23 +107,18 @@ export default function SchedulePage() {
 
         <div className="grid grid-cols-1 gap-3">
           {schedule.length === 0 ? (
-            <div className="text-center py-12 border border-dashed border-slate-700 rounded-2xl">
-              <AlertCircle className="mx-auto text-slate-600 mb-2" />
-              <p className="text-slate-500 text-sm">Πατήστε το κουμπί για να ξεκινήσει η δημιουργία.</p>
+            <div className="text-center py-12 border border-dashed border-slate-700 rounded-2xl bg-[#1e2330]/50">
+              <Calendar className="mx-auto text-slate-600 mb-2" size={32} />
+              <p className="text-slate-500 text-sm">Πατήστε για αυτόματη δημιουργία προγράμματος.</p>
             </div>
           ) : (
             schedule.map((s) => (
               <div key={s.id} className={`p-4 rounded-xl border flex items-center justify-between 
-                ${s.type === 'Locked' ? 'bg-indigo-900/10 border-indigo-500/30' : 
-                  s.type === 'TeacherBusy' ? 'bg-rose-900/10 border-rose-500/30' : 'bg-[#1e2330] border-slate-800'}`}>
+                ${s.type === 'TeacherBusy' ? 'bg-rose-900/10 border-rose-500/30' : 'bg-[#1e2330] border-slate-800'}`}>
                 
                 <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-lg ${
-                    s.type === 'Locked' ? 'bg-indigo-600 text-white' : 
-                    s.type === 'TeacherBusy' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-indigo-400'
-                  }`}>
-                    {s.type === 'Locked' ? <CheckCircle2 size={20} /> : 
-                     s.type === 'TeacherBusy' ? <Lock size={20} /> : <Layers size={20} />}
+                  <div className={`p-3 rounded-lg ${s.type === 'TeacherBusy' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-indigo-400'}`}>
+                    {s.type === 'TeacherBusy' ? <Lock size={20} /> : <CheckCircle2 size={20} />}
                   </div>
                   <div>
                     <p className={`font-bold ${s.type === 'TeacherBusy' ? 'text-rose-200' : 'text-white'}`}>{s.groupName}</p>
