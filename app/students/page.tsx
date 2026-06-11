@@ -9,7 +9,7 @@ interface AvailabilitySlot { day: string; start: string; end: string; }
 
 interface StudentEnrollment {
   lessonName: string;
-  className: string; // Το όνομα του τμήματος (π.χ. Γ1, Γ2)
+  className: string; 
 }
 
 interface Student {
@@ -21,7 +21,7 @@ interface Student {
   parentName: string;
   parentPhone: string;
   parentEmail: string;
-  enrollments: StudentEnrollment[]; // Η νέα αρχιτεκτονική
+  enrollments: StudentEnrollment[]; 
   isLockedHours: boolean;
   lockedSlots: AvailabilitySlot[];
   availability: AvailabilitySlot[];
@@ -29,9 +29,9 @@ interface Student {
 
 interface ClassItem {
   id?: string;
-  name: string;      // π.χ. "Γ1", "Γ2"
-  course?: string;    // Το μάθημα στο οποίο ανήκει το τμήμα
-  capacity?: number;  // Χωρητικότητα (default αν δεν υπάρχει: 20)
+  name: string;      
+  course?: string;    
+  capacity?: number;  
 }
 
 export default function StudentsPage() {
@@ -50,7 +50,6 @@ export default function StudentsPage() {
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
   
-  // Live state για τις εγγραφές που επιλέγονται αυτή τη στιγμή στη φόρμα
   const [formEnrollments, setFormEnrollments] = useState<StudentEnrollment[]>([]);
   
   const [isLockedHours, setIsLockedHours] = useState(false);
@@ -76,7 +75,7 @@ export default function StudentsPage() {
       const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
       const rawLessons = JSON.parse(localStorage.getItem("eduflow_lessons") || "[]");
 
-      // MIGRATION ENGINE: Μετατρέπει αυτόματα το παλιό μοντέλο (selectedLessons & section) στο νέο (enrollments)
+      // MIGRATION ENGINE
       const migratedStudents = rawStudents.map((s: any) => {
         if (!s.enrollments) {
           const legacyEnrollments: StudentEnrollment[] = (s.selectedLessons || []).map((lesson: string) => ({
@@ -95,13 +94,11 @@ export default function StudentsPage() {
     }
   };
 
-  // Live υπολογισμός των ενεργών μαθητών ανά Τμήμα και Μάθημα
+  // Live υπολογισμός πληρότητας
   const sectionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     students.forEach(s => {
-      // Αν επεξεργαζόμαστε μαθητή, δεν μετράμε τις τωρινές του εγγραφές στο live capacity
       if (s.id === editingId) return; 
-      
       s.enrollments?.forEach(e => {
         const key = `${e.lessonName}_${e.className}`;
         counts[key] = (counts[key] || 0) + 1;
@@ -115,7 +112,6 @@ export default function StudentsPage() {
     setNewSlot({ day: newSlot.day, start: getAvailableTimes(newSlot.day)[0], end: getAvailableTimes(newSlot.day)[1] || "15:00" });
   };
 
-  // Διαχείριση αλλαγής drop-down τμήματος για συγκεκριμένο μάθημα
   const handleEnrollmentChange = (lessonName: string, className: string) => {
     const filtered = formEnrollments.filter(e => e.lessonName !== lessonName);
     if (className === "") {
@@ -125,7 +121,6 @@ export default function StudentsPage() {
     }
   };
 
-  // --- SAVE ---
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -245,8 +240,13 @@ export default function StudentsPage() {
               
               <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
                 {lessonsList.map((lesson, idx) => {
-                  // Φιλτράρισμα των τμημάτων που ανήκουν σε αυτό το μάθημα
-                  const relatedSections = classesList.filter(c => c.course === lesson || !c.course);
+                  // 💡 SMART FALLBACK: Αν δεν υπάρχουν ακόμα τμήματα ρητά συνδεδεμένα με αυτό το μάθημα,
+                  // εμφάνισε όλα τα διαθέσιμα τμήματα (τα 42 ενεργά) για να μην μένει κενό το UI.
+                  const hasSectionsForThisLesson = classesList.some(c => c.course === lesson);
+                  const relatedSections = hasSectionsForThisLesson 
+                    ? classesList.filter(c => c.course === lesson)
+                    : classesList;
+
                   const currentSelection = formEnrollments.find(e => e.lessonName === lesson)?.className || "";
 
                   return (
@@ -362,7 +362,7 @@ export default function StudentsPage() {
                     </div>
                   </div>
 
-                  {/* ΝΕΑ ΕΜΦΑΝΙΣΗ ENROLLMENTS ΑΝΑ ΜΑΘΗΜΑ */}
+                  {/* ΕΜΦΑΝΙΣΗ ENROLLMENTS ΑΝΑ ΜΑΘΗΜΑ */}
                   {s.enrollments && s.enrollments.length > 0 && (
                     <div className="py-2 px-3 bg-[#1e2330]/50 border border-slate-800/60 rounded-xl space-y-1 mt-1">
                       <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Ενεργές Εγγραφές:</p>
