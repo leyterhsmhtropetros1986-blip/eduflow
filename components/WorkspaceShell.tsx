@@ -2,18 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { 
+  LayoutDashboard, Users, GraduationCap, BookOpen, 
+  Building, Library, Calendar, CheckCircle2, Briefcase, 
+  UserCircle, FileText, Bell, Search, Bot
+} from "lucide-react";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: "🏠" },
-  { href: "/students", label: "Μαθητές", icon: "👨‍🎓" },
-  { href: "/teachers", label: "Καθηγητές", icon: "👨‍🏫" },
-  { href: "/classes", label: "Τάξεις", icon: "🎓" },
-  { href: "/rooms", label: "Αίθουσες", icon: "🚪" },
-  { href: "/courses", label: "Μαθήματα", icon: "📚" },
-  { href: "/schedule", label: "Scheduler", icon: "🤖" },
-  { href: "/attendance", label: "Παρουσίες", icon: "✅" },
-  { href: "/crm", label: "CRM", icon: "🏢" },
-  { href: "/parents", label: "Γονείς", icon: "👪" },
+  { href: "/", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
+  { href: "/students", label: "Μαθητές", icon: <GraduationCap size={20} /> },
+  { href: "/teachers", label: "Καθηγητές", icon: <Users size={20} /> },
+  { href: "/classes", label: "Τάξεις", icon: <BookOpen size={20} /> },
+  { href: "/rooms", label: "Αίθουσες", icon: <Building size={20} /> },
+  { href: "/courses", label: "Μαθήματα", icon: <Library size={20} /> },
+  { href: "/schedule", label: "Scheduler", icon: <Calendar size={20} /> },
+  { href: "/attendance", label: "Παρουσίες", icon: <CheckCircle2 size={20} /> },
+  { href: "/crm", label: "CRM", icon: <Briefcase size={20} /> },
+  { href: "/parents", label: "Γονείς", icon: <UserCircle size={20} /> },
+  { href: "/reports", label: "Αναφορές", icon: <FileText size={20} /> },
 ];
 
 export function WorkspaceShell({
@@ -28,15 +34,12 @@ export function WorkspaceShell({
   const pathname = usePathname();
 
   return (
-    <div className="min-h-screen bg-slate-100 flex">
-      <aside className="w-72 bg-slate-950 text-white flex flex-col shadow-xl">
-        <div className="p-8 border-b border-slate-800">
-          <div className="text-3xl font-black tracking-tight bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
-            EduFlow
-          </div>
-          <div className="text-slate-400 mt-2 text-sm">
-            Smart Tutoring ERP
-          </div>
+    <div className="min-h-screen bg-[#0b0e14] flex text-slate-200">
+      {/* SIDEBAR */}
+      <aside className="w-72 bg-[#1e2330] flex flex-col border-r border-slate-800">
+        <div className="p-8 border-b border-slate-800/50">
+          <div className="text-3xl font-black text-indigo-400">EduFlow</div>
+          <div className="text-slate-500 mt-1 text-xs font-semibold tracking-wider uppercase">Smart Tutoring ERP</div>
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -46,29 +49,30 @@ export function WorkspaceShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all text-sm
-                ${
-                  active
-                    ? "bg-cyan-500 text-white shadow-lg"
-                    : "text-slate-300 hover:bg-slate-800"
-                }`}
+                className={`flex items-center gap-3 rounded-xl px-4 py-3 transition-all text-sm font-medium
+                ${active 
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
+                  : "text-slate-400 hover:bg-[#0b0e14] hover:text-white"}`}
               >
-                <span className="text-xl">{item.icon}</span>
-                <span>{item.label}</span>
+                {item.icon}
+                {item.label}
               </Link>
             );
           })}
         </nav>
 
+        {/* AI WIDGET */}
         <div className="p-5 border-t border-slate-800">
-          <div className="rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 p-5">
-            <div className="font-bold text-lg">🤖 AI Scheduler</div>
-            <div className="text-sm opacity-90 mt-2">
-              Δημιουργία προγράμματος χωρίς συγκρούσεις.
+          <div className="rounded-2xl bg-indigo-900/20 border border-indigo-500/10 p-5">
+            <div className="flex items-center gap-2 text-indigo-400 font-bold mb-2">
+              <Bot size={18} /> AI Scheduler
             </div>
+            <p className="text-xs text-slate-400 leading-relaxed mb-4">
+              Δημιουργία προγράμματος χωρίς συγκρούσεις.
+            </p>
             <Link
               href="/schedule"
-              className="inline-block mt-4 bg-white text-slate-900 px-4 py-2 rounded-xl font-semibold text-sm"
+              className="block w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-xl font-semibold text-xs transition-colors"
             >
               Άνοιγμα
             </Link>
@@ -76,25 +80,26 @@ export function WorkspaceShell({
         </div>
       </aside>
 
+      {/* MAIN CONTENT */}
       <main className="flex-1 overflow-y-auto">
-        <header className="bg-white shadow-sm px-10 py-6 flex items-center justify-between">
+        <header className="sticky top-0 bg-[#1e2330]/80 backdrop-blur-md border-b border-slate-800 px-10 py-6 flex items-center justify-between z-10">
           <div>
-            <h1 className="text-4xl font-black text-slate-900">
-              {title}
-            </h1>
-            <p className="text-slate-500 mt-2">
-              {description}
-            </p>
+            <h1 className="text-3xl font-black text-white">{title}</h1>
+            <p className="text-slate-400 mt-1 text-sm">{description}</p>
           </div>
+          
           <div className="flex items-center gap-4">
-            <input
-              placeholder="🔍 Αναζήτηση..."
-              className="rounded-xl border px-5 py-3 w-72"
-            />
-            <button className="bg-white rounded-xl border px-4 py-3">
-              🔔
+            <div className="relative">
+              <Search className="absolute left-3 top-3 text-slate-500" size={18} />
+              <input
+                placeholder="Αναζήτηση..."
+                className="bg-[#0b0e14] border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 w-64 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+              />
+            </div>
+            <button className="bg-[#1e2330] border border-slate-700 rounded-xl p-3 text-slate-300 hover:text-white transition-colors">
+              <Bell size={18} />
             </button>
-            <div className="rounded-full w-12 h-12 bg-cyan-500 flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
               Λ
             </div>
           </div>
