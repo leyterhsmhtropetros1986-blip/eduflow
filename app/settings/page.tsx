@@ -1,43 +1,104 @@
 "use client";
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
+import { Trash2, Save, Plus } from "lucide-react";
 
 export default function SettingsPage() {
-  const [teacher, setTeacher] = useState({ name: "", subject: "" });
-  const [cls, setCls] = useState({ name: "", subject: "" });
-  const [room, setRoom] = useState("");
+  const [data, setData] = useState({
+    teachers: [] as any[],
+    classes: [] as any[],
+    courses: [] as string[],
+    rooms: [] as any[],
+  });
 
-  const saveToStorage = (key: string, newItem: any) => {
-    const existing = JSON.parse(localStorage.getItem(key) || "[]");
-    localStorage.setItem(key, JSON.stringify([...existing, newItem]));
-    alert("Αποθηκεύτηκε!");
+  // Load initial data
+  useEffect(() => {
+    setData({
+      teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"),
+      classes: JSON.parse(localStorage.getItem("eduflow_classes") || "[]"),
+      courses: JSON.parse(localStorage.getItem("eduflow_courses") || "[]"),
+      rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || "[]"),
+    });
+  }, []);
+
+  const saveItem = (key: string, item: any) => {
+    if (!item) return;
+    const updated = [...data[key as keyof typeof data], item];
+    localStorage.setItem(`eduflow_${key}`, JSON.stringify(updated));
+    setData(prev => ({ ...prev, [key]: updated }));
+  };
+
+  const removeItem = (key: string, index: number) => {
+    const updated = data[key as keyof typeof data].filter((_, i) => i !== index);
+    localStorage.setItem(`eduflow_${key}`, JSON.stringify(updated));
+    setData(prev => ({ ...prev, [key]: updated }));
   };
 
   return (
-    <div className="p-10 space-y-10">
-      <h1 className="text-2xl font-bold">Ρυθμίσεις & Δεδομένα</h1>
-      
-      {/* Προσθήκη Καθηγητή */}
-      <div className="bg-white p-6 rounded-xl border">
-        <h2 className="font-bold mb-4">Προσθήκη Καθηγητή</h2>
-        <input className="border p-2 mr-2" placeholder="Όνομα" onChange={e => setTeacher({...teacher, name: e.target.value})} />
-        <input className="border p-2 mr-2" placeholder="Μάθημα" onChange={e => setTeacher({...teacher, subject: e.target.value})} />
-        <button className="bg-blue-600 text-white p-2 rounded" onClick={() => saveToStorage("eduflow_teachers", teacher)}>Αποθήκευση</button>
-      </div>
+    <WorkspaceShell title="Ρυθμίσεις" description="Διαχείριση βασικών δεδομένων συστήματος.">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        {/* ΜΑΘΗΜΑΤΑ */}
+        <SettingsCard title="Μαθήματα" onAdd={(val) => saveItem("courses", val)}>
+          <ul className="space-y-2 mt-4">
+            {data.courses.map((c, i) => (
+              <li key={i} className="flex justify-between p-2 bg-slate-100 rounded text-sm">
+                {c} <button onClick={() => removeItem("courses", i)} className="text-red-500"><Trash2 size={14}/></button>
+              </li>
+            ))}
+          </ul>
+        </SettingsCard>
 
-      {/* Προσθήκη Τάξης */}
-      <div className="bg-white p-6 rounded-xl border">
-        <h2 className="font-bold mb-4">Προσθήκη Τάξης</h2>
-        <input className="border p-2 mr-2" placeholder="Όνομα Τάξης" onChange={e => setCls({...cls, name: e.target.value})} />
-        <input className="border p-2 mr-2" placeholder="Μάθημα" onChange={e => setCls({...cls, subject: e.target.value})} />
-        <button className="bg-blue-600 text-white p-2 rounded" onClick={() => saveToStorage("eduflow_classes", cls)}>Αποθήκευση</button>
-      </div>
+        {/* ΤΑΞΕΙΣ */}
+        <SettingsCard title="Τάξεις (Τμήματα)" onAdd={(val) => saveItem("classes", { name: val })}>
+           <ul className="space-y-2 mt-4">
+            {data.classes.map((c, i) => (
+              <li key={i} className="flex justify-between p-2 bg-slate-100 rounded text-sm">
+                {c.name} <button onClick={() => removeItem("classes", i)} className="text-red-500"><Trash2 size={14}/></button>
+              </li>
+            ))}
+          </ul>
+        </SettingsCard>
 
-      {/* Προσθήκη Αίθουσας */}
-      <div className="bg-white p-6 rounded-xl border">
-        <h2 className="font-bold mb-4">Προσθήκη Αίθουσας</h2>
-        <input className="border p-2 mr-2" placeholder="Όνομα Αίθουσας" onChange={e => setRoom(e.target.value)} />
-        <button className="bg-blue-600 text-white p-2 rounded" onClick={() => saveToStorage("eduflow_rooms", { name: room })}>Αποθήκευση</button>
+        {/* ΑΙΘΟΥΣΕΣ */}
+        <SettingsCard title="Αίθουσες" onAdd={(val) => saveItem("rooms", { name: val })}>
+           <ul className="space-y-2 mt-4">
+            {data.rooms.map((r, i) => (
+              <li key={r.id} className="flex justify-between p-2 bg-slate-100 rounded text-sm">
+                {r.name} <button onClick={() => removeItem("rooms", i)} className="text-red-500"><Trash2 size={14}/></button>
+              </li>
+            ))}
+          </ul>
+        </SettingsCard>
+
       </div>
+    </WorkspaceShell>
+  );
+}
+
+// Βοηθητικό Component για τις κάρτες
+function SettingsCard({ title, children, onAdd }: { title: string, children: React.ReactNode, onAdd: (val: string) => void }) {
+  const [input, setInput] = useState("");
+  
+  return (
+    <div className="bg-white p-6 rounded-2xl border shadow-sm">
+      <h2 className="font-bold text-lg mb-4">{title}</h2>
+      <div className="flex gap-2">
+        <input 
+          className="border p-2 rounded-lg flex-1 text-sm" 
+          placeholder={`Προσθήκη ${title.toLowerCase()}...`}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+        />
+        <button 
+          className="bg-cyan-600 text-white p-2 px-4 rounded-lg" 
+          onClick={() => { onAdd(input); setInput(""); }}
+        >
+          <Plus size={18} />
+        </button>
+      </div>
+      {children}
     </div>
   );
 }
