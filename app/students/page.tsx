@@ -159,7 +159,7 @@ export default function StudentsPage() {
             {/* ΔΙΑΘΕΣΙΜΟΤΗΤΑ */}
             <div className="bg-[#0b0e14] p-4 rounded-xl border border-slate-800 space-y-3">
               <label className="flex items-center gap-2 text-xs text-rose-300 font-medium cursor-pointer">
-                <input type="checkbox" checked={isLockedHours} onChange={e => setIsLockedHours(e.target.checked)} />
+                <input type="checkbox" checked={isLockedHours} onChange={e => setIsLockedHours(e.checked)} />
                 Κλείδωμα / Περιορισμός ωρών διαθεσιμότητας
               </label>
               {isLockedHours && (
