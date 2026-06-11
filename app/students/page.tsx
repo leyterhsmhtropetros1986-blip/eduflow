@@ -23,7 +23,7 @@ const GRADES = ["Α' Γυμνασίου", "Β' Γυμνασίου", "Γ' Γυμ�
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
-  const [classesList, setClassesList] = useState<{name: string}[]>([]);
+  const [classesList, setClassesList] = useState<any[]>([]); // Άλλαξε σε any για ευελιξία με objects
   const [coursesList, setCoursesList] = useState<string[]>([]);
   
   const [name, setName] = useState("");
@@ -37,10 +37,14 @@ export default function StudentsPage() {
   const [availability, setAvailability] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
-    // Φόρτωση δεδομένων από το localStorage
-    setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
-    setClassesList(JSON.parse(localStorage.getItem("eduflow_classes") || "[]"));
-    setCoursesList(JSON.parse(localStorage.getItem("eduflow_courses") || "[]"));
+    // Ασφαλές φόρτωμα δεδομένων με try-catch
+    try {
+      setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
+      setClassesList(JSON.parse(localStorage.getItem("eduflow_classes") || "[]"));
+      setCoursesList(JSON.parse(localStorage.getItem("eduflow_courses") || "[]"));
+    } catch (e) {
+      console.error("Σφάλμα κατά το φόρτωμα δεδομένων:", e);
+    }
   }, []);
 
   const toggleSlot = (day: string, slot: string) => {
@@ -92,16 +96,17 @@ export default function StudentsPage() {
 
               <select required value={subject} onChange={e => setSubject(e.target.value)} className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
                 <option value="">Μάθημα</option>
-                {coursesList.map(c => <option key={c} value={c}>{c}</option>)}
+                {coursesList.map((c, i) => <option key={i} value={c}>{c}</option>)}
               </select>
 
               <select required value={course} onChange={e => setCourse(e.target.value)} className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
                 <option value="">Τμήμα</option>
-                {classesList.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                {/* Χειρίζεται σωστά αν το class είναι object ή string */}
+                {classesList.map((c, i) => <option key={i} value={c.name || c}>{c.name || c}</option>)}
               </select>
             </div>
 
-            <input required type="text" value={groupSize} onChange={e => setGroupSize(e.target.value)} placeholder="Αριθμός ατόμων (π.χ. 1)" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
+            <input required type="number" value={groupSize} onChange={e => setGroupSize(e.target.value)} placeholder="Αριθμός ατόμων" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
             
             <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800">
               <input type="tel" value={studentPhone} onChange={e => setStudentPhone(e.target.value)} placeholder="Τηλ. Μαθητή" className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
@@ -109,7 +114,6 @@ export default function StudentsPage() {
               <input type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} placeholder="Email Γονέα" className="bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
             </div>
             
-            {/* Διαθεσιμότητα */}
             <div className="pt-2 border-t border-slate-800">
               <p className="text-[10px] font-bold text-slate-400 mb-2">ΔΙΑΘΕΣΙΜΟΤΗΤΑ</p>
               {AVAILABLE_DAYS.map(day => (

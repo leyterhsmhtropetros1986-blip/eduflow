@@ -15,7 +15,7 @@ interface Teacher {
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [courses, setCourses] = useState<string[]>([]);
-  const [classes, setClasses] = useState<string[]>([]);
+  const [classes, setClasses] = useState<any[]>([]); // Άλλαξε σε any[] για να δέχεται objects
   
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
@@ -23,13 +23,14 @@ export default function TeachersPage() {
   const [phone, setPhone] = useState("");
 
   useEffect(() => {
-    // Φόρτωση δεδομένων από το localStorage
+    // Φόρτωση δεδομένων
     const savedTeachers = localStorage.getItem("eduflow_teachers");
     const savedCourses = localStorage.getItem("eduflow_courses");
     const savedClasses = localStorage.getItem("eduflow_classes");
 
     if (savedTeachers) setTeachers(JSON.parse(savedTeachers));
     if (savedCourses) setCourses(JSON.parse(savedCourses));
+    // Εδώ διορθώσαμε τη φόρτωση για να διαβάζει τα objects
     if (savedClasses) setClasses(JSON.parse(savedClasses));
   }, []);
 
@@ -76,13 +77,15 @@ export default function TeachersPage() {
             {/* Dropdown Μαθήματος */}
             <select value={subject} onChange={e => setSubject(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
               <option value="">Επίλεξε Μάθημα...</option>
-              {courses.map(c => <option key={c} value={c}>{c}</option>)}
+              {courses.map((c, i) => <option key={i} value={c}>{c}</option>)}
             </select>
 
-            {/* Dropdown Τάξης */}
+            {/* Dropdown Τάξης - Διορθωμένο για να διαβάζει .name */}
             <select value={classGroup} onChange={e => setClassGroup(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white">
               <option value="">Επίλεξε Τάξη...</option>
-              {classes.map(c => <option key={c} value={c}>{c}</option>)}
+              {classes.map((c, i) => (
+                <option key={i} value={c.name || c}>{c.name || c}</option>
+              ))}
             </select>
 
             <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Τηλέφωνο" className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" />
