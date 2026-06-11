@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { FileDown, Users, BookOpen, GraduationCap, Calendar, CheckCircle2, AlertCircle, RefreshCcw } from "lucide-react";
+import { FileDown, Users, BookOpen, GraduationCap, Calendar, CheckCircle2, AlertCircle, RefreshCcw, UserPlus } from "lucide-react";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
@@ -11,31 +11,33 @@ export default function ReportsPage() {
     students: [], 
     teachers: [], 
     classes: [], 
-    schedule: [] 
+    schedule: [],
+    parents: [] 
   });
   
   const [status, setStatus] = useState({
     students: false,
     teachers: false,
     classes: false,
-    schedule: false
+    schedule: false,
+    parents: false
   });
 
-  // Φόρτωση και έλεγχος δεδομένων
   const loadData = () => {
     const s = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
     const t = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
     const c = JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]");
     const sc = JSON.parse(localStorage.getItem("eduflow_schedule") || "[]");
+    const p = JSON.parse(localStorage.getItem("eduflow_parents") || "[]");
 
-    setData({ students: s, teachers: t, classes: c, schedule: sc });
+    setData({ students: s, teachers: t, classes: c, schedule: sc, parents: p });
     
-    // Έλεγχος πληρότητας (Status Check)
     setStatus({
       students: s.length > 0,
       teachers: t.length > 0,
       classes: c.length > 0,
-      schedule: sc.length > 0
+      schedule: sc.length > 0,
+      parents: p.length > 0
     });
   };
 
@@ -43,7 +45,6 @@ export default function ReportsPage() {
     loadData();
   }, []);
 
-  // Συνάρτηση δημιουργίας PDF
   const exportToPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(20);
@@ -52,19 +53,35 @@ export default function ReportsPage() {
     doc.setFontSize(10);
     doc.text(`Ημερομηνία: ${new Date().toLocaleDateString()}`, 14, 28);
 
-    // 1. Μαθητές
-    if (data.students.length > 0) {
+    // 1. Μαθητές ανά Τάξη
+    const uniqueGrades = [...new Set(data.students.map((s: any) => s.grade))];
+    
+    uniqueGrades.forEach((grade: any) => {
+        doc.addPage();
+        doc.setFontSize(16);
+        doc.text(`Λίστα Μαθητών: ${grade}`, 14, 20);
+        const studentsInGrade = data.students.filter((s: any) => s.grade === grade);
+        
+        (doc as any).autoTable({
+          startY: 25,
+          head: [['Όνομα', 'Τηλέφωνο Μαθητή', 'Γονέας', 'Τηλ. Γονέα']],
+          body: studentsInGrade.map((s: any) => [s.name, s.studentPhone, s.parentName, s.parentPhone]),
+        });
+    });
+
+    // 2. Γονείς
+    if (data.parents.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
-      doc.text("Λίστα Μαθητών", 14, 20);
+      doc.text("Λίστα Γονέων", 14, 20);
       (doc as any).autoTable({
         startY: 25,
-        head: [['Όνομα', 'Τάξη', 'Τμήμα', 'Γονέας']],
-        body: data.students.map((s: any) => [s.name, s.grade, s.assignedClass || '-', s.parentName]),
+        head: [['Ονοματεπώνυμο', 'Email', 'Τηλέφωνο', 'Μαθητής']],
+        body: data.parents.map((p: any) => [p.name, p.email, p.phone, p.studentName]),
       });
     }
 
-    // 2. Καθηγητές
+    // 3. Καθηγητές
     if (data.teachers.length > 0) {
       doc.addPage();
       doc.setFontSize(16);
@@ -76,15 +93,15 @@ export default function ReportsPage() {
       });
     }
 
-    // 3. Πρόγραμμα
+    // 4. Πρόγραμμα
     if (data.schedule.length > 0) {
         doc.addPage();
         doc.setFontSize(16);
         doc.text("Εβδομαδιαίο Πρόγραμμα", 14, 20);
         (doc as any).autoTable({
-            startY: 25,
-            head: [['Ημέρα', 'Ώρα', 'Τμήμα', 'Καθηγητής', 'Αίθουσα']],
-            body: data.schedule.map((s: any) => [s.day, s.time, s.groupName, s.teacher, s.room]),
+          startY: 25,
+          head: [['Ημέρα', 'Ώρα', 'Τμήμα', 'Καθηγητής', 'Αίθουσα']],
+          body: data.schedule.map((s: any) => [s.day, s.time, s.groupName, s.teacher, s.room]),
         });
     }
 
@@ -96,7 +113,7 @@ export default function ReportsPage() {
       <div className="px-4 max-w-6xl mx-auto space-y-8">
         
         {/* HEALTH CHECKER */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {Object.entries(status).map(([key, isReady]) => (
                 <div key={key} className={`p-4 rounded-2xl border ${isReady ? 'bg-emerald-900/20 border-emerald-500/30' : 'bg-red-900/20 border-red-500/30'}`}>
                     <div className="flex justify-between items-center mb-2">
@@ -128,9 +145,10 @@ export default function ReportsPage() {
         </div>
 
         {/* STATS GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <StatCard title="Μαθητές" value={data.students.length} icon={<GraduationCap />} />
             <StatCard title="Καθηγητές" value={data.teachers.length} icon={<Users />} />
+            <StatCard title="Γονείς" value={data.parents.length} icon={<UserPlus />} />
             <StatCard title="Τμήματα" value={data.classes.length} icon={<BookOpen />} />
             <StatCard title="Πρόγραμμα" value={data.schedule.length} icon={<Calendar />} />
         </div>
