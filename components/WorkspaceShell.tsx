@@ -3,18 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-// Ενημερωμένα navItems με την προσθήκη Τάξεων και Αιθουσών
 const navItems = [
   { href: "/", label: "Dashboard", icon: "🏠" },
   { href: "/students", label: "Μαθητές", icon: "👨‍🎓" },
   { href: "/teachers", label: "Καθηγητές", icon: "👨‍🏫" },
-  { href: "/classes", label: "Τάξεις", icon: "🎓" }, // Προστέθηκε
-  { href: "/rooms", label: "Αίθουσες", icon: "🚪" },   // Προστέθηκε
+  { href: "/classes", label: "Τάξεις", icon: "🎓" },
+  { href: "/rooms", label: "Αίθουσες", icon: "🚪" },
   { href: "/courses", label: "Μαθήματα", icon: "📚" },
-  { href: "/schedule-board", label: "Πίνακας", icon: "🗓️" },
   { href: "/schedule", label: "Scheduler", icon: "🤖" },
   { href: "/attendance", label: "Παρουσίες", icon: "✅" },
-  { href: "/payments", label: "Πληρωμές", icon: "💳" },
   { href: "/crm", label: "CRM", icon: "🏢" },
   { href: "/parents", label: "Γονείς", icon: "👪" },
 ];
