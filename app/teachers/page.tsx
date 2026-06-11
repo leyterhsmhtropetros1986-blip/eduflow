@@ -5,7 +5,6 @@ import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { AvailabilityMatrix } from "../../components/AvailabilityMatrix";
 import { Trash2, Edit2, UserPlus, Plus, X, Lock, Clock, BookOpen, AlertTriangle } from "lucide-react";
 
-interface LockedSlot { day: string; time: string; }
 interface AvailabilitySlot { day: string; start: string; end: string; }
 
 interface Teacher {
@@ -18,7 +17,7 @@ interface Teacher {
   isLockedClass: boolean;
   assignedClassId: string | null;
   isLockedHours: boolean;
-  lockedSlots: LockedSlot[];
+  lockedSlots: AvailabilitySlot[];
   availability: AvailabilitySlot[];
 }
 
@@ -28,7 +27,7 @@ export default function TeachersPage() {
   const [classesList, setClassesList] = useState<any[]>([]);
   const [lessonsList, setLessonsList] = useState<string[]>([]);
   
-  // States για το Form (Ανανεωμένα με τη λογική των μαθητών)
+  // States για το Form
   const [editingId, setEditingId] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -40,10 +39,15 @@ export default function TeachersPage() {
   const [assignedClassId, setAssignedClassId] = useState("");
   
   const [isLockedHours, setIsLockedHours] = useState(false);
-  const [lockedSlots, setLockedSlots] = useState<LockedSlot[]>([]);
-  const [newSlot, setNewSlot] = useState<LockedSlot>({ day: "Δευτέρα", time: "" });
+  const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
+  
+  // Δυναμικό ωράριο: Το Σάββατο επεκτάθηκε έως τις 17:00
+  const getAvailableTimes = (day: string) => {
+    if (day === "Σάββατο") return ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
+    return ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
+  };
 
-  // Κεντρικό State Διαθεσιμότητας για το Matrix
+  const [newSlot, setNewSlot] = useState<AvailabilitySlot>({ day: "Δευτέρα", start: "14:00", end: "15:00" });
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
 
   useEffect(() => {
@@ -60,16 +64,14 @@ export default function TeachersPage() {
   };
 
   const addSlot = () => {
-    if (!newSlot.time) return;
     setLockedSlots([...lockedSlots, newSlot]);
-    setNewSlot({ day: "Δευτέρα", time: "" });
+    setNewSlot({ day: newSlot.day, start: getAvailableTimes(newSlot.day)[0], end: getAvailableTimes(newSlot.day)[1] || "15:00" });
   };
 
   // --- SAVE & VALIDATION & DUPLICATE DETECTION ---
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Έλεγχος Διπλοεγγραφής βάσει Ονόματος & Επιθέτου (Μόνο για νέες καταχωρήσεις)
     if (!editingId) {
       const isDuplicate = teachers.some(
         t => t.firstName.trim().toLowerCase() === firstName.trim().toLowerCase() &&
@@ -138,7 +140,6 @@ export default function TeachersPage() {
     );
   }
 
-  // Ταξινόμηση καθηγητών αλφαβητικά με βάση το Επίθετο
   const sortedTeachers = [...teachers].sort((a, b) => a.lastName.localeCompare(b.lastName, 'el'));
 
   return (
@@ -153,13 +154,11 @@ export default function TeachersPage() {
             </h4>
             
             <div className="space-y-3">
-              {/* Grid για Όνομα / Επίθετο */}
               <div className="grid grid-cols-2 gap-2">
                 <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Όνομα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
                 <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Επίθετο *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
               </div>
 
-              {/* Grid για Τηλέφωνο / Email */}
               <div className="grid grid-cols-2 gap-2">
                 <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Τηλέφωνο *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
                 <input required type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
@@ -196,20 +195,22 @@ export default function TeachersPage() {
             </div>
 
             {isLockedHours && (
-              <div className="bg-[#0b0e14] p-4 rounded-xl border border-rose-500/20 space-y-2">
-                <div className="grid grid-cols-3 gap-2">
-                  <select className="bg-[#1e2330] text-xs p-2 rounded text-white" value={newSlot.day} onChange={e => setNewSlot({...newSlot, day: e.target.value})}>
+              <div className="bg-[#0b0e14] p-4 rounded-xl border border-rose-500/20 space-y-3">
+                <div className="grid grid-cols-4 gap-1">
+                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded col-span-2 border border-slate-800 focus:border-rose-500 outline-none" value={newSlot.day} onChange={e => {const d = e.target.value; setNewSlot({day: d, start: getAvailableTimes(d)[0], end: getAvailableTimes(d)[1] || "15:00"});}}>
                     {["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"].map(d => <option key={d}>{d}</option>)}
                   </select>
-                  <input className="bg-[#1e2330] text-xs p-2 rounded text-white outline-none placeholder-slate-600 focus:border-rose-500 border border-transparent" placeholder="π.χ. 16:00" value={newSlot.time} onChange={e => setNewSlot({...newSlot, time: e.target.value})} />
-                  <button type="button" onClick={addSlot} className="bg-rose-600 hover:bg-rose-500 rounded text-white text-xs transition-colors"><Plus size={16} className="mx-auto"/></button>
+                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded border border-slate-800" value={newSlot.start} onChange={e => setNewSlot({...newSlot, start: e.target.value})}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
+                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded border border-slate-800" value={newSlot.end} onChange={e => setNewSlot({...newSlot, end: e.target.value})}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
                 </div>
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {lockedSlots.map((s, idx) => (
-                    <span key={idx} className="text-[10px] bg-rose-950/40 text-rose-300 px-2 py-0.5 rounded border border-rose-500/20 flex items-center gap-1">
-                      {s.day} {s.time}
-                      <button type="button" onClick={() => setLockedSlots(lockedSlots.filter((_, i) => i !== idx))} className="text-rose-400 hover:text-white"><X size={10} /></button>
-                    </span>
+                <button type="button" onClick={addSlot} className="w-full bg-rose-600/90 hover:bg-rose-600 py-1.5 rounded text-white text-[11px] font-semibold flex justify-center items-center gap-1 transition-colors"><Plus size={12}/> Προσθήκη Slot</button>
+                
+                <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
+                  {lockedSlots.map((s, i) => (
+                    <div key={i} className="text-[10px] text-slate-300 bg-[#1e2330] p-2 rounded flex justify-between items-center border border-slate-800">
+                      <span>{s.day.substring(0,3)}: {s.start} έως {s.end}</span>
+                      <X size={12} className="cursor-pointer text-rose-500 hover:text-rose-400" onClick={() => setLockedSlots(lockedSlots.filter((_,idx) => idx !== i))}/>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -245,7 +246,6 @@ export default function TeachersPage() {
                 <div key={t.id} className="bg-[#0b0e14] p-4 rounded-xl border border-slate-800/80 border-l-4 border-l-indigo-500 flex flex-col gap-2 hover:border-slate-700 transition-all shadow-sm">
                   <div className="flex justify-between items-start gap-4">
                     <div>
-                      {/* Εμφάνιση Επίθετο Όνομα */}
                       <p className="text-white text-xs font-bold uppercase tracking-wide">{t.lastName} {t.firstName}</p>
                       
                       <div className="flex flex-wrap gap-2 text-[10px] mt-1.5 items-center">
@@ -266,11 +266,22 @@ export default function TeachersPage() {
                     </div>
                   </div>
 
-                  {/* Στοιχεία Επικοινωνίας (ακριβώς όπως στους μαθητές) */}
+                  {/* Στοιχεία Επικοινωνίας */}
                   <div className="pt-2 border-t border-slate-900/60 text-slate-400 text-[10px] grid grid-cols-1 sm:grid-cols-2 gap-y-1 gap-x-2">
                      <p>📞 Τηλ: <span className="text-slate-200 font-mono">{t.phone || "-"}</span></p>
                      <p className="truncate">📧 Email: <span className="text-slate-200 font-mono" title={t.email}>{t.email || "-"}</span></p>
                   </div>
+
+                  {/* Εμφάνιση Κλειδωμένων Ωρών (Busy Slots) αν υπάρχουν */}
+                  {t.isLockedHours && t.lockedSlots && t.lockedSlots.length > 0 && (
+                    <div className="pt-1.5 flex flex-wrap gap-1">
+                      {t.lockedSlots.map((slot, idx) => (
+                        <span key={idx} className="bg-rose-950/60 text-rose-300 text-[8px] font-medium px-1.5 py-0.5 rounded flex items-center gap-1 border border-rose-900/40">
+                          <Clock size={8}/> {slot.day.substring(0,3)} {slot.start}-{slot.end}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
