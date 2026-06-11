@@ -2,74 +2,74 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { Trash2, Save, Plus } from "lucide-react";
+import { Trash2, Plus, School, BookOpen, Users, MapPin } from "lucide-react";
 
 export default function SettingsPage() {
   const [data, setData] = useState({
-    teachers: [] as any[],
-    classes: [] as any[],
+    schools: [] as string[],
     courses: [] as string[],
-    rooms: [] as any[],
+    classes: [] as { id: string, name: string }[],
+    rooms: [] as { id: string, name: string }[],
   });
 
-  // Load initial data
   useEffect(() => {
     setData({
-      teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"),
-      classes: JSON.parse(localStorage.getItem("eduflow_classes") || "[]"),
+      schools: JSON.parse(localStorage.getItem("eduflow_schools") || "[]"),
       courses: JSON.parse(localStorage.getItem("eduflow_courses") || "[]"),
+      classes: JSON.parse(localStorage.getItem("eduflow_classes") || "[]"),
       rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || "[]"),
     });
   }, []);
 
-  const saveItem = (key: string, item: any) => {
-    if (!item) return;
-    const updated = [...data[key as keyof typeof data], item];
+  const saveItem = (key: keyof typeof data, value: string) => {
+    if (!value) return;
+    
+    let newItem: any;
+
+    if (key === "classes" || key === "rooms") {
+      newItem = { id: `id-${Date.now()}`, name: value };
+    } else {
+      newItem = value;
+    }
+
+    const updated = [...(data[key] as any[]), newItem];
+    
     localStorage.setItem(`eduflow_${key}`, JSON.stringify(updated));
     setData(prev => ({ ...prev, [key]: updated }));
   };
 
-  const removeItem = (key: string, index: number) => {
-    const updated = data[key as keyof typeof data].filter((_, i) => i !== index);
+  const removeItem = (key: keyof typeof data, index: number) => {
+    const updated = (data[key] as any[]).filter((_, i) => i !== index);
     localStorage.setItem(`eduflow_${key}`, JSON.stringify(updated));
     setData(prev => ({ ...prev, [key]: updated }));
   };
 
   return (
     <WorkspaceShell title="Ρυθμίσεις" description="Διαχείριση βασικών δεδομένων συστήματος.">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 px-4">
         
-        {/* ΜΑΘΗΜΑΤΑ */}
-        <SettingsCard title="Μαθήματα" onAdd={(val) => saveItem("courses", val)}>
-          <ul className="space-y-2 mt-4">
-            {data.courses.map((c, i) => (
-              <li key={i} className="flex justify-between p-2 bg-slate-100 rounded text-sm">
-                {c} <button onClick={() => removeItem("courses", i)} className="text-red-500"><Trash2 size={14}/></button>
-              </li>
-            ))}
-          </ul>
+        <SettingsCard title="Σχολεία" icon={<School size={16}/>} onAdd={(val) => saveItem("schools", val)}>
+           {data.schools.map((item, i) => (
+             <ListItem key={i} label={item} onRemove={() => removeItem("schools", i)} />
+           ))}
         </SettingsCard>
 
-        {/* ΤΑΞΕΙΣ */}
-        <SettingsCard title="Τάξεις (Τμήματα)" onAdd={(val) => saveItem("classes", { name: val })}>
-           <ul className="space-y-2 mt-4">
-            {data.classes.map((c, i) => (
-              <li key={i} className="flex justify-between p-2 bg-slate-100 rounded text-sm">
-                {c.name} <button onClick={() => removeItem("classes", i)} className="text-red-500"><Trash2 size={14}/></button>
-              </li>
-            ))}
-          </ul>
+        <SettingsCard title="Μαθήματα" icon={<BookOpen size={16}/>} onAdd={(val) => saveItem("courses", val)}>
+           {data.courses.map((item, i) => (
+             <ListItem key={i} label={item} onRemove={() => removeItem("courses", i)} />
+           ))}
         </SettingsCard>
 
-        {/* ΑΙΘΟΥΣΕΣ */}
-        <SettingsCard title="Αίθουσες" onAdd={(val) => saveItem("rooms", { name: val })}>
-           <ul className="space-y-2 mt-4">
-            {data.rooms.map((r, i) => (
-              <li key={r.id} className="flex justify-between p-2 bg-slate-100 rounded text-sm">
-                {r.name} <button onClick={() => removeItem("rooms", i)} className="text-red-500"><Trash2 size={14}/></button>
-              </li>
-            ))}
-          </ul>
+        <SettingsCard title="Τμήματα" icon={<Users size={16}/>} onAdd={(val) => saveItem("classes", val)}>
+           {data.classes.map((item: any, i) => (
+             <ListItem key={item.id} label={item.name} onRemove={() => removeItem("classes", i)} />
+           ))}
+        </SettingsCard>
+
+        <SettingsCard title="Αίθουσες" icon={<MapPin size={16}/>} onAdd={(val) => saveItem("rooms", val)}>
+           {data.rooms.map((item: any, i) => (
+             <ListItem key={item.id} label={item.name} onRemove={() => removeItem("rooms", i)} />
+           ))}
         </SettingsCard>
 
       </div>
@@ -77,28 +77,36 @@ export default function SettingsPage() {
   );
 }
 
-// Βοηθητικό Component για τις κάρτες
-function SettingsCard({ title, children, onAdd }: { title: string, children: React.ReactNode, onAdd: (val: string) => void }) {
+function SettingsCard({ title, icon, children, onAdd }: any) {
   const [input, setInput] = useState("");
   
   return (
-    <div className="bg-white p-6 rounded-2xl border shadow-sm">
-      <h2 className="font-bold text-lg mb-4">{title}</h2>
-      <div className="flex gap-2">
+    <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
+      <h2 className="font-bold text-white text-xs mb-4 flex items-center gap-2 uppercase tracking-wider text-indigo-400">
+        {icon} {title}
+      </h2>
+      <div className="flex gap-2 mb-4">
         <input 
-          className="border p-2 rounded-lg flex-1 text-sm" 
-          placeholder={`Προσθήκη ${title.toLowerCase()}...`}
+          className="bg-[#0b0e14] border border-slate-800 p-2 rounded-xl text-xs text-white flex-1" 
+          placeholder={`Προσθήκη...`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
-        <button 
-          className="bg-cyan-600 text-white p-2 px-4 rounded-lg" 
-          onClick={() => { onAdd(input); setInput(""); }}
-        >
-          <Plus size={18} />
+        <button className="bg-indigo-600 text-white p-2 px-4 rounded-xl hover:bg-indigo-500 transition-all" onClick={() => { onAdd(input); setInput(""); }}>
+          <Plus size={16} />
         </button>
       </div>
-      {children}
+      <ul className="space-y-2">{children}</ul>
     </div>
+  );
+}
+
+// Εδώ προστέθηκε η αγκύλη { που έλειπε
+function ListItem({ label, onRemove }: { label: string, onRemove: () => void }) {
+  return (
+    <li className="flex justify-between items-center p-3 bg-[#0b0e14] border border-slate-800 rounded-xl text-xs text-slate-300">
+      {label}
+      <button onClick={onRemove} className="text-slate-600 hover:text-rose-500"><Trash2 size={14}/></button>
+    </li>
   );
 }

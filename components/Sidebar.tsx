@@ -3,7 +3,7 @@ export default function Sidebar() {
     { name: "Dashboard", href: "/" },
     { name: "Μαθητές", href: "/students" },
     { name: "Καθηγητές", href: "/teachers" },
-    { name: "Τάξεις", href: "/classes" },
+    { name: "Τμήματα", href: "/classes" },
     { name: "Αίθουσες", href: "/rooms" },
     { name: "Μαθήματα", href: "/subjects" },
     { name: "Scheduler", href: "/schedule" },

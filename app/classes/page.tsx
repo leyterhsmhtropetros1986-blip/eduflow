@@ -2,154 +2,112 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { Trash2, Plus, BookOpen, AlertCircle } from "lucide-react";
-
-interface ClassInfo {
-  id: string;
-  name: string;
-  subject: string;
-  teacherId: string;
-}
-
-interface Teacher {
-  id: string;
-  name: string;
-  subject: string;
-}
+import { Trash2, Plus, Users, BookOpen, User } from "lucide-react";
 
 export default function ClassesPage() {
-  const [classes, setClasses] = useState<ClassInfo[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [name, setName] = useState("");
-  const [subject, setSubject] = useState("");
-  const [teacherId, setTeacherId] = useState("");
+  const [classes, setClasses] = useState<any[]>([]);
+  const [teachers, setTeachers] = useState<string[]>([]);
+  const [courses, setCourses] = useState<string[]>([]);
+
+  // Form states
+  const [className, setClassName] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState("");
+  const [selectedTeacher, setSelectedTeacher] = useState("");
 
   useEffect(() => {
-    // Φόρτωση δεδομένων κατά το mount
-    const storedClasses = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
-    const storedTeachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
-    
-    setClasses(storedClasses);
-    setTeachers(storedTeachers);
+    // Φόρτωση δεδομένων από το localStorage
+    setClasses(JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]"));
+    setTeachers(JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"));
+    setCourses(JSON.parse(localStorage.getItem("eduflow_courses") || "[]"));
   }, []);
 
-  const addClass = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!name || !teacherId) {
-      alert("Παρακαλώ συμπληρώστε το όνομα τμήματος και επιλέξτε καθηγητή.");
+  const addClass = () => {
+    if (!className || !selectedCourse || !selectedTeacher) {
+      alert("Παρακαλώ συμπλήρωσε όλα τα πεδία.");
       return;
     }
 
-    const newClass: ClassInfo = { 
-      id: Date.now().toString(), 
-      name, 
-      subject,
-      teacherId
+    const newClass = {
+      id: `class-${Date.now()}`,
+      name: className,
+      course: selectedCourse,
+      teacher: selectedTeacher
     };
-    
+
     const updated = [...classes, newClass];
     setClasses(updated);
-    localStorage.setItem("eduflow_classes", JSON.stringify(updated));
+    localStorage.setItem("eduflow_classes_data", JSON.stringify(updated));
     
-    // Reset φόρμας
-    setName("");
-    setSubject("");
-    setTeacherId("");
+    // Reset form
+    setClassName("");
+    setSelectedCourse("");
+    setSelectedTeacher("");
   };
 
-  const deleteClass = (id: string) => {
-    const filtered = classes.filter(c => c.id !== id);
-    setClasses(filtered);
-    localStorage.setItem("eduflow_classes", JSON.stringify(filtered));
+  const removeClass = (index: number) => {
+    const updated = classes.filter((_, i) => i !== index);
+    setClasses(updated);
+    localStorage.setItem("eduflow_classes_data", JSON.stringify(updated));
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Τμημάτων" description="Ορίστε τα τμήματα και αναθέστε καθηγητή για το πρόγραμμα.">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
+    <WorkspaceShell title="Διαχείριση Τμημάτων" description="Ορίστε τα τμήματα και αναθέστε καθηγητή και μάθημα.">
+      
+      {/* Φόρμα Δημιουργίας */}
+      <div className="bg-[#1e2330] p-6 rounded-3xl border border-slate-800 mb-8 max-w-2xl mx-auto">
+        <h2 className="text-white font-bold mb-4 flex items-center gap-2">
+          <Plus size={18} className="text-indigo-400" /> Νέο Τμήμα
+        </h2>
         
-        {/* ΦΟΡΜΑ ΕΙΣΑΓΩΓΗΣ */}
-        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
-          <form onSubmit={addClass} className="space-y-4">
-            <h4 className="text-xs font-bold text-violet-400 uppercase tracking-wider">Νέο Τμήμα</h4>
-            
-            <input 
-              type="text" 
-              value={name} 
-              onChange={e => setName(e.target.value)} 
-              placeholder="Όνομα Τμήματος (π.χ. Γ3)" 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white" 
-            />
-            
-            <input 
-              type="text" 
-              value={subject} 
-              onChange={e => setSubject(e.target.value)} 
-              placeholder="Μάθημα (π.χ. Μαθηματικά)" 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white" 
-            />
-            
-            {/* Επιλογή Καθηγητή */}
-            {teachers.length > 0 ? (
-              <select 
-                value={teacherId} 
-                onChange={e => setTeacherId(e.target.value)} 
-                className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-slate-300"
-              >
-                <option value="">Επιλέξτε Καθηγητή...</option>
-                {teachers.map(t => (
-                  <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>
-                ))}
-              </select>
-            ) : (
-              <div className="flex items-center gap-2 text-rose-400 text-[10px] p-2 bg-rose-950/20 rounded">
-                <AlertCircle size={14} /> Δεν βρέθηκαν καθηγητές. Προσθέστε πρώτα έναν καθηγητή.
-              </div>
-            )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input 
+            className="bg-[#0b0e14] border border-slate-800 p-2 rounded-xl text-xs text-white"
+            placeholder="Όνομα τμήματος (π.χ. Γ3)"
+            value={className}
+            onChange={(e) => setClassName(e.target.value)}
+          />
+          
+          <select 
+            className="bg-[#0b0e14] border border-slate-800 p-2 rounded-xl text-xs text-white"
+            value={selectedCourse}
+            onChange={(e) => setSelectedCourse(e.target.value)}
+          >
+            <option value="">Μάθημα...</option>
+            {courses.map((c, i) => <option key={i} value={c}>{c}</option>)}
+          </select>
 
-            <button 
-              type="submit" 
-              disabled={teachers.length === 0}
-              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 p-3 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2 transition-all"
-            >
-              <Plus className="w-4 h-4" /> Δημιουργία Τμήματος
+          <select 
+            className="bg-[#0b0e14] border border-slate-800 p-2 rounded-xl text-xs text-white"
+            value={selectedTeacher}
+            onChange={(e) => setSelectedTeacher(e.target.value)}
+          >
+            <option value="">Καθηγητής...</option>
+            {teachers.map((t, i) => <option key={i} value={t}>{t}</option>)}
+          </select>
+        </div>
+
+        <button 
+          onClick={addClass}
+          className="w-full mt-4 bg-indigo-600 text-white p-2 rounded-xl text-sm font-bold hover:bg-indigo-500 transition-all"
+        >
+          Δημιουργία Τμήματος
+        </button>
+      </div>
+
+      {/* Λίστα Τμημάτων */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {classes.map((c, i) => (
+          <div key={c.id} className="bg-[#1e2330] border border-slate-800 p-4 rounded-2xl flex justify-between items-start">
+            <div>
+              <h3 className="text-white font-bold">{c.name}</h3>
+              <p className="text-indigo-400 text-xs mt-1 flex items-center gap-1"><BookOpen size={12}/> {c.course}</p>
+              <p className="text-slate-400 text-xs mt-1 flex items-center gap-1"><User size={12}/> {c.teacher}</p>
+            </div>
+            <button onClick={() => removeClass(i)} className="text-slate-600 hover:text-rose-500">
+              <Trash2 size={16} />
             </button>
-          </form>
-        </div>
-
-        {/* ΛΙΣΤΑ ΤΜΗΜΑΤΩΝ */}
-        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
-          <h3 className="text-sm font-bold text-white mb-4">Ενεργά Τμήματα ({classes.length})</h3>
-          <div className="space-y-3">
-            {classes.length === 0 ? (
-              <p className="text-slate-500 text-xs italic">Δεν έχουν οριστεί τμήματα ακόμα.</p>
-            ) : (
-              classes.map(c => {
-                const teacher = teachers.find(t => t.id === c.teacherId);
-                return (
-                  <div key={c.id} className="flex justify-between items-center bg-[#0b0e14] p-4 rounded-xl border border-slate-800 hover:border-violet-500/30 transition-all">
-                    <div className="flex items-center gap-3">
-                      <BookOpen className="text-violet-500 w-5 h-5" />
-                      <div>
-                        <p className="text-white text-xs font-bold">{c.name}</p>
-                        <p className="text-slate-500 text-[10px]">
-                          {c.subject} • Καθ. {teacher ? teacher.name : <span className="text-rose-500">Διαγράφηκε</span>}
-                        </p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => deleteClass(c.id)} 
-                      className="text-slate-600 hover:text-rose-500 transition-colors"
-                      title="Διαγραφή"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })
-            )}
           </div>
-        </div>
+        ))}
       </div>
     </WorkspaceShell>
   );

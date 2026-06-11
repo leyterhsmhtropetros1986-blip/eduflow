@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { RefreshCw, Layers, Users, MapPin, CheckCircle2, AlertCircle } from "lucide-react";
+import { RefreshCw, Layers, Users, MapPin, CheckCircle2, AlertCircle, Lock } from "lucide-react";
 
 interface ScheduleItem {
   id: number;
@@ -12,7 +12,7 @@ interface ScheduleItem {
   teacher: string;
   room: string;
   count: number;
-  type: "Locked" | "Auto";
+  type: "Locked" | "Auto" | "TeacherBusy"; // Πρόσθεσα το TeacherBusy για τις κλειδωμένες ώρες
 }
 
 export default function SchedulePage() {
@@ -32,11 +32,32 @@ export default function SchedulePage() {
     const occupiedTeachers: Record<string, boolean> = {}; 
     const occupiedRooms: Record<string, boolean> = {}; 
 
-    // 2. Διαχωρισμός (Locked vs Auto)
+    // 2. ΠΡΟΕΠΕΞΕΡΓΑΣΙΑ: Κλείδωμα ωρών καθηγητών (Hard Constraints)
+    teachers.forEach((t: any) => {
+      if (t.lockedSlots && Array.isArray(t.lockedSlots)) {
+        t.lockedSlots.forEach((slot: any) => {
+          // Μαρκάρουμε τον καθηγητή ως απασχολημένο
+          occupiedTeachers[`${slot.day}-${slot.time}-${t.id}`] = true;
+          
+          // Προσθέτουμε τη δέσμευση στο πρόγραμμα για να φαίνεται οπτικά
+          newSchedule.push({
+            id: Date.now() + Math.random(),
+            day: slot.day,
+            time: slot.time,
+            groupName: slot.description || "Δέσμευση Καθηγητή",
+            teacher: t.name,
+            room: "-",
+            count: 0,
+            type: "TeacherBusy"
+          });
+        });
+      }
+    });
+
+    // 3. Διαχωρισμός (Locked Classes vs Auto)
     const lockedStudents = students.filter((s: any) => s.isClassEnabled && s.assignedClassId);
     const autoStudents = students.filter((s: any) => !s.isClassEnabled || !s.assignedClassId);
 
-    // 3. Ομαδοποίηση
     const lockedGroups: Record<string, any[]> = {};
     lockedStudents.forEach((s: any) => {
       if (!lockedGroups[s.assignedClassId]) lockedGroups[s.assignedClassId] = [];
@@ -50,7 +71,7 @@ export default function SchedulePage() {
       autoGroups[key].push(s);
     });
 
-    // 4. Επεξεργασία Locked (Προτεραιότητα)
+    // 4. Επεξεργασία Locked
     Object.entries(lockedGroups).forEach(([classId, groupStudents]: any) => {
       const targetClass = classes.find((c: any) => c.id === classId);
       if (!targetClass) return;
@@ -93,6 +114,7 @@ export default function SchedulePage() {
     for (const [day, slots] of Object.entries(firstStudent.availability)) {
       const timeSlots = slots as string[];
       for (const time of timeSlots) {
+        // ΕΛΕΓΧΟΣ: Εδώ ο αλγόριθμος βλέπει αν ο καθηγητής είναι απασχολημένος από τα lockedSlots
         const teacherKey = `${day}-${time}-${teacher.id}`;
         if (occupiedTeachers[teacherKey]) continue;
 
@@ -114,7 +136,7 @@ export default function SchedulePage() {
           });
           occupiedTeachers[teacherKey] = true;
           occupiedRooms[`${day}-${time}-${room.id}`] = true;
-          return; // Σταματάμε μετά την επιτυχημένη ανάθεση για αυτή την ομάδα
+          return; 
         }
       }
     }
@@ -139,22 +161,31 @@ export default function SchedulePage() {
             </div>
           ) : (
             schedule.map((s) => (
-              <div key={s.id} className={`p-4 rounded-xl border flex items-center justify-between ${s.type === 'Locked' ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-[#1e2330] border-slate-800'}`}>
+              <div key={s.id} className={`p-4 rounded-xl border flex items-center justify-between 
+                ${s.type === 'Locked' ? 'bg-indigo-900/10 border-indigo-500/30' : 
+                  s.type === 'TeacherBusy' ? 'bg-rose-900/10 border-rose-500/30' : 'bg-[#1e2330] border-slate-800'}`}>
+                
                 <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-lg ${s.type === 'Locked' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-indigo-400'}`}>
-                    {s.type === 'Locked' ? <CheckCircle2 size={20} /> : <Layers size={20} />}
+                  <div className={`p-3 rounded-lg ${
+                    s.type === 'Locked' ? 'bg-indigo-600 text-white' : 
+                    s.type === 'TeacherBusy' ? 'bg-rose-600 text-white' : 'bg-slate-800 text-indigo-400'
+                  }`}>
+                    {s.type === 'Locked' ? <CheckCircle2 size={20} /> : 
+                     s.type === 'TeacherBusy' ? <Lock size={20} /> : <Layers size={20} />}
                   </div>
                   <div>
-                    <p className="font-bold text-white">{s.groupName}</p>
+                    <p className={`font-bold ${s.type === 'TeacherBusy' ? 'text-rose-200' : 'text-white'}`}>{s.groupName}</p>
                     <p className="text-xs text-slate-400">{s.day}, {s.time}</p>
                   </div>
                 </div>
 
                 <div className="flex gap-6 text-sm">
                   <div className="flex items-center gap-2 text-slate-300"><Users size={16} /> {s.teacher}</div>
-                  <div className="flex items-center gap-2 text-indigo-400 font-bold bg-indigo-950/30 px-2 py-1 rounded">
-                    <MapPin size={16} /> {s.room} ({s.count} μαθητές)
-                  </div>
+                  {s.room !== "-" && (
+                    <div className="flex items-center gap-2 text-indigo-400 font-bold bg-indigo-950/30 px-2 py-1 rounded">
+                      <MapPin size={16} /> {s.room} ({s.count} μαθητές)
+                    </div>
+                  )}
                 </div>
               </div>
             ))
