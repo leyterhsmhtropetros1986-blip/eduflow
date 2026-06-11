@@ -32,6 +32,7 @@ interface ClassItem {
   name: string;      
   course?: string;    
   capacity?: number;  
+  grade?: string; // Η relational προσθήκη για σύνδεση τμήματος ανά τάξη
 }
 
 export default function StudentsPage() {
@@ -71,17 +72,18 @@ export default function StudentsPage() {
   const loadData = () => {
     if (typeof window !== "undefined") {
       const rawStudents = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
-      // Έλεγχος και για τα δύο πιθανά keys του localStorage για μέγιστη ασφάλεια
       const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_sections") || "[]");
       const rawLessons = JSON.parse(localStorage.getItem("eduflow_lessons") || "[]");
 
-      // 1. Κανονικοποίηση Τμημάτων (Αν είναι strings μετατρέπονται σε objects)
       const normalizedClasses = rawClasses.map((c: any) => {
         if (typeof c === "string") return { name: c, capacity: 20 };
-        return { ...c, name: c.name || c.className || "" };
+        return { 
+          ...c, 
+          name: c.name || c.className || "",
+          grade: c.grade || "" 
+        };
       }).filter((c: ClassItem) => c.name !== "");
 
-      // 2. Migration παλαιών μαθητών στο νέο Multi-Enrollment μοντέλο
       const migratedStudents = rawStudents.map((s: any) => {
         if (!s.enrollments) {
           const legacyEnrollments: StudentEnrollment[] = (s.selectedLessons || []).map((lesson: string) => ({
@@ -100,7 +102,30 @@ export default function StudentsPage() {
     }
   };
 
-  // Live υπολογισμός πληρότητας
+  // 🎯 ΤΡΙΠΛΟΣ ΜΗΧΑΝΙΣΜΟΣ ΦΙΛΤΡΑΡΙΣΜΑΤΟΣ ΑΝΑ ΤΑΞΗ (FAIL-SAFE)
+  const filteredSections = useMemo(() => {
+    if (!grade) return [];
+
+    // Προσπάθεια 1: Φιλτράρισμα με βάση το πεδίο grade (Καθαρή ERP δομή)
+    let matches = classesList.filter(sec => sec.grade === grade);
+
+    // Προσπάθεια 2: Αν δεν βρει τίποτα, φιλτράρισμα με το πρώτο γράμμα (π.χ. Α για Α Λυκείου)
+    if (matches.length === 0) {
+      const firstLetter = grade.trim().charAt(0).toUpperCase();
+      matches = classesList.filter(sec => {
+        const name = (sec.name || "").trim().toUpperCase();
+        return name.startsWith(firstLetter) || name.includes(firstLetter);
+      });
+    }
+
+    // Προσπάθεια 3: Αν ΠΑΛΙ είναι κενό, δείξε ΟΛΑ τα τμήματα της βάσης για να μην κολλήσει ο χρήστης
+    if (matches.length === 0) {
+      return classesList;
+    }
+
+    return matches;
+  }, [classesList, grade]);
+
   const sectionCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     students.forEach(s => {
@@ -118,7 +143,7 @@ export default function StudentsPage() {
     setNewSlot({ day: newSlot.day, start: getAvailableTimes(newSlot.day)[0], end: getAvailableTimes(newSlot.day)[1] || "15:00" });
   };
 
-  const handleEnrollmentChange = (lessonName: string, className: string) => {
+  const handleFormEnrollmentChange = (lessonName: string, className: string) => {
     const filtered = formEnrollments.filter(e => e.lessonName !== lessonName);
     if (className === "") {
       setFormEnrollments(filtered);
@@ -129,18 +154,6 @@ export default function StudentsPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!editingId) {
-      const isDuplicate = students.some(
-        s => s.firstName.trim().toLowerCase() === firstName.trim().toLowerCase() &&
-             s.lastName.trim().toLowerCase() === lastName.trim().toLowerCase()
-      );
-
-      if (isDuplicate) {
-        const proceed = confirm(`⚠️ Προσοχή! Υπάρχει ήδη μαθητής με το όνομα "${lastName} ${firstName}". Θέλετε να προχωρήσετε;`);
-        if (!proceed) return;
-      }
-    }
 
     const studentData: Student = {
       id: editingId || `s-${Date.now()}`,
@@ -238,10 +251,10 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            {/* 📘 DYNAMIC DROP DOWN LISTS ΑΝΑ ΤΑΞΗ ΜΑΘΗΤΗ */}
+            {/* 📘 ΔΥΝΑΜΙΚΑ Dropdowns ΜΕ ΕΓΓΥΗΜΕΝΟ FAIL-SAFE */}
             <div className="bg-[#0b0e14] border border-slate-800 rounded-xl p-4 space-y-3">
               <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold border-b border-slate-900 pb-1 flex items-center gap-1">
-                <Layers size={12}/> Επιλογή Τμημάτων (Φιλτραρισμένα ανά Τάξη)
+                <Layers size={12}/> Επιλογή Τμημάτων (Συνδεδεμένα με {grade || "Τάξη"})
               </p>
               
               <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
@@ -249,16 +262,13 @@ export default function StudentsPage() {
                   <p className="text-slate-500 text-[11px] italic text-center py-4">
                     Παρακαλώ επιλέξτε πρώτα την Τάξη του μαθητή για να εμφανιστούν τα αντίστοιχα τμήματα.
                   </p>
+                ) : lessonsList.length === 0 ? (
+                  <p className="text-amber-500/80 text-[11px] text-center py-4 flex items-center justify-center gap-1">
+                    <AlertTriangle size={12}/> Δεν έχουν καταχωρηθεί μαθήματα στη βάση.
+                  </p>
                 ) : (
                   lessonsList.map((lesson, idx) => {
                     const currentSelection = formEnrollments.find(e => e.lessonName === lesson)?.className || "";
-
-                    // 🎯 SMART FILTERING ENGINE: Φιλτράρει τα τμήματα που ξεκινάνε από το γράμμα της τάξης (π.χ. 'Β' για Β Λυκείου -> Β1, Β2)
-                    const firstLetterOfGrade = grade.trim().charAt(0).toUpperCase();
-                    const filteredSections = classesList.filter(sec => {
-                      const sectionName = (sec.name || "").trim().toUpperCase();
-                      return sectionName.startsWith(firstLetterOfGrade);
-                    });
 
                     return (
                       <div key={idx} className="p-2.5 bg-[#1e2330]/40 border border-slate-800/70 rounded-xl space-y-1.5">
@@ -270,21 +280,28 @@ export default function StudentsPage() {
 
                         <select 
                           value={currentSelection} 
-                          onChange={e => handleEnrollmentChange(lesson, e.target.value)}
+                          onChange={e => handleFormEnrollmentChange(lesson, e.target.value)}
                           className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none focus:border-indigo-500 cursor-pointer"
                         >
                           <option value="">-- Χωρίς εγγραφή --</option>
-                          {filteredSections.map((sec, sIdx) => {
-                            const maxCap = sec.capacity || 20;
-                            const currentStudents = sectionCounts[`${lesson}_${sec.name}`] || 0;
-                            const isFull = currentStudents >= maxCap && currentSelection !== sec.name;
+                          
+                          {classesList.length === 0 ? (
+                            <option value="" disabled>⚠️ Δεν υπάρχουν τμήματα στο σύστημα. Δημιουργήστε τα πρώτα.</option>
+                          ) : filteredSections.length === 0 ? (
+                            <option value="" disabled>⚠️ Κανένα τμήμα δεν ταιριάζει με την {grade}</option>
+                          ) : (
+                            filteredSections.map((sec, sIdx) => {
+                              const maxCap = sec.capacity || 20;
+                              const currentStudents = sectionCounts[`${lesson}_${sec.name}`] || 0;
+                              const isFull = currentStudents >= maxCap && currentSelection !== sec.name;
 
-                            return (
-                              <option key={sIdx} value={sec.name} disabled={isFull}>
-                                {sec.name} ({currentStudents}/{maxCap}) {isFull ? "🔒 FULL" : ""}
-                              </option>
-                            );
-                          })}
+                              return (
+                                <option key={sIdx} value={sec.name} disabled={isFull}>
+                                  {sec.name} {sec.grade ? `(${sec.grade})` : ""} — ({currentStudents}/{maxCap} μαθητές) {isFull ? "🔒 FULL" : ""}
+                                </option>
+                              );
+                            })
+                          )}
                         </select>
                       </div>
                     );
@@ -394,16 +411,6 @@ export default function StudentsPage() {
                      <p>👨‍👩‍👦 Γονέας: <span className="text-slate-200 font-medium">{s.parentName}</span> <span className="text-slate-400 font-mono">({s.parentPhone || "-"})</span></p>
                      <p className="truncate">📧 Email: <span className="text-slate-200 font-mono">{s.parentEmail || "-"}</span></p>
                   </div>
-
-                  {s.isLockedHours && s.lockedSlots && s.lockedSlots.length > 0 && (
-                    <div className="pt-1.5 flex flex-wrap gap-1">
-                      {s.lockedSlots.map((slot, idx) => (
-                        <span key={idx} className="bg-rose-950/60 text-rose-300 text-[8px] font-medium px-1.5 py-0.5 rounded flex items-center gap-1 border border-rose-900/40">
-                          <Clock size={8}/> {slot.day.substring(0,3)} {slot.start}-{slot.end}
-                        </span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
