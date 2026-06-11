@@ -7,37 +7,38 @@ import { Trash2, Edit2, UserPlus, Plus, X } from "lucide-react";
 interface AvailabilitySlot { day: string; start: string; end: string; }
 
 interface Student {
-  id: string; name: string; grade: string; studentPhone: string;
-  parentName: string; parentPhone: string; parentEmail: string;
-  isLockedClass: boolean; assignedClass: string | null;
-  isLockedHours: boolean; lockedSlots: AvailabilitySlot[];
+  id: string; 
+  name: string; 
+  grade: string; 
+  studentPhone: string;
+  parentName: string; 
+  parentPhone: string; 
+  parentEmail: string;
+  isLockedClass: boolean; 
+  assignedClass: string | null;
+  isLockedHours: boolean; 
+  lockedSlots: AvailabilitySlot[];
 }
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
-  const [classesList, setClassesList] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     name: "", grade: "", studentPhone: "", parentName: "", parentPhone: "", parentEmail: ""
   });
   
-  const [isLockedClass, setIsLockedClass] = useState(false);
-  const [assignedClass, setAssignedClass] = useState("");
   const [isLockedHours, setIsLockedHours] = useState(false);
   const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
   const [newSlot, setNewSlot] = useState<AvailabilitySlot>({ day: "Δευτέρα", start: "14:00", end: "15:00" });
 
   const getAvailableTimes = (day: string) => {
-    if (day === "Σάββατο") {
-      return ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00"];
-    }
+    if (day === "Σάββατο") return ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00"];
     return ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
   };
 
   useEffect(() => {
     setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
-    setClassesList(JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]"));
   }, []);
 
   const addSlot = () => {
@@ -50,10 +51,16 @@ export default function StudentsPage() {
     const studentData: Student = {
       id: editingId || `s-${Date.now()}`,
       ...formData,
-      isLockedClass, assignedClass: isLockedClass ? assignedClass : null,
-      isLockedHours, lockedSlots: isLockedHours ? lockedSlots : []
+      isLockedClass: false, // Default
+      assignedClass: null,  // Default
+      isLockedHours, 
+      lockedSlots: isLockedHours ? lockedSlots : []
     };
-    const updated = editingId ? students.map(s => s.id === editingId ? studentData : s) : [...students, studentData];
+    
+    const updated = editingId 
+      ? students.map(s => s.id === editingId ? studentData : s) 
+      : [...students, studentData];
+      
     setStudents(updated);
     localStorage.setItem("eduflow_students", JSON.stringify(updated));
     resetForm();
@@ -62,12 +69,12 @@ export default function StudentsPage() {
   const resetForm = () => {
     setEditingId(null); 
     setFormData({ name: "", grade: "", studentPhone: "", parentName: "", parentPhone: "", parentEmail: "" });
-    setIsLockedClass(false); setAssignedClass(""); 
-    setIsLockedHours(false); setLockedSlots([]);
+    setIsLockedHours(false); 
+    setLockedSlots([]);
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Μαθητών" description="Εγγραφή μαθητών με ορισμό διαθεσιμότητας.">
+    <WorkspaceShell title="Διαχείριση Μαθητών" description="Εγγραφή μαθητών και στοιχεία επικοινωνίας.">
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 px-4">
         
         <div className="xl:col-span-2 bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
@@ -82,8 +89,12 @@ export default function StudentsPage() {
                 <option value="">Επιλογή Τάξης *</option>
                 {['Α Δημοτικού', 'Α Γυμνασίου', 'Α Λυκείου', 'Β Λυκείου', 'Γ Λυκείου'].map(g => <option key={g} value={g}>{g}</option>)}
               </select>
+              
+              {/* Νέα Πεδία */}
+              <input required type="tel" placeholder="Τηλέφωνο Μαθητή *" className="bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-white text-xs" value={formData.studentPhone} onChange={e => setFormData({...formData, studentPhone: e.target.value})} />
               <input required placeholder="Ονοματεπώνυμο Γονέα *" className="bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-white text-xs" value={formData.parentName} onChange={e => setFormData({...formData, parentName: e.target.value})} />
               <input required type="tel" placeholder="Τηλέφωνο Γονέα *" className="bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-white text-xs" value={formData.parentPhone} onChange={e => setFormData({...formData, parentPhone: e.target.value})} />
+              <input required type="email" placeholder="Email Γονέα *" className="bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-white text-xs" value={formData.parentEmail} onChange={e => setFormData({...formData, parentEmail: e.target.value})} />
             </div>
 
             <div className="bg-[#0b0e14] p-4 rounded-xl border border-slate-800 space-y-3">
@@ -94,20 +105,11 @@ export default function StudentsPage() {
               {isLockedHours && (
                 <div className="space-y-2">
                   <div className="grid grid-cols-4 gap-1">
-                    <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded col-span-2" 
-                        value={newSlot.day} 
-                        onChange={e => {
-                            const d = e.target.value;
-                            setNewSlot({day: d, start: getAvailableTimes(d)[0], end: getAvailableTimes(d)[1] || "15:00"});
-                        }}>
-                        {["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"].map(d => <option key={d}>{d}</option>)}
+                    <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded col-span-2" value={newSlot.day} onChange={e => {const d = e.target.value; setNewSlot({day: d, start: getAvailableTimes(d)[0], end: getAvailableTimes(d)[1] || "15:00"});}}>
+                      {["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"].map(d => <option key={d}>{d}</option>)}
                     </select>
-                    <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.start} onChange={e => setNewSlot({...newSlot, start: e.target.value})}>
-                        {getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}
-                    </select>
-                    <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.end} onChange={e => setNewSlot({...newSlot, end: e.target.value})}>
-                        {getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}
-                    </select>
+                    <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.start} onChange={e => setNewSlot({...newSlot, start: e.target.value})}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
+                    <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.end} onChange={e => setNewSlot({...newSlot, end: e.target.value})}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
                   </div>
                   <button type="button" onClick={addSlot} className="w-full bg-rose-600 py-1 rounded text-white text-xs flex justify-center items-center gap-1"><Plus size={14}/> Προσθήκη</button>
                   <div className="space-y-1">
@@ -141,7 +143,11 @@ export default function StudentsPage() {
                           setFormData({ name: s.name, grade: s.grade, studentPhone: s.studentPhone, parentName: s.parentName, parentPhone: s.parentPhone, parentEmail: s.parentEmail }); 
                           setIsLockedHours(s.isLockedHours); setLockedSlots(s.lockedSlots); setEditingId(s.id); 
                         }} className="text-slate-500 hover:text-white"><Edit2 size={12}/></button>
-                      <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-slate-600 hover:text-rose-500"><Trash2 size={12}/></button>
+                      <button onClick={() => {
+                          const updated = students.filter(st => st.id !== s.id);
+                          setStudents(updated);
+                          localStorage.setItem("eduflow_students", JSON.stringify(updated));
+                      }} className="text-slate-600 hover:text-rose-500"><Trash2 size={12}/></button>
                    </div>
                 </div>
               </div>
