@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Trash2, User, Phone, Edit2, X, GraduationCap } from "lucide-react";
 
-// (Interface και Constants παραμένουν ίδια)
 interface Student {
   id: string; name: string; grade: string; subject: string; school: string;
   groupSize: number; studentPhone: string; parentPhone: string; parentEmail: string;
@@ -20,7 +19,6 @@ export default function StudentsPage() {
   const [schoolsList, setSchoolsList] = useState<string[]>([]);
   const [coursesList, setCoursesList] = useState<string[]>([]);
   
-  // States για την επεξεργασία
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
@@ -32,12 +30,21 @@ export default function StudentsPage() {
   const [parentEmail, setParentEmail] = useState("");
   const [availability, setAvailability] = useState<Record<string, string[]>>({});
 
-  useEffect(() => {
+  // 1. Δημιουργούμε μια συνάρτηση που φορτώνει τα δεδομένα
+  const loadData = () => {
     try {
       setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
       setSchoolsList(JSON.parse(localStorage.getItem("eduflow_schools") || "[]"));
       setCoursesList(JSON.parse(localStorage.getItem("eduflow_courses") || "[]"));
     } catch (e) { console.error(e); }
+  };
+
+  // 2. Χρησιμοποιούμε το useEffect για να φορτώνουμε στην αρχή
+  // ΚΑΙ προσθέτουμε listener για όταν ξαναγυρνάς στη σελίδα (focus)
+  useEffect(() => {
+    loadData();
+    window.addEventListener("focus", loadData);
+    return () => window.removeEventListener("focus", loadData);
   }, []);
 
   const toggleSlot = (day: string, slot: string) => {
@@ -95,7 +102,6 @@ export default function StudentsPage() {
     <WorkspaceShell title="Διαχείριση Μαθητών" description={editingId ? "Επεξεργασία στοιχείων μαθητή" : "Καταχώρηση νέου μαθητή"}>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
         
-        {/* ΦΟΡΜΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
           <form onSubmit={handleSave} className="space-y-6">
             <div className="flex justify-between items-center">
@@ -149,7 +155,6 @@ export default function StudentsPage() {
           </form>
         </div>
 
-        {/* ΛΙΣΤΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
           <h3 className="text-sm font-bold text-white mb-4">Μαθητές ({students.length})</h3>
           <div className="space-y-2">

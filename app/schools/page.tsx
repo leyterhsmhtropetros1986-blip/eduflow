@@ -8,19 +8,20 @@ export default function SchoolsPage() {
   const [newSchool, setNewSchool] = useState("");
 
   useEffect(() => {
+    // Φόρτωση κατά το mount
     setSchools(JSON.parse(localStorage.getItem("eduflow_schools") || "[]"));
   }, []);
 
   const addSchool = () => {
-    if (!newSchool) return;
+    if (!newSchool.trim()) return;
     const updated = [...schools, newSchool];
     setSchools(updated);
     localStorage.setItem("eduflow_schools", JSON.stringify(updated));
     setNewSchool("");
   };
 
-  const deleteSchool = (school: string) => {
-    const updated = schools.filter(s => s !== school);
+  const deleteSchool = (schoolToDelete: string) => {
+    const updated = schools.filter(s => s !== schoolToDelete);
     setSchools(updated);
     localStorage.setItem("eduflow_schools", JSON.stringify(updated));
   };

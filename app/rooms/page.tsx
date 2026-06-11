@@ -13,57 +13,78 @@ interface Room {
 export default function RoomsPage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [roomName, setRoomName] = useState("");
-  const [capacity, setCapacity] = useState(20);
+  const [capacity, setCapacity] = useState<number>(20);
 
+  // Φόρτωση δεδομένων από το localStorage
   useEffect(() => {
     const stored = localStorage.getItem("eduflow_rooms");
-    if (stored) setRooms(JSON.parse(stored));
+    if (stored) {
+      try {
+        setRooms(JSON.parse(stored));
+      } catch (e) {
+        console.error("Σφάλμα κατά την ανάγνωση των αιθουσών", e);
+      }
+    }
   }, []);
+
+  // Αποθήκευση και ανανέωση
+  const saveRooms = (updatedRooms: Room[]) => {
+    setRooms(updatedRooms);
+    localStorage.setItem("eduflow_rooms", JSON.stringify(updatedRooms));
+  };
 
   const addRoom = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roomName) return alert("Δώσε όνομα αίθουσας!");
-    
+    if (!roomName.trim()) return alert("Παρακαλώ δώστε όνομα αίθουσας!");
+    if (capacity < 1) return alert("Η χωρητικότητα πρέπει να είναι τουλάχιστον 1 άτομο.");
+
     const newRoom: Room = { 
-      id: Date.now().toString(), 
+      id: `r-${Date.now()}`, // Unique ID
       name: roomName, 
-      capacity: capacity 
+      capacity: Number(capacity) 
     };
     
-    const updated = [...rooms, newRoom];
-    setRooms(updated);
-    localStorage.setItem("eduflow_rooms", JSON.stringify(updated));
+    saveRooms([...rooms, newRoom]);
     setRoomName("");
+    setCapacity(20); // Reset σε default τιμή
   };
 
   const deleteRoom = (id: string) => {
-    const filtered = rooms.filter(r => r.id !== id);
-    setRooms(filtered);
-    localStorage.setItem("eduflow_rooms", JSON.stringify(filtered));
+    if (confirm("Είσαι σίγουρος ότι θέλεις να διαγράψεις αυτή την αίθουσα;")) {
+      saveRooms(rooms.filter(r => r.id !== id));
+    }
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Αιθουσών" description="Προσθέστε τις αίθουσες διδασκαλίας σας.">
+    <WorkspaceShell title="Διαχείριση Αιθουσών" description="Προσθέστε αίθουσες και ορίστε τη χωρητικότητά τους.">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
         
         {/* ΦΟΡΜΑ ΠΡΟΣΘΗΚΗΣ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
           <form onSubmit={addRoom} className="space-y-4">
-            <input 
-              type="text" 
-              value={roomName} 
-              onChange={e => setRoomName(e.target.value)} 
-              placeholder="Όνομα Αίθουσας (π.χ. Αίθουσα 101)" 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" 
-            />
-            <input 
-              type="number" 
-              value={capacity} 
-              onChange={e => setCapacity(Number(e.target.value))} 
-              placeholder="Χωρητικότητα" 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded text-xs text-white" 
-            />
-            <button className="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2">
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold uppercase ml-1">Όνομα Αίθουσας</label>
+              <input 
+                type="text" 
+                value={roomName} 
+                onChange={e => setRoomName(e.target.value)} 
+                placeholder="π.χ. Αίθουσα 101" 
+                className="w-full bg-[#0b0e14] border border-slate-800 p-2 mt-1 rounded text-xs text-white" 
+              />
+            </div>
+            
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold uppercase ml-1">Χωρητικότητα (Άτομα)</label>
+              <input 
+                type="number" 
+                min="1"
+                value={capacity} 
+                onChange={e => setCapacity(Number(e.target.value))} 
+                className="w-full bg-[#0b0e14] border border-slate-800 p-2 mt-1 rounded text-xs text-white" 
+              />
+            </div>
+
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 p-3 rounded-xl text-white font-bold text-xs flex items-center justify-center gap-2 mt-2">
               <Plus className="w-4 h-4" /> Προσθήκη Αίθουσας
             </button>
           </form>
@@ -73,8 +94,9 @@ export default function RoomsPage() {
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
           <h3 className="text-sm font-bold text-white mb-4">Διαθέσιμες Αίθουσες ({rooms.length})</h3>
           <div className="space-y-3">
+            {rooms.length === 0 && <p className="text-slate-500 text-xs italic">Δεν έχουν προστεθεί αίθουσες ακόμα.</p>}
             {rooms.map(r => (
-              <div key={r.id} className="flex justify-between items-center bg-[#0b0e14] p-4 rounded-xl border border-slate-800">
+              <div key={r.id} className="flex justify-between items-center bg-[#0b0e14] p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-all">
                 <div className="flex items-center gap-3">
                   <DoorOpen className="text-blue-500 w-5 h-5" />
                   <div>
@@ -82,7 +104,7 @@ export default function RoomsPage() {
                     <p className="text-slate-500 text-[10px]">Χωρητικότητα: {r.capacity} άτομα</p>
                   </div>
                 </div>
-                <button onClick={() => deleteRoom(r.id)} className="text-rose-500 hover:text-rose-400">
+                <button onClick={() => deleteRoom(r.id)} className="text-rose-500 hover:text-rose-400 p-2">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
