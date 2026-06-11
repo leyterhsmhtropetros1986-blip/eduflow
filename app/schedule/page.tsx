@@ -11,8 +11,7 @@ interface ScheduleItem {
   groupName: string;
   teacher: string;
   room: string;
-  count: number;
-  type: "Locked" | "Auto" | "TeacherBusy"; // Πρόσθεσα το TeacherBusy για τις κλειδωμένες ώρες
+  type: "Locked" | "Auto" | "TeacherBusy";
 }
 
 export default function SchedulePage() {
@@ -29,121 +28,74 @@ export default function SchedulePage() {
     const classes = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
 
     const newSchedule: ScheduleItem[] = [];
-    const occupiedTeachers: Record<string, boolean> = {}; 
-    const occupiedRooms: Record<string, boolean> = {}; 
+    const occupiedSlots: Record<string, boolean> = {}; // key: "day-time-teacherId" ή "day-time-roomId"
 
     // 2. ΠΡΟΕΠΕΞΕΡΓΑΣΙΑ: Κλείδωμα ωρών καθηγητών (Hard Constraints)
     teachers.forEach((t: any) => {
-      if (t.lockedSlots && Array.isArray(t.lockedSlots)) {
+      if (t.isLockedHours && t.lockedSlots) {
         t.lockedSlots.forEach((slot: any) => {
-          // Μαρκάρουμε τον καθηγητή ως απασχολημένο
-          occupiedTeachers[`${slot.day}-${slot.time}-${t.id}`] = true;
+          occupiedSlots[`${slot.day}-${slot.time}-teacher-${t.id}`] = true;
           
-          // Προσθέτουμε τη δέσμευση στο πρόγραμμα για να φαίνεται οπτικά
           newSchedule.push({
-            id: Date.now() + Math.random(),
+            id: Math.random(),
             day: slot.day,
             time: slot.time,
-            groupName: slot.description || "Δέσμευση Καθηγητή",
+            groupName: "Μη Διαθέσιμος",
             teacher: t.name,
             room: "-",
-            count: 0,
             type: "TeacherBusy"
           });
         });
       }
     });
 
-    // 3. Διαχωρισμός (Locked Classes vs Auto)
-    const lockedStudents = students.filter((s: any) => s.isClassEnabled && s.assignedClassId);
-    const autoStudents = students.filter((s: any) => !s.isClassEnabled || !s.assignedClassId);
+    // 3. Scheduling logic (απλοποιημένη προσέγγιση για 1 slot ανά τμήμα)
+    const days = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
+    const times = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"];
 
-    const lockedGroups: Record<string, any[]> = {};
-    lockedStudents.forEach((s: any) => {
-      if (!lockedGroups[s.assignedClassId]) lockedGroups[s.assignedClassId] = [];
-      lockedGroups[s.assignedClassId].push(s);
-    });
-
-    const autoGroups: Record<string, any[]> = {};
-    autoStudents.forEach((s: any) => {
-      const key = `${s.school}-${s.grade}-${s.subject}`;
-      if (!autoGroups[key]) autoGroups[key] = [];
-      autoGroups[key].push(s);
-    });
-
-    // 4. Επεξεργασία Locked
-    Object.entries(lockedGroups).forEach(([classId, groupStudents]: any) => {
-      const targetClass = classes.find((c: any) => c.id === classId);
-      if (!targetClass) return;
-
-      const teacher = teachers.find((t: any) => t.id === targetClass.teacherId);
+    classes.forEach((c: any) => {
+      const teacher = teachers.find((t: any) => t.subject === c.subject); // ή κατάλληλο matching
       if (!teacher) return;
 
-      scheduleGroup(groupStudents, teacher, targetClass.name, rooms, newSchedule, occupiedTeachers, occupiedRooms, "Locked");
-    });
+      // Προσπάθεια εύρεσης ελεύθερης ώρας
+      for (const day of days) {
+        for (const time of times) {
+          const teacherKey = `${day}-${time}-teacher-${teacher.id}`;
+          
+          // Έλεγχος αν ο καθηγητής είναι απασχολημένος
+          if (occupiedSlots[teacherKey]) continue;
 
-    // 5. Επεξεργασία Auto
-    const availableTeachers = teachers.filter((t: any) => !t.isClassEnabled);
+          // Έλεγχος αν ο καθηγητής έχει LockedClass και δεν είναι αυτό το τμήμα
+          if (teacher.isLockedClass && teacher.assignedClassId !== c.name) continue;
 
-    Object.entries(autoGroups).forEach(([key, groupStudents]: any) => {
-      const [school, grade, subject] = key.split('-');
-      const teacher = availableTeachers.find((t: any) => t.subject === subject);
-      if (!teacher) return;
+          // Έλεγχος για διαθέσιμη αίθουσα
+          const room = rooms.find((r: any) => !occupiedSlots[`${day}-${time}-room-${r.id}`]);
 
-      scheduleGroup(groupStudents, teacher, `${grade} - ${subject}`, rooms, newSchedule, occupiedTeachers, occupiedRooms, "Auto");
+          if (room) {
+            newSchedule.push({
+              id: Math.random(),
+              day,
+              time,
+              groupName: c.name,
+              teacher: teacher.name,
+              room: room.name,
+              type: "Auto"
+            });
+
+            occupiedSlots[teacherKey] = true;
+            occupiedSlots[`${day}-${time}-room-${room.id}`] = true;
+            return; // Βρήκαμε ώρα για αυτό το τμήμα, πάμε στο επόμενο
+          }
+        }
+      }
     });
 
     setSchedule(newSchedule);
     setLoading(false);
   };
 
-  const scheduleGroup = (
-    students: any[], 
-    teacher: any, 
-    groupName: string, 
-    rooms: any[], 
-    newSchedule: ScheduleItem[], 
-    occupiedTeachers: Record<string, boolean>, 
-    occupiedRooms: Record<string, boolean>, 
-    type: "Locked" | "Auto"
-  ) => {
-    if (!students || students.length === 0) return;
-    const firstStudent = students[0];
-    if (!firstStudent.availability) return;
-
-    for (const [day, slots] of Object.entries(firstStudent.availability)) {
-      const timeSlots = slots as string[];
-      for (const time of timeSlots) {
-        // ΕΛΕΓΧΟΣ: Εδώ ο αλγόριθμος βλέπει αν ο καθηγητής είναι απασχολημένος από τα lockedSlots
-        const teacherKey = `${day}-${time}-${teacher.id}`;
-        if (occupiedTeachers[teacherKey]) continue;
-
-        const room = rooms.find((r: any) => 
-          r.capacity >= students.length && 
-          !occupiedRooms[`${day}-${time}-${r.id}`]
-        );
-
-        if (room) {
-          newSchedule.push({
-            id: Math.random(),
-            day,
-            time,
-            groupName,
-            teacher: teacher.name,
-            room: room.name,
-            count: students.length,
-            type
-          });
-          occupiedTeachers[teacherKey] = true;
-          occupiedRooms[`${day}-${time}-${room.id}`] = true;
-          return; 
-        }
-      }
-    }
-  };
-
   return (
-    <WorkspaceShell title="Scheduler" description="Αυτόματη ανάθεση τμημάτων βάσει διαθεσιμότητας.">
+    <WorkspaceShell title="Scheduler" description="Αυτόματη δημιουργία προγράμματος με βάση τις δεσμεύσεις.">
       <div className="px-4">
         <button 
           onClick={generateSmartSchedule} 
@@ -183,7 +135,7 @@ export default function SchedulePage() {
                   <div className="flex items-center gap-2 text-slate-300"><Users size={16} /> {s.teacher}</div>
                   {s.room !== "-" && (
                     <div className="flex items-center gap-2 text-indigo-400 font-bold bg-indigo-950/30 px-2 py-1 rounded">
-                      <MapPin size={16} /> {s.room} ({s.count} μαθητές)
+                      <MapPin size={16} /> {s.room}
                     </div>
                   )}
                 </div>
