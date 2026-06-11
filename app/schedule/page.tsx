@@ -1,133 +1,164 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { RefreshCw, Calendar, Users, BookOpen, MapPin, School, GraduationCap, AlertCircle, Layers } from "lucide-react";
+import { RefreshCw, Layers, Users, MapPin, CheckCircle2, AlertCircle } from "lucide-react";
+
+interface ScheduleItem {
+  id: number;
+  day: string;
+  time: string;
+  groupName: string;
+  teacher: string;
+  room: string;
+  count: number;
+  type: "Locked" | "Auto";
+}
 
 export default function SchedulePage() {
-  const [schedule, setSchedule] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>({});
+  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    calculateStats();
-  }, []);
-
-  const calculateStats = () => {
-    const students = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
-    const report = students.reduce((acc: any, s: any) => {
-      const schoolName = s.school || "Χωρίς Σχολείο";
-      const gradeName = s.grade || "Χωρίς Τάξη";
-      if (!acc[schoolName]) acc[schoolName] = { total: 0, grades: {} };
-      acc[schoolName].total += 1;
-      acc[schoolName].grades[gradeName] = (acc[schoolName].grades[gradeName] || 0) + 1;
-      return acc;
-    }, {});
-    setStats(report);
-  };
 
   const generateSmartSchedule = () => {
     setLoading(true);
 
+    // 1. Λήψη δεδομένων
     const students = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
     const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
     const rooms = JSON.parse(localStorage.getItem("eduflow_rooms") || "[]");
+    const classes = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
 
-    // 1. ΟΜΑΔΟΠΟΙΗΣΗ ΣΕ ΤΜΗΜΑΤΑ (Grouping)
-    // Ομαδοποιούμε μαθητές με ίδιο Σχολείο, Τάξη, Μάθημα
-    const groups: Record<string, any[]> = {};
-    students.forEach((s: any) => {
-      const key = `${s.school}-${s.grade}-${s.subject}`;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(s);
+    const newSchedule: ScheduleItem[] = [];
+    const occupiedTeachers: Record<string, boolean> = {}; 
+    const occupiedRooms: Record<string, boolean> = {}; 
+
+    // 2. Διαχωρισμός (Locked vs Auto)
+    const lockedStudents = students.filter((s: any) => s.isClassEnabled && s.assignedClassId);
+    const autoStudents = students.filter((s: any) => !s.isClassEnabled || !s.assignedClassId);
+
+    // 3. Ομαδοποίηση
+    const lockedGroups: Record<string, any[]> = {};
+    lockedStudents.forEach((s: any) => {
+      if (!lockedGroups[s.assignedClassId]) lockedGroups[s.assignedClassId] = [];
+      lockedGroups[s.assignedClassId].push(s);
     });
 
-    const newSchedule: any[] = [];
-    const occupiedTeachers: Record<string, boolean> = {}; // key: "day-time-teacherName"
-    const occupiedRooms: Record<string, boolean> = {};    // key: "day-time-roomId"
+    const autoGroups: Record<string, any[]> = {};
+    autoStudents.forEach((s: any) => {
+      const key = `${s.school}-${s.grade}-${s.subject}`;
+      if (!autoGroups[key]) autoGroups[key] = [];
+      autoGroups[key].push(s);
+    });
 
-    // 2. ΠΡΟΓΡΑΜΜΑΤΙΣΜΟΣ ΤΜΗΜΑΤΩΝ
-    Object.entries(groups).forEach(([key, groupStudents]: any) => {
-      const [school, grade, subject] = key.split('-');
-      const teacher = teachers.find((t: any) => t.subject === subject);
+    // 4. Επεξεργασία Locked (Προτεραιότητα)
+    Object.entries(lockedGroups).forEach(([classId, groupStudents]: any) => {
+      const targetClass = classes.find((c: any) => c.id === classId);
+      if (!targetClass) return;
+
+      const teacher = teachers.find((t: any) => t.id === targetClass.teacherId);
       if (!teacher) return;
 
-      // Βρες μια ώρα που είναι διαθέσιμοι οι περισσότεροι (για απλούστευση, παίρνουμε την 1η κοινή ώρα)
-      // Σημείωση: Σε ένα real-world σύστημα, εδώ θα έτρεχες αλγόριθμο εύρεσης κοινής διαθεσιμότητας
-      const firstStudent = groupStudents[0];
-      let assigned = false;
+      scheduleGroup(groupStudents, teacher, targetClass.name, rooms, newSchedule, occupiedTeachers, occupiedRooms, "Locked");
+    });
 
-      for (const [day, slots] of Object.entries(firstStudent.availability)) {
-        const timeSlots = slots as string[];
-        
-        for (const time of timeSlots) {
-          const teacherKey = `${day}-${time}-${teacher.name}`;
-          if (occupiedTeachers[teacherKey]) continue; // Καθηγητής απασχολημένος
+    // 5. Επεξεργασία Auto
+    const availableTeachers = teachers.filter((t: any) => !t.isClassEnabled);
 
-          const room = rooms.find((r: any) => 
-            r.capacity >= groupStudents.length && 
-            !occupiedRooms[`${day}-${time}-${r.id}`]
-          );
+    Object.entries(autoGroups).forEach(([key, groupStudents]: any) => {
+      const [school, grade, subject] = key.split('-');
+      const teacher = availableTeachers.find((t: any) => t.subject === subject);
+      if (!teacher) return;
 
-          if (room) {
-            newSchedule.push({
-              id: Math.random(),
-              day,
-              time,
-              groupName: `${grade} - ${subject}`, // Εμφάνιση τμήματος
-              school,
-              subject,
-              teacher: teacher.name,
-              room: room.name,
-              count: groupStudents.length
-            });
-            
-            occupiedTeachers[teacherKey] = true;
-            occupiedRooms[`${day}-${time}-${room.id}`] = true;
-            assigned = true;
-            break;
-          }
-        }
-        if (assigned) break;
-      }
+      scheduleGroup(groupStudents, teacher, `${grade} - ${subject}`, rooms, newSchedule, occupiedTeachers, occupiedRooms, "Auto");
     });
 
     setSchedule(newSchedule);
     setLoading(false);
   };
 
-  return (
-    <WorkspaceShell title="Scheduler & Τμήματα" description="Αυτόματη ομαδοποίηση και ανάθεση.">
-      {/* ... [Το κομμάτι των Stats παραμένει ίδιο] ... */}
+  const scheduleGroup = (
+    students: any[], 
+    teacher: any, 
+    groupName: string, 
+    rooms: any[], 
+    newSchedule: ScheduleItem[], 
+    occupiedTeachers: Record<string, boolean>, 
+    occupiedRooms: Record<string, boolean>, 
+    type: "Locked" | "Auto"
+  ) => {
+    if (!students || students.length === 0) return;
+    const firstStudent = students[0];
+    if (!firstStudent.availability) return;
 
+    for (const [day, slots] of Object.entries(firstStudent.availability)) {
+      const timeSlots = slots as string[];
+      for (const time of timeSlots) {
+        const teacherKey = `${day}-${time}-${teacher.id}`;
+        if (occupiedTeachers[teacherKey]) continue;
+
+        const room = rooms.find((r: any) => 
+          r.capacity >= students.length && 
+          !occupiedRooms[`${day}-${time}-${r.id}`]
+        );
+
+        if (room) {
+          newSchedule.push({
+            id: Math.random(),
+            day,
+            time,
+            groupName,
+            teacher: teacher.name,
+            room: room.name,
+            count: students.length,
+            type
+          });
+          occupiedTeachers[teacherKey] = true;
+          occupiedRooms[`${day}-${time}-${room.id}`] = true;
+          return; // Σταματάμε μετά την επιτυχημένη ανάθεση για αυτή την ομάδα
+        }
+      }
+    }
+  };
+
+  return (
+    <WorkspaceShell title="Scheduler" description="Αυτόματη ανάθεση τμημάτων βάσει διαθεσιμότητας.">
       <div className="px-4">
         <button 
           onClick={generateSmartSchedule} 
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl flex items-center gap-2 mb-6 shadow-lg transition-all"
         >
           <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 
-          {loading ? "Δημιουργία..." : "Δημιουργία Προγράμματος Τμημάτων"}
+          {loading ? "Επεξεργασία..." : "Δημιουργία Προγράμματος"}
         </button>
 
         <div className="grid grid-cols-1 gap-3">
-          {schedule.map((s) => (
-            <div key={s.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="bg-indigo-100 p-3 rounded-lg text-indigo-700"><Layers size={20} /></div>
-                <div>
-                  <p className="font-bold text-slate-800">{s.groupName}</p>
-                  <p className="text-xs text-slate-500">{s.school} • {s.day}, {s.time}</p>
-                </div>
-              </div>
-
-              <div className="flex gap-6 text-sm">
-                <div className="flex items-center gap-2 text-slate-600"><Users size={16} /> {s.teacher}</div>
-                <div className="flex items-center gap-2 text-indigo-700 font-bold bg-indigo-50 px-2 py-1 rounded">
-                  <MapPin size={16} /> {s.room} ({s.count} μαθητές)
-                </div>
-              </div>
+          {schedule.length === 0 ? (
+            <div className="text-center py-12 border border-dashed border-slate-700 rounded-2xl">
+              <AlertCircle className="mx-auto text-slate-600 mb-2" />
+              <p className="text-slate-500 text-sm">Πατήστε το κουμπί για να ξεκινήσει η δημιουργία.</p>
             </div>
-          ))}
+          ) : (
+            schedule.map((s) => (
+              <div key={s.id} className={`p-4 rounded-xl border flex items-center justify-between ${s.type === 'Locked' ? 'bg-indigo-900/10 border-indigo-500/30' : 'bg-[#1e2330] border-slate-800'}`}>
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-lg ${s.type === 'Locked' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-indigo-400'}`}>
+                    {s.type === 'Locked' ? <CheckCircle2 size={20} /> : <Layers size={20} />}
+                  </div>
+                  <div>
+                    <p className="font-bold text-white">{s.groupName}</p>
+                    <p className="text-xs text-slate-400">{s.day}, {s.time}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-6 text-sm">
+                  <div className="flex items-center gap-2 text-slate-300"><Users size={16} /> {s.teacher}</div>
+                  <div className="flex items-center gap-2 text-indigo-400 font-bold bg-indigo-950/30 px-2 py-1 rounded">
+                    <MapPin size={16} /> {s.room} ({s.count} μαθητές)
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </WorkspaceShell>
