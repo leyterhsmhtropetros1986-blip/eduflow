@@ -56,7 +56,6 @@ export default function StudentsPage() {
   const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
 
-  // Ωράριο Σαββάτου 09:00 - 17:00
   const getAvailableTimes = (day: string) => {
     if (day === "Σάββατο") return ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
     return ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
@@ -72,10 +71,17 @@ export default function StudentsPage() {
   const loadData = () => {
     if (typeof window !== "undefined") {
       const rawStudents = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
-      const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
+      // Έλεγχος και για τα δύο πιθανά keys του localStorage για μέγιστη ασφάλεια
+      const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_sections") || "[]");
       const rawLessons = JSON.parse(localStorage.getItem("eduflow_lessons") || "[]");
 
-      // MIGRATION ENGINE
+      // 1. Κανονικοποίηση Τμημάτων (Αν είναι strings μετατρέπονται σε objects)
+      const normalizedClasses = rawClasses.map((c: any) => {
+        if (typeof c === "string") return { name: c, capacity: 20 };
+        return { ...c, name: c.name || c.className || "" };
+      }).filter((c: ClassItem) => c.name !== "");
+
+      // 2. Migration παλαιών μαθητών στο νέο Multi-Enrollment μοντέλο
       const migratedStudents = rawStudents.map((s: any) => {
         if (!s.enrollments) {
           const legacyEnrollments: StudentEnrollment[] = (s.selectedLessons || []).map((lesson: string) => ({
@@ -89,7 +95,7 @@ export default function StudentsPage() {
       });
 
       setStudents(migratedStudents);
-      setClassesList(rawClasses);
+      setClassesList(normalizedClasses);
       setLessonsList(rawLessons);
     }
   };
@@ -201,7 +207,7 @@ export default function StudentsPage() {
     <WorkspaceShell title="Διαχείριση Μαθητών" description="Σύστημα Εγγραφών ανά Μάθημα & Έλεγχος Πληρότητας Τμημάτων (ERP-ready).">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
         
-        {/* 📝 ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ / ΕΠΕΞΕΡΓΑΣΙΑΣ */}
+        {/* 📝 ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit shadow-xl">
           <form onSubmit={handleSave} className="space-y-4">
             <h4 className="text-indigo-400 font-bold text-xs uppercase flex items-center gap-2 border-b border-slate-800 pb-3 tracking-wider">
@@ -215,7 +221,7 @@ export default function StudentsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <select required value={grade} onChange={e => setGrade(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white focus:border-indigo-500 outline-none transition-all cursor-pointer col-span-2">
+                <select required value={grade} onChange={e => { setGrade(e.target.value); setFormEnrollments([]); }} className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white focus:border-indigo-500 outline-none transition-all cursor-pointer col-span-2">
                   <option value="">Επιλέξτε Τάξη *</option>
                   {["Α Γυμνασίου", "Β Γυμνασίου", "Γ Γυμνασίου", "Α Λυκείου", "Β Λυκείου", "Γ Λυκείου"].map((g, i) => <option key={i} value={g}>{g}</option>)}
                 </select>
@@ -232,52 +238,58 @@ export default function StudentsPage() {
               </div>
             </div>
 
-            {/* 📘 MULTI-ENROLLMENT MATRIX (ΜΑΘΗΜΑ -> ΤΜΗΜΑ) */}
+            {/* 📘 DYNAMIC DROP DOWN LISTS ΑΝΑ ΤΑΞΗ ΜΑΘΗΤΗ */}
             <div className="bg-[#0b0e14] border border-slate-800 rounded-xl p-4 space-y-3">
               <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold border-b border-slate-900 pb-1 flex items-center gap-1">
-                <Layers size={12}/> Επιλογή Τμημάτων ανά Μάθημα
+                <Layers size={12}/> Επιλογή Τμημάτων (Φιλτραρισμένα ανά Τάξη)
               </p>
               
               <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                {lessonsList.map((lesson, idx) => {
-                  // 💡 SMART FALLBACK: Αν δεν υπάρχουν ακόμα τμήματα ρητά συνδεδεμένα με αυτό το μάθημα,
-                  // εμφάνισε όλα τα διαθέσιμα τμήματα (τα 42 ενεργά) για να μην μένει κενό το UI.
-                  const hasSectionsForThisLesson = classesList.some(c => c.course === lesson);
-                  const relatedSections = hasSectionsForThisLesson 
-                    ? classesList.filter(c => c.course === lesson)
-                    : classesList;
+                {!grade ? (
+                  <p className="text-slate-500 text-[11px] italic text-center py-4">
+                    Παρακαλώ επιλέξτε πρώτα την Τάξη του μαθητή για να εμφανιστούν τα αντίστοιχα τμήματα.
+                  </p>
+                ) : (
+                  lessonsList.map((lesson, idx) => {
+                    const currentSelection = formEnrollments.find(e => e.lessonName === lesson)?.className || "";
 
-                  const currentSelection = formEnrollments.find(e => e.lessonName === lesson)?.className || "";
+                    // 🎯 SMART FILTERING ENGINE: Φιλτράρει τα τμήματα που ξεκινάνε από το γράμμα της τάξης (π.χ. 'Β' για Β Λυκείου -> Β1, Β2)
+                    const firstLetterOfGrade = grade.trim().charAt(0).toUpperCase();
+                    const filteredSections = classesList.filter(sec => {
+                      const sectionName = (sec.name || "").trim().toUpperCase();
+                      return sectionName.startsWith(firstLetterOfGrade);
+                    });
 
-                  return (
-                    <div key={idx} className="p-2.5 bg-[#1e2330]/40 border border-slate-800/70 rounded-xl space-y-1.5">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                          <BookOpen size={12} className="text-indigo-500"/> {lesson}
-                        </span>
+                    return (
+                      <div key={idx} className="p-2.5 bg-[#1e2330]/40 border border-slate-800/70 rounded-xl space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                            <BookOpen size={12} className="text-indigo-500"/> {lesson}
+                          </span>
+                        </div>
+
+                        <select 
+                          value={currentSelection} 
+                          onChange={e => handleEnrollmentChange(lesson, e.target.value)}
+                          className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none focus:border-indigo-500 cursor-pointer"
+                        >
+                          <option value="">-- Χωρίς εγγραφή --</option>
+                          {filteredSections.map((sec, sIdx) => {
+                            const maxCap = sec.capacity || 20;
+                            const currentStudents = sectionCounts[`${lesson}_${sec.name}`] || 0;
+                            const isFull = currentStudents >= maxCap && currentSelection !== sec.name;
+
+                            return (
+                              <option key={sIdx} value={sec.name} disabled={isFull}>
+                                {sec.name} ({currentStudents}/{maxCap}) {isFull ? "🔒 FULL" : ""}
+                              </option>
+                            );
+                          })}
+                        </select>
                       </div>
-
-                      <select 
-                        value={currentSelection} 
-                        onChange={e => handleEnrollmentChange(lesson, e.target.value)}
-                        className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none focus:border-indigo-500 cursor-pointer"
-                      >
-                        <option value="">-- Χωρίς εγγραφή --</option>
-                        {relatedSections.map((sec, sIdx) => {
-                          const maxCap = sec.capacity || 20;
-                          const currentStudents = sectionCounts[`${lesson}_${sec.name}`] || 0;
-                          const isFull = currentStudents >= maxCap && currentSelection !== sec.name;
-
-                          return (
-                            <option key={sIdx} value={sec.name} disabled={isFull}>
-                              {sec.name} ({currentStudents}/{maxCap}) {isFull ? "🔒 FULL" : ""}
-                            </option>
-                          );
-                        })}
-                      </select>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </div>
 
@@ -326,7 +338,7 @@ export default function StudentsPage() {
           </form>
         </div>
 
-        {/* 🔍 ΛΙΣΤΑ ΕΓΓΕΓΡΑΜΜΕΝΩΝ ΜΑΘΗΤΩΝ */}
+        {/* 🔍 ΛΙΣΤΑ ΜΑΘΗΤΩΝ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-xl h-fit">
           <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-4 border-b border-slate-800 pb-2 flex justify-between items-center">
             <span>Μαθητολόγιο & Enrollments</span>
@@ -362,7 +374,6 @@ export default function StudentsPage() {
                     </div>
                   </div>
 
-                  {/* ΕΜΦΑΝΙΣΗ ENROLLMENTS ΑΝΑ ΜΑΘΗΜΑ */}
                   {s.enrollments && s.enrollments.length > 0 && (
                     <div className="py-2 px-3 bg-[#1e2330]/50 border border-slate-800/60 rounded-xl space-y-1 mt-1">
                       <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Ενεργές Εγγραφές:</p>
@@ -378,14 +389,12 @@ export default function StudentsPage() {
                     </div>
                   )}
 
-                  {/* Στοιχεία Επικοινωνίας & Γονέα */}
                   <div className="pt-2 border-t border-slate-900/60 text-slate-400 text-[10px] space-y-0.5">
                      <p>📞 Κιν. Μαθητή: <span className="text-slate-200 font-mono">{s.phone || "-"}</span></p>
                      <p>👨‍👩‍👦 Γονέας: <span className="text-slate-200 font-medium">{s.parentName}</span> <span className="text-slate-400 font-mono">({s.parentPhone || "-"})</span></p>
                      <p className="truncate">📧 Email: <span className="text-slate-200 font-mono">{s.parentEmail || "-"}</span></p>
                   </div>
 
-                  {/* Εμφάνιση Κλειδωμένων Ωρών (Busy Slots) */}
                   {s.isLockedHours && s.lockedSlots && s.lockedSlots.length > 0 && (
                     <div className="pt-1.5 flex flex-wrap gap-1">
                       {s.lockedSlots.map((slot, idx) => (
