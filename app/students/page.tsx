@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { Trash2, Edit2, UserPlus, Plus, X, Clock } from "lucide-react";
+import { Trash2, Edit2, UserPlus, Plus, X } from "lucide-react";
 
-// Ορίζουμε τη δομή για το κάθε slot διαθεσιμότητας
 interface AvailabilitySlot { day: string; start: string; end: string; }
 
 interface Student {
@@ -14,26 +13,23 @@ interface Student {
   isLockedHours: boolean; lockedSlots: AvailabilitySlot[];
 }
 
+const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+const TIME_OPTIONS = Array.from({ length: 15 }, (_, i) => `${(i + 9).toString().padStart(2, '0')}:00`);
+
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
-  
-  // States φόρμας
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // States Φόρμας
   const [formData, setFormData] = useState({
     name: "", grade: "", studentPhone: "", parentName: "", parentPhone: "", parentEmail: ""
   });
-  
   const [isLockedClass, setIsLockedClass] = useState(false);
   const [assignedClass, setAssignedClass] = useState("");
-  
   const [isLockedHours, setIsLockedHours] = useState(false);
   const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
-  // State για το νέο slot διαθεσιμότητας
   const [newSlot, setNewSlot] = useState<AvailabilitySlot>({ day: "Δευτέρα", start: "14:00", end: "15:00" });
-
-  // Γεννήτρια ωρών (09:00 - 23:00)
-  const timeOptions = Array.from({length: 15}, (_, i) => `${i + 9 < 10 ? '0' : ''}${i + 9}:00`);
 
   useEffect(() => {
     setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
@@ -41,10 +37,9 @@ export default function StudentsPage() {
   }, []);
 
   const addSlot = () => {
-    // Έλεγχος λογικής (το end πρέπει να είναι μετά το start)
-    if (parseInt(newSlot.start) >= parseInt(newSlot.end)) {
-        alert("Η ώρα λήξης πρέπει να είναι μετά την ώρα έναρξης.");
-        return;
+    if (newSlot.start >= newSlot.end) {
+      alert("Η ώρα λήξης πρέπει να είναι μετά την ώρα έναρξης.");
+      return;
     }
     setLockedSlots([...lockedSlots, newSlot]);
     setNewSlot({ day: "Δευτέρα", start: "14:00", end: "15:00" });
@@ -55,28 +50,33 @@ export default function StudentsPage() {
     const studentData: Student = {
       id: editingId || `s-${Date.now()}`,
       ...formData,
-      isLockedClass, assignedClass: isLockedClass ? assignedClass : null,
-      isLockedHours, lockedSlots: isLockedHours ? lockedSlots : []
+      isLockedClass, 
+      assignedClass: isLockedClass ? assignedClass : null,
+      isLockedHours, 
+      lockedSlots: isLockedHours ? lockedSlots : []
     };
 
-    const updated = editingId ? students.map(s => s.id === editingId ? studentData : s) : [...students, studentData];
+    const updated = editingId 
+      ? students.map(s => s.id === editingId ? studentData : s) 
+      : [...students, studentData];
+
     setStudents(updated);
     localStorage.setItem("eduflow_students", JSON.stringify(updated));
     resetForm();
   };
 
   const resetForm = () => {
-    setEditingId(null); 
+    setEditingId(null);
     setFormData({ name: "", grade: "", studentPhone: "", parentName: "", parentPhone: "", parentEmail: "" });
-    setIsLockedClass(false); setAssignedClass(""); 
+    setIsLockedClass(false); setAssignedClass("");
     setIsLockedHours(false); setLockedSlots([]);
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Μαθητών" description="Πλήρης εγγραφή με ακριβή ορισμό διαθεσιμότητας.">
+    <WorkspaceShell title="Διαχείριση Μαθητών" description="Εγγραφή μαθητών με ορισμό διαθεσιμότητας.">
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 px-4">
         
-        {/* ΦΟΡΜΑ */}
+        {/* ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ */}
         <div className="xl:col-span-2 bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit">
           <form onSubmit={handleSave} className="space-y-4">
             <h4 className="text-indigo-400 font-bold text-xs flex items-center gap-2 border-b border-slate-700 pb-2">
@@ -94,8 +94,8 @@ export default function StudentsPage() {
               <input required type="email" placeholder="Email Γονέα *" className="col-span-2 bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-white text-xs" value={formData.parentEmail} onChange={e => setFormData({...formData, parentEmail: e.target.value})} />
             </div>
 
-            {/* CHECKBOXES & LOGIC */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            {/* OPTIONS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-[#0b0e14] p-4 rounded-xl border border-slate-800 space-y-3">
                 <label className="flex items-center gap-2 text-xs text-indigo-300 cursor-pointer">
                   <input type="checkbox" checked={isLockedClass} onChange={e => setIsLockedClass(e.target.checked)} />
@@ -117,18 +117,15 @@ export default function StudentsPage() {
                 {isLockedHours && (
                   <div className="space-y-2">
                     <div className="grid grid-cols-4 gap-1">
-                      <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded col-span-2" value={newSlot.day} onChange={e => setNewSlot({...newSlot, day: e.target.value})}>
-                        {["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"].map(d => <option key={d}>{d}</option>)}
-                      </select>
-                      <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.start} onChange={e => setNewSlot({...newSlot, start: e.target.value})}>{timeOptions.map(t => <option key={t}>{t}</option>)}</select>
-                      <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.end} onChange={e => setNewSlot({...newSlot, end: e.target.value})}>{timeOptions.map(t => <option key={t}>{t}</option>)}</select>
+                      <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded col-span-2" value={newSlot.day} onChange={e => setNewSlot({...newSlot, day: e.target.value})}>{DAYS.map(d => <option key={d}>{d}</option>)}</select>
+                      <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.start} onChange={e => setNewSlot({...newSlot, start: e.target.value})}>{TIME_OPTIONS.map(t => <option key={t}>{t}</option>)}</select>
+                      <select className="bg-[#1e2330] p-1 text-[10px] text-white rounded" value={newSlot.end} onChange={e => setNewSlot({...newSlot, end: e.target.value})}>{TIME_OPTIONS.map(t => <option key={t}>{t}</option>)}</select>
                     </div>
                     <button type="button" onClick={addSlot} className="w-full bg-rose-600 py-1 rounded text-white text-xs flex justify-center items-center gap-1"><Plus size={14}/> Προσθήκη</button>
-                    
-                    <div className="space-y-1 mt-2">
+                    <div className="space-y-1">
                       {lockedSlots.map((s, i) => (
                         <div key={i} className="text-[10px] text-slate-300 bg-[#1e2330] p-2 rounded flex justify-between items-center border border-slate-800">
-                          <span>{s.day}: {s.start}-{s.end}</span>
+                          <span>{s.day.substring(0,3)}: {s.start}-{s.end}</span>
                           <X size={12} className="cursor-pointer text-rose-500" onClick={() => setLockedSlots(lockedSlots.filter((_,idx) => idx !== i))}/>
                         </div>
                       ))}
@@ -139,25 +136,25 @@ export default function StudentsPage() {
             </div>
 
             <button type="submit" className="w-full p-3 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-500">
-              Αποθήκευση Μαθητή
+              {editingId ? "ΕΝΗΜΕΡΩΣΗ ΜΑΘΗΤΗ" : "ΑΠΟΘΗΚΕΥΣΗ ΜΑΘΗΤΗ"}
             </button>
           </form>
         </div>
 
-        {/* ΛΙΣΤΑ */}
+        {/* ΛΙΣΤΑ ΜΑΘΗΤΩΝ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl">
           <h3 className="text-xs font-bold text-slate-400 uppercase mb-4">Εγγεγραμμένοι ({students.length})</h3>
           <div className="space-y-3">
             {students.map(s => (
               <div key={s.id} className="bg-[#0b0e14] p-3 rounded-xl border border-slate-800 border-l-4 border-l-indigo-500">
                 <p className="text-white text-xs font-bold">{s.name}</p>
-                <div className="flex gap-2 mt-1">
+                <div className="flex gap-2 items-center mt-1">
                     <p className="text-[10px] text-slate-500">{s.grade}</p>
-                    {s.isLockedClass && <span className="text-[10px] bg-indigo-900/50 text-indigo-300 px-1 rounded">{s.assignedClass}</span>}
+                    {s.isLockedClass && <span className="text-[9px] bg-indigo-900/50 text-indigo-300 px-1 rounded">{s.assignedClass}</span>}
                 </div>
                 <div className="flex justify-between items-center mt-2">
                    <div className="flex gap-1 flex-wrap">
-                      {s.lockedSlots.map((sl, i) => <span key={i} className="text-[9px] bg-slate-800 text-slate-400 px-1 rounded">{sl.day.slice(0,3)} {sl.start}</span>)}
+                      {s.lockedSlots.map((sl, i) => <span key={i} className="text-[9px] bg-slate-800 text-slate-400 px-1 rounded">{sl.day.substring(0,3)} {sl.start}</span>)}
                    </div>
                    <div className="flex gap-2">
                       <button onClick={() => { 
