@@ -2,53 +2,39 @@
 
 import { useState, useEffect } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { Trash2, Plus, BookOpen, User, GraduationCap } from "lucide-react";
+import { Trash2, Plus, GraduationCap, Users } from "lucide-react";
 
 interface ClassItem {
   id: string;
   name: string;
-  grade: string; // Η απαραίτητη προσθήκη ERP
-  course: string | null;
-  teacher: string | null;
-  capacity?: number;
+  grade: string;
+  maxStudents: number; // Ο υποχρεωτικός αριθμός ατόμων
 }
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassItem[]>([]);
-  const [teachers, setTeachers] = useState<string[]>([]);
-  const [courses, setCourses] = useState<string[]>([]);
 
   // Form states
   const [className, setClassName] = useState("");
-  const [grade, setGrade] = useState(""); // State για την Τάξη
-  
-  // States για τα Checkboxes
-  const [isCourseEnabled, setIsCourseEnabled] = useState(false);
-  const [selectedCourse, setSelectedCourse] = useState("");
-  
-  const [isTeacherEnabled, setIsTeacherEnabled] = useState(false);
-  const [selectedTeacher, setSelectedTeacher] = useState("");
+  const [grade, setGrade] = useState("");
+  const [maxStudents, setMaxStudents] = useState<string>(""); // State για τον αριθμό ατόμων
 
   useEffect(() => {
-    // Ενοποίηση του LocalStorage Key με τη σελίδα των μαθητών
     const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]");
     
-    // Normalize παλιών δεδομένων αν υπάρχουν
+    // Normalize δεδομένων για να κρατήσουμε μόνο τα απαραίτητα πεδία
     const normalized = rawClasses.map((c: any) => ({
       id: c.id || `class-${Date.now()}-${Math.random()}`,
       name: c.name || c.className || "",
       grade: c.grade || "",
-      course: c.course || null,
-      teacher: c.teacher || null
+      maxStudents: Number(c.maxStudents) || Number(c.capacity) || 20 // Fallback τιμή αν προϋπήρχαν τμήματα
     }));
 
     setClasses(normalized);
-    setTeachers(JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"));
-    setCourses(JSON.parse(localStorage.getItem("eduflow_courses") || "[]"));
   }, []);
 
   const addClass = () => {
-    if (!className) {
+    if (!className.trim()) {
       alert("Παρακαλώ συμπλήρωσε το όνομα του τμήματος.");
       return;
     }
@@ -56,27 +42,28 @@ export default function ClassesPage() {
       alert("Παρακαλώ επιλέξτε την Τάξη στην οποία ανήκει το τμήμα.");
       return;
     }
+    
+    const parsedMax = parseInt(maxStudents);
+    if (!maxStudents || isNaN(parsedMax) || parsedMax <= 0) {
+      alert("Παρακαλώ όρισε έναν έγκυρο, υποχρεωτικό μέγιστο αριθμό ατόμων για το τμήμα (π.χ. 15).");
+      return;
+    }
 
     const newClass: ClassItem = {
       id: `class-${Date.now()}`,
-      name: className,
-      grade: grade, // Αποθήκευση της τάξης
-      course: isCourseEnabled ? selectedCourse : null,
-      teacher: isTeacherEnabled ? selectedTeacher : null,
-      capacity: 20
+      name: className.trim(),
+      grade: grade,
+      maxStudents: parsedMax
     };
 
     const updated = [...classes, newClass];
     setClasses(updated);
     localStorage.setItem("eduflow_classes", JSON.stringify(updated));
     
-    // Reset form
+    // Reset φόρμας
     setClassName("");
     setGrade("");
-    setIsCourseEnabled(false);
-    setSelectedCourse("");
-    setIsTeacherEnabled(false);
-    setSelectedTeacher("");
+    setMaxStudents("");
   };
 
   const removeClass = (id: string) => {
@@ -86,80 +73,59 @@ export default function ClassesPage() {
   };
 
   return (
-    <WorkspaceShell title="Διαχείριση Τμημάτων" description="Ορίστε τα τμήματα ανά τάξη και αναθέστε προαιρετικά καθηγητή και μάθημα.">
+    <WorkspaceShell title="Διαχείριση Τμημάτων" description="Ορίστε τα τμήματα ανά τάξη και καθορίστε τον μέγιστο αριθμό μαθητών.">
       
       {/* Φόρμα Δημιουργίας */}
       <div className="bg-[#1e2330] p-6 rounded-3xl border border-slate-800 mb-8 max-w-2xl mx-auto shadow-xl">
-        <h2 className="text-white font-bold mb-4 flex items-center gap-2 text-sm uppercase tracking-wide border-b border-slate-800 pb-3">
-          <Plus size={16} className="text-indigo-400" /> Νέο Τμήμα & Σύνδεση με Τάξη
+        <h2 className="text-white font-bold mb-5 flex items-center gap-2 text-sm uppercase tracking-wide border-b border-slate-800 pb-3">
+          <Plus size={16} className="text-indigo-400" /> Νέο Τμήμα
         </h2>
         
         <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Όνομα Τμήματος */}
-            <input 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
-              placeholder="Όνομα τμήματος (π.χ. Α1, Β_Ανθρωπιστικών)"
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-            />
+          {/* Πρώτη Σειρά: Όνομα & Τάξη */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1.5 pl-1">Όνομα Τμήματος *</label>
+              <input 
+                className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
+                placeholder="π.χ. Α1, Β_Θετικών"
+                value={className}
+                onChange={(e) => setClassName(e.target.value)}
+              />
+            </div>
 
-            {/* Επιλογή Τάξης (ERP Σύνδεση) */}
-            <select 
-              required 
-              value={grade} 
-              onChange={e => setGrade(e.target.value)} 
-              className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white focus:border-indigo-500 outline-none cursor-pointer"
-            >
-              <option value="">Ανήκει στην Τάξη *</option>
-              {["Α Γυμνασίου", "Β Γυμνασίου", "Γ Γυμνασίου", "Α Λυκείου", "Β Λυκείου", "Γ Λυκείου"].map((g, i) => (
-                <option key={i} value={g}>{g}</option>
-              ))}
-            </select>
+            <div>
+              <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1.5 pl-1">Ανήκει στην Τάξη *</label>
+              <select 
+                value={grade} 
+                onChange={e => setGrade(e.target.value)} 
+                className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white focus:border-indigo-500 outline-none cursor-pointer"
+              >
+                <option value="">Επιλέξτε Τάξη...</option>
+                {["Α Γυμνασίου", "Β Γυμνασίου", "Γ Γυμνασίου", "Α Λυκείου", "Β Λυκείου", "Γ Λυκείου"].map((g, i) => (
+                  <option key={i} value={g}>{g}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Μάθημα */}
-            <div className="bg-[#0b0e14] p-3 rounded-xl border border-slate-800">
-              <label className="flex items-center gap-2 text-[10px] text-slate-400 mb-2 cursor-pointer select-none">
-                <input type="checkbox" checked={isCourseEnabled} onChange={e => setIsCourseEnabled(e.target.checked)} className="accent-indigo-500" />
-                Ανάθεση Μαθήματος
-              </label>
-              {isCourseEnabled && (
-                <select 
-                  className="w-full bg-[#1e2330] border border-slate-800 p-2 rounded-lg text-xs text-white cursor-pointer"
-                  value={selectedCourse}
-                  onChange={(e) => setSelectedCourse(e.target.value)}
-                >
-                  <option value="">Επιλέξτε Μάθημα...</option>
-                  {courses.map((c, i) => <option key={i} value={c}>{c}</option>)}
-                </select>
-              )}
-            </div>
-
-            {/* Καθηγητής */}
-            <div className="bg-[#0b0e14] p-3 rounded-xl border border-slate-800">
-              <label className="flex items-center gap-2 text-[10px] text-slate-400 mb-2 cursor-pointer select-none">
-                <input type="checkbox" checked={isTeacherEnabled} onChange={e => setIsTeacherEnabled(e.target.checked)} className="accent-indigo-500" />
-                Anάθεση Καθηγητή
-              </label>
-              {isTeacherEnabled && (
-                <select 
-                  className="w-full bg-[#1e2330] border border-slate-800 p-2 rounded-lg text-xs text-white cursor-pointer"
-                  value={selectedTeacher}
-                  onChange={(e) => setSelectedTeacher(e.target.value)}
-                >
-                  <option value="">Επιλέξτε Καθηγητή...</option>
-                  {teachers.map((t, i) => <option key={i} value={t}>{t}</option>)}
-                </select>
-              )}
-            </div>
+          {/* Δεύτερη Σειρά: Αριθμός Ατόμων */}
+          <div>
+            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1.5 pl-1">Μέγιστος Αριθμός Ατόμων *</label>
+            <input 
+              type="number"
+              min="1"
+              className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none"
+              placeholder="π.χ. 12"
+              value={maxStudents}
+              onChange={(e) => setMaxStudents(e.target.value)}
+            />
           </div>
         </div>
 
         <button 
           onClick={addClass}
-          className="w-full mt-4 bg-indigo-600 text-white p-3 rounded-xl text-xs font-bold hover:bg-indigo-500 transition-all shadow-lg"
+          className="w-full mt-5 bg-indigo-600 text-white p-3 rounded-xl text-xs font-bold hover:bg-indigo-500 transition-all shadow-lg"
         >
           Δημιουργία Τμήματος
         </button>
@@ -178,20 +144,17 @@ export default function ClassesPage() {
         ) : (
           classes.map((c) => (
             <div key={c.id} className="bg-[#1e2330] border border-slate-800 p-4 rounded-2xl flex justify-between items-start hover:border-slate-700 transition-all">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <h3 className="text-white font-bold text-sm tracking-wide">{c.name}</h3>
                 
-                <div className="flex flex-col gap-1 pt-1">
-                  <span className="text-indigo-400 text-[10px] font-bold bg-indigo-950/40 px-2 py-0.5 rounded w-fit border border-indigo-900/30 flex items-center gap-1">
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  <span className="text-indigo-400 text-[10px] font-bold bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-900/30 flex items-center gap-1">
                     <GraduationCap size={10}/> {c.grade || "Χωρίς Τάξη"}
                   </span>
                   
-                  {c.course && (
-                    <p className="text-slate-300 text-[11px] flex items-center gap-1.5"><BookOpen size={11} className="text-slate-500"/> {c.course}</p>
-                  )}
-                  {c.teacher && (
-                    <p className="text-slate-400 text-[11px] flex items-center gap-1.5"><User size={11} className="text-slate-500"/> {c.teacher}</p>
-                  )}
+                  <span className="text-emerald-400 text-[10px] font-bold bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-900/30 flex items-center gap-1">
+                    <Users size={10}/> έως {c.maxStudents} άτομα
+                  </span>
                 </div>
               </div>
               <button onClick={() => removeClass(c.id)} className="text-slate-600 hover:text-rose-500 p-1 hover:bg-[#0b0e14] rounded-lg transition-colors">
