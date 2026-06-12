@@ -155,7 +155,7 @@ export default function ReportsPage() {
   if (!isMounted) return null;
 
   return (
-    <WorkspaceShell title="Reports & Analytics v2" description="Πλήρης εποπτεία, στατιστική ανάλυση και εξαγωγή αναφορών.">
+    <WorkspaceShell title="Αναφορές" description="Πλήρης εποπτεία, στατιστική ανάλυση και εξαγωγή αναφορών.">
       
       {/* 🛠️ TOP ACTIONS (Print & Export) */}
       <div className="print:hidden flex flex-col md:flex-row justify-between items-center gap-4 mb-8 bg-[#1e2330] p-6 rounded-3xl border border-slate-800 shadow-xl">
@@ -181,25 +181,12 @@ export default function ReportsPage() {
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">
-          <div className="flex gap-2 w-full md:w-auto">
-
-  <button
-    onClick={() => window.print()}
-    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-xl text-xs font-bold"
-  >
-    <Printer size={16} />
-    Print
-  </button>
-
-  <button
-    onClick={() => window.open("/reports/pdf", "_blank")}
-    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-xl text-xs font-bold"
-  >
-    <FileDown size={16} />
-    PDF Report
-  </button>
-
-</div>
+          <button 
+            onClick={() => window.print()}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all"
+          >
+            <Printer size={16} /> Print PDF
+          </button>
         </div>
       </div>
 
@@ -318,25 +305,25 @@ export default function ReportsPage() {
 
       {/* --- DATA TABLES (Print Ready) --- */}
       {activeTab !== "dashboard" && activeTab !== "attendance" && (
-        <div className="bg-white p-0 sm:p-8 text-black rounded-3xl overflow-hidden print:bg-white print:p-0">
+        <div className="bg-[#1e2330] border border-slate-800 p-4 sm:p-6 rounded-3xl overflow-hidden text-slate-200 print:bg-white print:text-black print:border-0 print:p-0">
           <div className="print:flex hidden justify-between items-center border-b-2 border-black pb-4 mb-6">
-            <h1 className="text-2xl font-bold">EduFlow Executive Report</h1>
-            <div className="text-right text-sm">
+            <h1 className="text-2xl font-bold text-black">EduFlow Executive Report</h1>
+            <div className="text-right text-sm text-black">
               <p>Ημερομηνία: {new Date().toLocaleDateString('el-GR')}</p>
               <p>Σελίδα 1 από 1</p>
             </div>
           </div>
 
-          <h2 className="text-lg font-black uppercase mb-4 px-4 sm:px-0 print:text-black">
+          <h2 className="text-sm font-black uppercase tracking-wider mb-4 text-white print:text-black">
              Αναλυτική Αναφορά: {activeTab.toUpperCase()}
           </h2>
 
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-slate-200 print:border-black">
+            <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-slate-50 print:bg-slate-100">
+                <tr className="bg-[#0b0e14] print:bg-slate-100">
                   {getTableHeaders(activeTab).map(h => (
-                    <th key={h} className="border border-slate-200 p-3 text-left text-[11px] font-bold uppercase print:border-black print:text-black">
+                    <th key={h} className="border border-slate-800 p-3 text-left text-[11px] font-bold uppercase text-slate-400 print:border-black print:text-black">
                       {h}
                     </th>
                   ))}
@@ -344,9 +331,9 @@ export default function ReportsPage() {
               </thead>
               <tbody>
                 {getTableData(activeTab, data).map((row: any, i: number) => (
-                  <tr key={i} className="hover:bg-slate-50 print:bg-white">
+                  <tr key={i} className="hover:bg-[#0b0e14] print:bg-white">
                     {Object.values(row).map((val: any, idx: number) => (
-                      <td key={idx} className="border border-slate-200 p-3 text-xs print:border-black print:text-black">
+                      <td key={idx} className="border border-slate-800 p-3 text-xs text-slate-300 print:border-black print:text-black">
                         {val}
                       </td>
                     ))}
@@ -393,15 +380,15 @@ export default function ReportsPage() {
           </div>
 
           {/* Πίνακας ανά μαθητή (εκτυπώσιμος) */}
-          <div className="bg-white p-0 sm:p-8 text-black rounded-3xl overflow-hidden print:bg-white print:p-0">
+          <div className="bg-[#1e2330] border border-slate-800 p-4 sm:p-6 rounded-3xl overflow-hidden text-slate-200 print:bg-white print:text-black print:border-0 print:p-0">
             <div className="print:flex hidden justify-between items-center border-b-2 border-black pb-4 mb-6">
-              <h1 className="text-2xl font-bold">EduFlow — Αναφορά Παρουσιών</h1>
-              <div className="text-right text-sm">
+              <h1 className="text-2xl font-bold text-black">EduFlow — Αναφορά Παρουσιών</h1>
+              <div className="text-right text-sm text-black">
                 <p>Ημερομηνία: {new Date().toLocaleDateString('el-GR')}</p>
               </div>
             </div>
 
-            <h2 className="text-lg font-black uppercase mb-4 px-4 sm:px-0 print:text-black">
+            <h2 className="text-sm font-black uppercase tracking-wider mb-4 text-white print:text-black">
               Παρουσίες ανά Μαθητή
             </h2>
 
@@ -409,25 +396,25 @@ export default function ReportsPage() {
               {attendanceByStudent.length === 0 ? (
                 <p className="text-slate-500 text-sm p-6">Δεν υπάρχουν καταγεγραμμένες παρουσίες ακόμα.</p>
               ) : (
-                <table className="w-full border-collapse border border-slate-200 print:border-black">
+                <table className="w-full border-collapse">
                   <thead>
-                    <tr className="bg-slate-50 print:bg-slate-100">
+                    <tr className="bg-[#0b0e14] print:bg-slate-100">
                       {["Μαθητής", "Τμήμα", "Σύνολο", "Παρών", "Απών", "Καθυστ.", "Δικαιολ.", "Παρουσία %"].map(h => (
-                        <th key={h} className="border border-slate-200 p-3 text-left text-[11px] font-bold uppercase print:border-black print:text-black">{h}</th>
+                        <th key={h} className="border border-slate-800 p-3 text-left text-[11px] font-bold uppercase text-slate-400 print:border-black print:text-black">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {attendanceByStudent.map((r: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-50 print:bg-white">
-                        <td className="border border-slate-200 p-3 text-xs print:border-black font-medium">{r.name}</td>
-                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.className}</td>
-                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.total}</td>
-                        <td className="border border-slate-200 p-3 text-xs print:border-black text-emerald-600 font-bold">{r.present}</td>
-                        <td className="border border-slate-200 p-3 text-xs print:border-black text-rose-600 font-bold">{r.absent}</td>
-                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.late}</td>
-                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.excused}</td>
-                        <td className={`border border-slate-200 p-3 text-xs print:border-black font-bold ${r.rate < 75 ? "text-rose-600" : "text-emerald-600"}`}>{r.rate}%</td>
+                      <tr key={i} className="hover:bg-[#0b0e14] print:bg-white">
+                        <td className="border border-slate-800 p-3 text-xs text-slate-200 print:border-black print:text-black font-medium">{r.name}</td>
+                        <td className="border border-slate-800 p-3 text-xs text-slate-300 print:border-black print:text-black">{r.className}</td>
+                        <td className="border border-slate-800 p-3 text-xs text-slate-300 print:border-black print:text-black">{r.total}</td>
+                        <td className="border border-slate-800 p-3 text-xs text-emerald-400 print:text-emerald-600 print:border-black font-bold">{r.present}</td>
+                        <td className="border border-slate-800 p-3 text-xs text-rose-400 print:text-rose-600 print:border-black font-bold">{r.absent}</td>
+                        <td className="border border-slate-800 p-3 text-xs text-slate-300 print:border-black print:text-black">{r.late}</td>
+                        <td className="border border-slate-800 p-3 text-xs text-slate-300 print:border-black print:text-black">{r.excused}</td>
+                        <td className={`border border-slate-800 p-3 text-xs print:border-black font-bold ${r.rate < 75 ? "text-rose-400 print:text-rose-600" : "text-emerald-400 print:text-emerald-600"}`}>{r.rate}%</td>
                       </tr>
                     ))}
                   </tbody>
@@ -477,8 +464,8 @@ function InsightItem({ type, text }: any) {
 
 function getTableHeaders(tab: string) {
   switch(tab) {
-    case "students": return ["Όνομα", "Τάξη", "Γονέας", "Τηλέφωνο", "Email", "Εγγραφές"];
-    case "teachers": return ["Όνομα", "Μάθημα", "Τηλέφωνο", "Availability"];
+    case "students": return ["Όνομα", "Επίθετο", "Τάξη", "Γονέας", "Τηλέφωνο", "Email", "Εγγραφές"];
+    case "teachers": return ["Όνομα", "Επίθετο", "Μάθημα", "Τηλέφωνο", "Availability"];
     case "classes": return ["Τμήμα", "Τάξη", "Χωρητικότητα", "Κατάσταση"];
     case "crm": return ["Lead", "Τηλέφωνο", "Στάδιο", "Πηγή", "Ημερ. Δημιουργίας"];
     default: return [];
@@ -488,23 +475,29 @@ function getTableHeaders(tab: string) {
 function getTableData(tab: string, data: any) {
   switch(tab) {
     case "students": 
-      return data.students.map((s: any) => ({
-        name: `${s.lastName} ${s.firstName}`,
-        grade: s.grade,
-        parent: s.parentName,
-        phone: s.phone,
-        // ✅ Διόρθωση 6: fallback για email
-        email: s.parentEmail || s.email || "-",
-        count: `${s.enrollments?.length || 0} μαθήματα`
-      }));
+      return data.students.map((s: any) => {
+        const parts = (s.name || `${s.firstName || ""} ${s.lastName || ""}`).trim().split(/\s+/);
+        return {
+          firstName: s.firstName || parts[0] || "-",
+          lastName: s.lastName || parts.slice(1).join(" ") || "-",
+          grade: s.grade,
+          parent: s.parentName,
+          phone: s.phone,
+          email: s.parentEmail || s.email || "-",
+          count: `${s.enrollments?.length || 0} μαθήματα`
+        };
+      });
     case "teachers":
-      return data.teachers.map((t: any) => ({
-        // Συνένωση του ονόματος και του επωνύμου
-        name: `${t.firstName || ""} ${t.lastName || t.name || ""}`.trim(),
-        subject: t.subjects?.join(", ") || t.subject || "-",
-        phone: t.phone,
-        availability: `${t.availability?.length || 0} ώρες`
-      }));
+      return data.teachers.map((t: any) => {
+        const parts = (t.name || `${t.firstName || ""} ${t.lastName || ""}`).trim().split(/\s+/);
+        return {
+          firstName: t.firstName || parts[0] || "-",
+          lastName: t.lastName || parts.slice(1).join(" ") || "-",
+          subject: t.subjects?.join(", ") || t.subject || "-",
+          phone: t.phone,
+          availability: `${t.availability?.length || 0} ώρες`
+        };
+      });
     case "classes":
       return data.classes.map((c: any) => ({
         // ✅ Διόρθωση 4: name ή className
