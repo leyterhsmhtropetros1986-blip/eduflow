@@ -1,192 +1,260 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { AvailabilityMatrix } from "../../components/AvailabilityMatrix";
-import { Trash2, Edit2, UserPlus, Plus, X, GraduationCap, AlertTriangle, BookOpen, Layers, Loader2 } from "lucide-react";
-import { createClient } from "@/utils/supabase/client";
+import { useEffect, useMemo, useState } from "react";
+import { WorkspaceShell } from "../components/WorkspaceShell";
+import {
+  createStudent,
+  deleteStudent,
+  fetchCourses,
+  fetchStudents,
+  searchStudents,
+  updateStudent,
+} from "../lib/api";
+import type { Course, Student } from "../lib/data";
 
-const supabase = createClient();
-
-interface AvailabilitySlot { day: string; start: string; end: string; }
-interface StudentEnrollment { lessonName: string; className: string; }
-
-interface Student {
-  id: string;
-  first_name: string;
-  last_name: string;
-  school_grade: string;
-  phone: string;
-  parent_name: string;
-  parent_phone: string;
-  email: string;
-  enrollments: StudentEnrollment[];
-  isLockedHours: boolean;
-  lockedSlots: AvailabilitySlot[];
-  availability: AvailabilitySlot[];
-}
+const initialStudentState: Omit<Student, "id" | "status"> = {
+  fullName: "",
+  grade: "",
+  course: "",
+  parentName: "",
+  email: "",
+  phone: "",
+};
 
 export default function StudentsPage() {
-  const [loading, setLoading] = useState(true);
-  const [schoolId, setSchoolId] = useState<string | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [classesList, setClassesList] = useState<any[]>([]);
-  const [lessonsList, setLessonsList] = useState<string[]>([]);
-  
-  // States Φόρμας
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [grade, setGrade] = useState("");
-  const [phone, setPhone] = useState("");
-  const [parentName, setParentName] = useState("");
-  const [parentPhone, setParentPhone] = useState("");
-  const [parentEmail, setParentEmail] = useState("");
-  const [formEnrollments, setFormEnrollments] = useState<StudentEnrollment[]>([]);
-  const [isLockedHours, setIsLockedHours] = useState(false);
-  const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
-  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [formValues, setFormValues] = useState<Omit<Student, "id" | "status">>(initialStudentState);
 
   useEffect(() => {
-    init();
+    async function load() {
+      const [studentData, courseData] = await Promise.all([fetchStudents(), fetchCourses()]);
+      setStudents(studentData);
+      setCourses(courseData);
+    }
+
+    load();
   }, []);
 
-  // 1. Αρχικοποίηση: Μόνο μία κλήση για το User Auth
-  const init = async () => {
-    setLoading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // FUTURE-PROOF: Εδώ θα γίνει το query στον "profiles" πίνακα
-      // const { data: profile } = await supabase.from("profiles").select("school_id").eq("id", user.id).single();
-      // const currentSchoolId = profile.school_id;
-      
-      const currentSchoolId = user.id; // Προσωρινό
-      setSchoolId(currentSchoolId);
-      await loadData(currentSchoolId);
-    } catch (err) {
-      console.error("Auth init error:", err);
-    } finally {
-      setLoading(false);
+  const displayedStudents = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return students;
     }
-  };
 
-  // 2. Data Loading: Καθαρή συνάρτηση που δέχεται το schoolId
-  const loadData = async (sid: string) => {
-    try {
-      // Fetch Students
-      const { data: studentsData, error: sErr } = await supabase
-        .from("students")
-        .select("*")
-        .eq("school_id", sid);
-        
-      if (sErr) throw sErr;
-      setStudents(studentsData || []);
-
-      // Fetch Local Configs
-      const localClasses = localStorage.getItem("eduflow_classes_data");
-      setClassesList(localClasses ? JSON.parse(localClasses) : []);
-
-      const localLessons = localStorage.getItem("eduflow_lessons");
-      const parsed = localLessons ? JSON.parse(localLessons) : [];
-      setLessonsList(
-        parsed.map((l: any) => (typeof l === "string" ? l : l.name))
+    return students.filter((student) => {
+      const term = searchTerm.toLowerCase();
+      return (
+        student.fullName.toLowerCase().includes(term) ||
+        student.course.toLowerCase().includes(term) ||
+        student.parentName.toLowerCase().includes(term)
       );
-    } catch (err) {
-      console.error("Error loading data:", err);
+    });
+  }, [students, searchTerm]);
+
+  function resetForm() {
+    setSelectedStudent(null);
+    setFormValues(initialStudentState);
+  }
+
+  async function saveStudent() {
+    const trimmedName = formValues.fullName.trim();
+    if (!trimmedName || !formValues.grade || !formValues.course || !formValues.parentName) {
+      return;
     }
-  };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!schoolId) return;
-
-    const payload = {
-      school_id: schoolId,
-      first_name: firstName,
-      last_name: lastName,
-      school_grade: grade,
-      phone: phone,
-      parent_name: parentName,
-      parent_phone: parentPhone,
-      email: parentEmail,
-      enrollments: formEnrollments,
-      isLockedHours: isLockedHours,
-      lockedSlots: lockedSlots,
-      availability: availability
+    const record: Student = {
+      id: selectedStudent?.id ?? `stu_${Date.now()}`,
+      status: selectedStudent?.status ?? "active",
+      fullName: trimmedName,
+      grade: formValues.grade,
+      course: formValues.course,
+      parentName: formValues.parentName,
+      email: formValues.email || `${trimmedName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
+      phone: formValues.phone || "+30 698 000 0000",
     };
 
-    try {
-      if (editingId) {
-        const { error } = await supabase
-          .from("students")
-          .update(payload)
-          .eq("id", editingId)
-          .eq("school_id", schoolId)
-          .select();
-        
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("students")
-          .insert(payload)
-          .select();
-        
-        if (error) throw error;
-      }
-      
-      await loadData(schoolId);
+    const savedStudent = selectedStudent
+      ? await updateStudent(record.id, record)
+      : await createStudent(record);
+
+    if (!savedStudent) {
+      return;
+    }
+
+    setStudents((current) => {
+      const updated = current.filter((student) => student.id !== savedStudent.id);
+      return [savedStudent, ...updated];
+    });
+
+    resetForm();
+  }
+
+  async function handleDelete(id: string) {
+    const deleted = await deleteStudent(id);
+    if (!deleted) {
+      return;
+    }
+
+    setStudents((current) => current.filter((student) => student.id !== id));
+    if (selectedStudent?.id === id) {
       resetForm();
-    } catch (err) {
-      console.error("Save error:", err);
     }
-  };
+  }
 
-  const deleteStudent = async (id: string) => {
-    if(!confirm("Οριστική διαγραφή;") || !schoolId) return;
-    try {
-      const { error } = await supabase
-        .from("students")
-        .delete()
-        .eq("id", id)
-        .eq("school_id", schoolId);
-        
-      if (error) throw error;
-      await loadData(schoolId);
-    } catch (err) {
-      console.error("Delete error:", err);
-    }
-  };
-
-  const resetForm = () => {
-    setEditingId(null);
-    setFirstName(""); setLastName(""); setGrade(""); setPhone("");
-    setParentName(""); setParentPhone(""); setParentEmail("");
-    setFormEnrollments([]); setIsLockedHours(false); setLockedSlots([]); setAvailability([]);
-  };
-
-  const startEdit = (s: Student) => {
-    setEditingId(s.id);
-    setFirstName(s.first_name); setLastName(s.last_name);
-    setGrade(s.school_grade); setPhone(s.phone);
-    setParentName(s.parent_name); setParentPhone(s.parent_phone);
-    setParentEmail(s.email); setFormEnrollments(s.enrollments || []);
-    setIsLockedHours(s.isLockedHours || false);
-    setLockedSlots(s.lockedSlots || []); setAvailability(s.availability || []);
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0b0e14] flex items-center justify-center">
-        <Loader2 className="animate-spin text-indigo-500" size={32} />
-      </div>
-    );
+  function handleEdit(student: Student) {
+    setSelectedStudent(student);
+    setFormValues({
+      fullName: student.fullName,
+      grade: student.grade,
+      course: student.course,
+      parentName: student.parentName,
+      email: student.email,
+      phone: student.phone,
+    });
   }
 
   return (
-    <WorkspaceShell title="Διαχείριση Μαθητών" description="Supabase Powered ERP">
-       {/* Το UI σου παραμένει εδώ... */}
+    <WorkspaceShell
+      title="Μαθητές"
+      description="Διαχείριση προφίλ μαθητών, εγγραφών και ανάθεσης μαθημάτων από ένα κεντρικό περιβάλλον."
+    >
+      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
+        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-950">Κατάλογος μαθητών</h2>
+              <p className="mt-1 text-sm text-slate-500">Αναζήτηση, προβολή και ενημέρωση εγγεγραμμένων μαθητών.</p>
+            </div>
+            <div className="w-full md:w-80">
+              <label className="block text-sm font-medium text-slate-700">Αναζήτηση μαθητών</label>
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
+                placeholder="Αναζήτηση με όνομα, μάθημα ή γονέα"
+              />
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-slate-700">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Όνομα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Τάξη</th>
+                  <th className="px-4 py-3 text-left font-semibold">Μάθημα</th>
+                  <th className="px-4 py-3 text-left font-semibold">Γονέας</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {displayedStudents.map((student) => (
+                  <tr key={student.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-4 text-slate-900">{student.fullName}</td>
+                    <td className="px-4 py-4 text-slate-600">{student.grade}</td>
+                    <td className="px-4 py-4 text-slate-600">{student.course}</td>
+                    <td className="px-4 py-4 text-slate-600">{student.parentName}</td>
+                    <td className="px-4 py-4 space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEdit(student)}
+                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Επεξεργασία
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(student.id)}
+                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+                      >
+                        Διαγραφή
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-950">{selectedStudent ? "Επεξεργασία μαθητή" : "Προσθήκη μαθητή"}</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              {selectedStudent
+                ? "Ενημερώστε τη εγγραφή του μαθητή και αποθηκεύστε τις αλλαγές σας."
+                : "Δημιουργήστε εγγραφές μαθητών και αντιστοιχίστε τους στο επόμενο μάθημα."}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block text-sm font-medium text-slate-700">Ονοματεπώνυμο</label>
+            <input
+              value={formValues.fullName}
+              onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Ελένη Παπαδοπούλου"
+            />
+
+            <label className="block text-sm font-medium text-slate-700">Τάξη</label>
+            <select
+              value={formValues.grade}
+              onChange={(event) => setFormValues({ ...formValues, grade: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
+            >
+              <option value="">Επιλογή Τάξης</option>
+              <option value="Α Γυμνασίου">Α Γυμνασίου</option>
+              <option value="Β Γυμνασίου">Β Γυμνασίου</option>
+              <option value="Γ Γυμνασίου">Γ Γυμνασίου</option>
+              <option value="Α Λυκείου">Α Λυκείου</option>
+              <option value="Β Λυκείου">Β Λυκείου</option>
+              <option value="Γ Λυκείου">Γ Λυκείου</option>
+            </select>
+
+            <label className="block text-sm font-medium text-slate-700">Μάθημα</label>
+            <select
+              value={formValues.course}
+              onChange={(event) => setFormValues({ ...formValues, course: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+            >
+              <option value="">Επιλογή μαθήματος</option>
+              {courses.map((courseOption) => (
+                <option key={courseOption.id} value={courseOption.title}>
+                  {courseOption.title}
+                </option>
+              ))}
+            </select>
+
+            <label className="block text-sm font-medium text-slate-700">Γονέας / Κηδεμόνας</label>
+            <input
+              value={formValues.parentName}
+              onChange={(event) => setFormValues({ ...formValues, parentName: event.target.value })}
+              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
+              placeholder="Μαρία Κωνσταντίνου"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={saveStudent}
+              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              {selectedStudent ? "Ενημέρωση μαθητή" : "Αποθήκευση μαθητή"}
+            </button>
+            {selectedStudent ? (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Ακύρωση
+              </button>
+            ) : null}
+          </div>
+        </section>
+      </div>
     </WorkspaceShell>
   );
 }
