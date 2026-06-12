@@ -181,12 +181,25 @@ export default function ReportsPage() {
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">
-          <button 
-            onClick={() => window.print()}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all"
-          >
-            <Printer size={16} /> Print PDF
-          </button>
+          <div className="flex gap-2 w-full md:w-auto">
+
+  <button
+    onClick={() => window.print()}
+    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-xl text-xs font-bold"
+  >
+    <Printer size={16} />
+    Print
+  </button>
+
+  <button
+    onClick={() => window.open("/reports/pdf", "_blank")}
+    className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 rounded-xl text-xs font-bold"
+  >
+    <FileDown size={16} />
+    PDF Report
+  </button>
+
+</div>
         </div>
       </div>
 
