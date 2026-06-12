@@ -34,14 +34,21 @@ export default function ReportsPage() {
   useEffect(() => {
     setIsMounted(true);
     const load = () => {
-      setData({
-        students: JSON.parse(localStorage.getItem("eduflow_students") || "[]"),
-        teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"),
-        classes: JSON.parse(localStorage.getItem("eduflow_classes") || "[]"),
-        lessons: JSON.parse(localStorage.getItem("eduflow_lessons") || "[]"),
-        leads: JSON.parse(localStorage.getItem("eduflow_crm_leads") || "[]"),
-        schedule: JSON.parse(localStorage.getItem("eduflow_schedule_data") || "[]"),
-      });
+      // ✅ Διόρθωση 1 & 2 & 3: σωστά keys (ίδια με το υπόλοιπο project)
+      const students = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
+      const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
+      const classes = JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]");
+      const lessons = JSON.parse(localStorage.getItem("eduflow_courses") || "[]");
+      const leads = JSON.parse(localStorage.getItem("eduflow_crm_leads") || "[]");
+      const schedule = JSON.parse(localStorage.getItem("eduflow_schedule") || "[]");
+
+      // 🐞 Διόρθωση 8: DEBUG logs (αν δεις [] => λάθος key)
+      console.log("Students", students);
+      console.log("Teachers", teachers);
+      console.log("Classes", classes);
+      console.log("Schedule", schedule);
+
+      setData({ students, teachers, classes, lessons, leads, schedule });
     };
     load();
     window.addEventListener('storage', load);
@@ -60,7 +67,7 @@ export default function ReportsPage() {
     let totalCapacity = 0;
     let currentEnrollments = 0;
     data.classes.forEach((c: any) => {
-      totalCapacity += (c.maxStudents || c.capacity || 20);
+      totalCapacity += (c.maxStudents || c.maxCapacity || c.capacity || 20);
     });
     data.students.forEach((s: any) => {
       currentEnrollments += (s.enrollments?.length || 0);
@@ -226,13 +233,15 @@ export default function ReportsPage() {
               </h3>
               <div className="space-y-4">
                 {data.classes.slice(0, 5).map((c: any, i: number) => {
-                  const current = data.students.filter((s: any) => s.enrollments?.some((e: any) => e.className === c.name)).length;
-                  const max = c.maxStudents || 20;
+                  // ✅ Διόρθωση 4: υποστήριξη name ή className
+                  const className = c.name || c.className;
+                  const current = data.students.filter((s: any) => s.enrollments?.some((e: any) => e.className === className)).length;
+                  const max = c.maxStudents || c.maxCapacity || c.capacity || 20;
                   const perc = Math.min(Math.round((current / max) * 100), 100);
                   return (
                     <div key={i} className="space-y-1.5">
                       <div className="flex justify-between text-[11px] font-bold">
-                        <span className="text-slate-300">{c.name} ({c.grade})</span>
+                        <span className="text-slate-300">{className} ({c.grade})</span>
                         <span className={perc >= 100 ? "text-rose-500" : "text-slate-500"}>{current} / {max} {perc >= 100 ? "FULL" : ""}</span>
                       </div>
                       <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
@@ -349,21 +358,24 @@ function getTableData(tab: string, data: any) {
         grade: s.grade,
         parent: s.parentName,
         phone: s.phone,
-        email: s.parentEmail,
+        // ✅ Διόρθωση 6: fallback για email
+        email: s.parentEmail || s.email || "-",
         count: `${s.enrollments?.length || 0} μαθήματα`
       }));
     case "teachers":
       return data.teachers.map((t: any) => ({
         name: t.name,
-        subject: t.subject,
+        // ✅ Διόρθωση 5: subjects array -> string
+        subject: t.subjects?.join(", ") || t.subject || "-",
         phone: t.phone,
         availability: `${t.availability?.length || 0} ώρες`
       }));
     case "classes":
       return data.classes.map((c: any) => ({
-        name: c.name,
+        // ✅ Διόρθωση 4: name ή className
+        name: c.name || c.className,
         grade: c.grade,
-        capacity: c.maxStudents || 20,
+        capacity: c.maxStudents || c.maxCapacity || c.capacity || 20,
         status: "Ενεργό"
       }));
     case "crm":
@@ -372,7 +384,8 @@ function getTableData(tab: string, data: any) {
         phone: l.phone,
         status: l.status,
         source: l.source,
-        date: l.createdAt
+        // ✅ Διόρθωση 7: fallback για date
+        date: l.createdAt || "-"
       }));
     default: return [];
   }

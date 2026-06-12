@@ -1,171 +1,210 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { RefreshCw, Users, MapPin, Calendar, Clock, Trash2 } from "lucide-react";
+import { ClassesView } from "./ClassesView";
+import { GridView } from "./GridView";
+import { TeachersView } from "./TeachersView";
+import { RoomsView } from "./RoomsView";
 
-interface ScheduleItem {
-  id: string; day: string; time: string; groupName: string; teacher: string; room: string; type: "Auto" | "TeacherBusy";
-}
+import {
+  Users,
+  BookOpen,
+  UserCheck,
+  Building2,
+  CalendarDays,
+} from "lucide-react";
 
-const daysOrder = ["Δευτέρα", "Τίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+// 1️⃣ Σωστό type αντί για `as any`
+type TabType = "classes" | "grid" | "teachers" | "rooms" | "students";
+
+const tabs: { id: TabType; label: string }[] = [
+  { id: "classes", label: "🏫 Ανά Τάξη" },
+  { id: "grid", label: "📅 Grid" },
+  { id: "teachers", label: "👨‍🏫 Καθηγητές" },
+  { id: "rooms", label: "🚪 Αίθουσες" },
+  { id: "students", label: "👨‍🎓 Μαθητές" },
+];
 
 export default function SchedulePage() {
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("classes");
+  const [loading, setLoading] = useState(true);
 
-  // Φόρτωση αποθηκευμένου προγράμματος κατά το mount
-  useEffect(() => {
-    const saved = localStorage.getItem("eduflow_schedule");
-    if (saved) {
-      setSchedule(JSON.parse(saved));
+  const [data, setData] = useState({
+    schedule: [],
+    classes: [],
+    students: [],
+    teachers: [],
+    rooms: [],
+  });
+
+  const [search, setSearch] = useState("");
+
+  // 4️⃣ Κεντρική συνάρτηση φόρτωσης (για να την ξανακαλούμε στο refresh)
+  const loadData = () => {
+    try {
+      setData({
+        schedule: JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"),
+        classes: JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]"),
+        students: JSON.parse(localStorage.getItem("eduflow_students") || "[]"),
+        teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"),
+        rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || "[]"),
+      });
+    } catch (err) {
+      console.error(err);
     }
+  };
+
+  // 4️⃣ Auto refresh:
+  // - "storage"  -> αλλαγές από ΑΛΛΗ καρτέλα/παράθυρο
+  // - "focus"    -> αλλαγές στην ΙΔΙΑ καρτέλα (όταν γυρνάς πίσω στη σελίδα)
+  useEffect(() => {
+    loadData();
+    setLoading(false);
+
+    window.addEventListener("storage", loadData);
+    window.addEventListener("focus", loadData);
+
+    return () => {
+      window.removeEventListener("storage", loadData);
+      window.removeEventListener("focus", loadData);
+    };
   }, []);
 
-  const generateSmartSchedule = () => {
-    setLoading(true);
+  // 3️⃣ Search και σε grade / course / subject
+  const filteredClasses = useMemo(() => {
+    if (!search.trim()) return data.classes;
+    const q = search.toLowerCase();
+    return data.classes.filter((cls: any) =>
+      cls.name?.toLowerCase().includes(q) ||
+      cls.grade?.toLowerCase().includes(q) ||
+      cls.course?.toLowerCase().includes(q) ||
+      cls.subject?.toLowerCase().includes(q)
+    );
+  }, [search, data.classes]);
 
-    // Προσωρινή καθυστέρηση για το UX animation
-    setTimeout(() => {
-      const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
-      const rooms = JSON.parse(localStorage.getItem("eduflow_rooms") || "[]");
-      const classes = JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]");
-
-      const newSchedule: ScheduleItem[] = [];
-      const occupiedSlots: Record<string, boolean> = {}; 
-
-      // 1. Προετοιμασία: Κλείδωμα Busy Ωρών Καθηγητών
-      teachers.forEach((t: any) => {
-        if (t.isLockedHours && t.lockedSlots) {
-          t.lockedSlots.forEach((slot: any) => {
-            occupiedSlots[`${slot.day}-${slot.time}-teacher-${t.id}`] = true;
-            newSchedule.push({
-              id: `busy-${t.id}-${slot.day}-${slot.time}`,
-              day: slot.day,
-              time: slot.time,
-              groupName: "Μη Διαθέσιμος",
-              teacher: t.name,
-              room: "-",
-              type: "TeacherBusy"
-            });
-          });
-        }
-      });
-
-      // 2. Scheduling logic
-      const hours = Array.from({length: 15}, (_, i) => `${i + 9 < 10 ? '0' : ''}${i + 9}:00`);
-
-      classes.forEach((c: any) => {
-        let teacher = teachers.find((t: any) => t.subject === c.course) || teachers[0];
-        if (!teacher) return;
-        if (teacher.isLockedClass && teacher.assignedClassId !== c.id) return;
-
-        let scheduled = false;
-        for (const day of daysOrder) {
-          if (scheduled) break;
-          for (const time of hours) {
-            // Έλεγχος αν ο καθηγητής είναι διαθέσιμος την ώρα αυτή
-            const isAvailable = teacher.availability?.some((slot: any) => 
-              slot.day === day && time >= slot.start && time < slot.end
-            );
-            if (!isAvailable) continue;
-
-            const teacherKey = `${day}-${time}-teacher-${teacher.id}`;
-            if (occupiedSlots[teacherKey]) continue;
-
-            const room = rooms.find((r: any) => !occupiedSlots[`${day}-${time}-room-${r.id}`]);
-            
-            if (room) {
-              newSchedule.push({
-                id: `sched-${c.id}-${day}-${time}`,
-                day, time,
-                groupName: c.name,
-                teacher: teacher.name,
-                room: room.name,
-                type: "Auto"
-              });
-
-              occupiedSlots[teacherKey] = true;
-              occupiedSlots[`${day}-${time}-room-${room.id}`] = true;
-              scheduled = true;
-              break; 
-            }
-          }
-        }
-      });
-
-      setSchedule(newSchedule);
-      localStorage.setItem("eduflow_schedule", JSON.stringify(newSchedule));
-      setLoading(false);
-    }, 800);
-  };
-
-  const clearSchedule = () => {
-    setSchedule([]);
-    localStorage.removeItem("eduflow_schedule");
-  };
-
-  const groupedSchedule = daysOrder.reduce((acc, day) => {
-    acc[day] = schedule.filter(s => s.day === day);
-    return acc;
-  }, {} as Record<string, ScheduleItem[]>);
+  // Φιλτράρισμα μαθητών για το νέο tab
+  const filteredStudents = useMemo(() => {
+    if (!search.trim()) return data.students;
+    const q = search.toLowerCase();
+    return data.students.filter((s: any) =>
+      s.name?.toLowerCase().includes(q) ||
+      s.lastName?.toLowerCase().includes(q) ||
+      s.grade?.toLowerCase().includes(q)
+    );
+  }, [search, data.students]);
 
   return (
-    <WorkspaceShell title="Scheduler" description="Αυτόματη δημιουργία προγράμματος βάσει διαθεσιμότητας.">
-      <div className="px-4 max-w-6xl mx-auto">
-        <div className="flex gap-3 mb-8">
-            <button 
-                onClick={generateSmartSchedule} 
-                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl flex items-center gap-2 shadow-lg transition-all font-bold text-sm"
-            >
-                <RefreshCw size={18} className={loading ? "animate-spin" : ""} /> 
-                {loading ? "Επεξεργασία..." : "Δημιουργία Προγράμματος"}
-            </button>
-            
-            {schedule.length > 0 && (
-                <button onClick={clearSchedule} className="bg-slate-800 hover:bg-rose-900/30 text-slate-400 hover:text-rose-400 px-4 py-3 rounded-2xl transition-all">
-                    <Trash2 size={18} />
-                </button>
-            )}
-        </div>
-
-        {schedule.length === 0 ? (
-          <div className="text-center py-20 border-2 border-dashed border-slate-800 rounded-3xl bg-[#1e2330]/30">
-            <Calendar className="mx-auto text-slate-700 mb-4" size={48} />
-            <p className="text-slate-500 text-sm">Δεν έχει δημιουργηθεί πρόγραμμα ακόμα.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {daysOrder.map(day => groupedSchedule[day].length > 0 && (
-              <div key={day} className="bg-[#1e2330] p-5 rounded-3xl border border-slate-800">
-                <h3 className="text-indigo-400 font-bold text-xs uppercase mb-4 tracking-wider">{day}</h3>
-                <div className="space-y-3">
-                  {groupedSchedule[day].sort((a, b) => a.time.localeCompare(b.time)).map(s => (
-                    <div key={s.id} className={`p-3 rounded-2xl border ${s.type === 'TeacherBusy' ? 'bg-rose-950/20 border-rose-900/50' : 'bg-[#0b0e14] border-slate-800'}`}>
-                      <div className="flex justify-between items-start mb-2">
-                        <span className={`text-xs font-bold ${s.type === 'TeacherBusy' ? 'text-rose-300' : 'text-white'}`}>{s.groupName}</span>
-                        <div className="flex items-center text-slate-500 gap-1 text-[10px]">
-                           <Clock size={10} /> {s.time}
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                          <Users size={12} /> {s.teacher}
-                        </div>
-                        {s.room !== "-" && (
-                          <div className="text-[10px] bg-indigo-600/10 text-indigo-400 px-2 py-0.5 rounded-full flex items-center gap-1">
-                            <MapPin size={10} /> {s.room}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+    <WorkspaceShell
+      title="Master Scheduler"
+      description="Πλήρης διαχείριση προγράμματος φροντιστηρίου"
+    >
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <StatCard icon={<BookOpen size={22} />} title="Τμήματα" value={data.classes.length} color="text-indigo-400" />
+        <StatCard icon={<Users size={22} />} title="Μαθητές" value={data.students.length} color="text-emerald-400" />
+        <StatCard icon={<UserCheck size={22} />} title="Καθηγητές" value={data.teachers.length} color="text-sky-400" />
+        <StatCard icon={<Building2 size={22} />} title="Αίθουσες" value={data.rooms.length} color="text-amber-400" />
+        <StatCard icon={<CalendarDays size={22} />} title="Μαθήματα" value={data.schedule.length} color="text-purple-400" />
       </div>
+
+      {/* Search */}
+      <div className="mb-6">
+        <input
+          placeholder="Αναζήτηση τμήματος / μαθητή..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full lg:w-96 bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm"
+        />
+      </div>
+
+      {/* 1️⃣ Tabs μέσω map (χωρίς `as any`) */}
+      <div className="flex flex-wrap gap-2 mb-8">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition ${
+              activeTab === tab.id
+                ? "bg-indigo-600 text-white"
+                : "bg-[#1e2330] text-slate-400"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="text-slate-500 text-sm py-10 text-center">
+          Φόρτωση δεδομένων...
+        </div>
+      ) : (
+        <>
+          {activeTab === "classes" && (
+            <ClassesView schedule={data.schedule} classes={filteredClasses} students={data.students} />
+          )}
+          {activeTab === "grid" && (
+            <GridView schedule={data.schedule} />
+          )}
+          {activeTab === "teachers" && (
+            <TeachersView schedule={data.schedule} teachers={data.teachers} />
+          )}
+          {activeTab === "rooms" && (
+            <RoomsView schedule={data.schedule} rooms={data.rooms} />
+          )}
+          {activeTab === "students" && (
+            <StudentsView students={filteredStudents} />
+          )}
+        </>
+      )}
     </WorkspaceShell>
+  );
+}
+
+function StatCard({ icon, title, value, color }: { icon: React.ReactNode; title: string; value: number; color: string; }) {
+  return (
+    <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-5 flex items-center justify-between">
+      <div>
+        <p className="text-[10px] uppercase font-bold text-slate-500">{title}</p>
+        <h3 className={`text-3xl font-black ${color}`}>{value}</h3>
+      </div>
+      <div className="text-slate-700">{icon}</div>
+    </div>
+  );
+}
+
+// Inline προβολή Μαθητών (αντικατέστησέ την με ξεχωριστό <StudentsView /> αν φτιάξεις)
+function StudentsView({ students }: { students: any[] }) {
+  if (!students || students.length === 0) {
+    return (
+      <div className="text-slate-500 text-sm py-10 text-center">
+        Δεν βρέθηκαν μαθητές.
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {students.map((s: any, i: number) => (
+        <div
+          key={s.id ?? i}
+          className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4 flex items-center gap-3"
+        >
+          <div className="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-bold">
+            {(s.name?.[0] || "?").toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-white text-sm font-bold truncate">
+              {[s.name, s.lastName].filter(Boolean).join(" ") || "Άγνωστος"}
+            </p>
+            <p className="text-slate-500 text-xs truncate">
+              {s.grade || s.class || "—"}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
