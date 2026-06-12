@@ -486,8 +486,8 @@ function getTableData(tab: string, data: any) {
       }));
     case "teachers":
       return data.teachers.map((t: any) => ({
-        name: t.name,
-        // ✅ Διόρθωση 5: subjects array -> string
+        // Συνένωση του ονόματος και του επωνύμου
+        name: `${t.firstName || ""} ${t.lastName || t.name || ""}`.trim(),
         subject: t.subjects?.join(", ") || t.subject || "-",
         phone: t.phone,
         availability: `${t.availability?.length || 0} ώρες`
