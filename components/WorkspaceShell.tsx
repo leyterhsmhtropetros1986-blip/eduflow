@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
@@ -17,6 +18,7 @@ const navItems = [
   { href: "/courses", label: "Μαθήματα", icon: <Library size={20} /> },
   { href: "/schedule", label: "Scheduler", icon: <Calendar size={20} /> },
   { href: "/attendance", label: "Παρουσίες", icon: <CheckCircle2 size={20} /> },
+  { href: "/notifications", label: "Ειδοποιήσεις", icon: <Bell size={20} /> },
   { href: "/crm", label: "CRM", icon: <Briefcase size={20} /> },
   { href: "/parents", label: "Γονείς", icon: <UserCircle size={20} /> },
   { href: "/reports", label: "Αναφορές", icon: <FileText size={20} /> },
@@ -33,6 +35,26 @@ export function WorkspaceShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const [unread, setUnread] = useState(0);
+
+  // Μέτρημα αδιάβαστων ειδοποιήσεων
+  useEffect(() => {
+    const calc = () => {
+      try {
+        const list = JSON.parse(localStorage.getItem("eduflow_notifications") || "[]");
+        setUnread(list.filter((n: any) => !n.read).length);
+      } catch {
+        setUnread(0);
+      }
+    };
+    calc();
+    window.addEventListener("focus", calc);
+    window.addEventListener("storage", calc);
+    return () => {
+      window.removeEventListener("focus", calc);
+      window.removeEventListener("storage", calc);
+    };
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-[#0b0e14] flex text-slate-200">
@@ -46,6 +68,7 @@ export function WorkspaceShell({
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
             const active = pathname === item.href;
+            const showBadge = item.href === "/notifications" && unread > 0;
             return (
               <Link
                 key={item.href}
@@ -56,7 +79,12 @@ export function WorkspaceShell({
                   : "text-slate-400 hover:bg-[#0b0e14] hover:text-white"}`}
               >
                 {item.icon}
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {showBadge && (
+                  <span className="bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {unread}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -97,9 +125,20 @@ export function WorkspaceShell({
                 className="bg-[#0b0e14] border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 w-64 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
               />
             </div>
-            <button className="bg-[#1e2330] border border-slate-700 rounded-xl p-3 text-slate-300 hover:text-white transition-colors">
+
+            {/* 🔔 Ενεργό κουμπί ειδοποιήσεων με badge */}
+            <Link
+              href="/notifications"
+              className="relative bg-[#1e2330] border border-slate-700 rounded-xl p-3 text-slate-300 hover:text-white transition-colors"
+            >
               <Bell size={18} />
-            </button>
+              {unread > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+            </Link>
+
             <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">
               Λ
             </div>
