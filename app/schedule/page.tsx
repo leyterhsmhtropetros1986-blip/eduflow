@@ -55,9 +55,17 @@ function genIsAvailable(availability: any[], lockedSlots: any[], day: string, ti
 // Score προγράμματος: μεγιστοποίηση τοποθετήσεων, ελαχιστοποίηση κενών μαθητών & αργών ωρών
 function calculateScore(schedule: any[], students: any[]): number {
     let score = schedule.length * 1000;
+    // Βαθμίδα ανά τμήμα (από τις εγγραφές των μαθητών)
+    const gradeByClass: Record<string, string> = {};
+    students.forEach((s: any) => (s.enrollments || []).forEach((e: any) => {
+        if (e.className && !gradeByClass[e.className]) gradeByClass[e.className] = s.grade || "";
+    }));
     schedule.forEach(item => {
         const startHour = parseInt(item.time.split('-')[0].split(':')[0]);
-        if (startHour >= 20) score -= 100;
+        const g = gradeByClass[item.groupName] || "";
+        if (g.includes("Γυμν")) score -= startHour * 8;          // Γυμνάσιο: όσο νωρίτερα, τόσο καλύτερα
+        else if (g.includes("Λυκείου")) score += startHour * 8;  // Λύκειο: όσο αργότερα, τόσο καλύτερα
+        else if (startHour >= 20) score -= 50;                   // αδιευκρίνιστο: μικρή ποινή πολύ αργά
     });
     students.forEach(s => {
         const cls = s.class || s.className;
@@ -77,6 +85,10 @@ function calculateScore(schedule: any[], students: any[]): number {
 
 function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; lessons: any[] }): { schedule: any[], unplaced: any[], placed: number, teacherScore: Record<string, number> } {
   const { students = [], teachers = [], classes = [], rooms = [], lessons = [] } = data;
+
+  // Βαθμίδα ανά τμήμα (για προτεραιότητα ώρας: Γυμνάσιο νωρίς, Λύκειο αργά)
+  const classGrade: Record<string, string> = {};
+  classes.forEach((c: any) => { const nm = c.name || c.className; if (nm) classGrade[nm] = c.grade || ""; });
 
   let bestResult: any = { schedule: [], unplaced: [], placed: -1, score: -Infinity, teacherScore: {} };
   let sessionCount = 0;
@@ -115,8 +127,11 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
         const totalHours = Number(lessonInfo?.weeklyHours ?? lessonInfo?.hoursPerWeek ?? 2) || 2;
         distribution = splitBlocks(totalHours);
       }
-      distribution = distribution.sort((a, b) => b - a); // μεγαλύτερα μπλοκ πρώτα
+      distribution = distribution.sort((a, b) => b - a); // μεγαλύτερα μπλοκ (2ωρα) πρώτα
       const minGap = lessonInfo?.minGapDays ?? 1; // 1 = διαφορετική μέρα ανά μπλοκ
+      // Προτεραιότητα ώρας ανά βαθμίδα
+      const sesGrade = classGrade[ses.className] || ses.students?.[0]?.grade || "";
+      const isGym = sesGrade.includes("Γυμν");
 
       // Επιλογή καθηγητών: πρώτα όσοι έχουν ΛΙΓΟΤΕΡΕΣ ώρες (χαμηλότερο score) -> ισορροπία
       const candidates = teachers.filter((t) => t.subject === ses.lessonName).sort((a, b) => {
@@ -141,8 +156,9 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
             // ⛔ διαφορετική μέρα ανά μπλοκ ίδιου μαθήματος
             if (usedDayIndices.some(uIdx => Math.abs(uIdx - dayIdx) < minGap)) continue;
             const availableHours = genDayHours(day);
-            const shuffledHours = shuffleArray(availableHours); // τυχαία ώρα έναρξης
-            for (const h of shuffledHours) {
+            // Γυμνάσιο: νωρίτερες ώρες πρώτα. Λύκειο/άλλο: αργότερες ώρες πρώτα.
+            const orderedHours = [...availableHours].sort((a, b) => (isGym ? a - b : b - a));
+            for (const h of orderedHours) {
               const isWithinBounds = (h + blockHours - 1) <= Math.max(...availableHours);
               if (!isWithinBounds) continue;
               const timeSlots = [];
