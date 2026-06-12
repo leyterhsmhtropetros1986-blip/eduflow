@@ -21,8 +21,8 @@ interface Teacher {
   availability: AvailabilitySlot[];
 }
 
-const DAYS_ORDER: Record<string, number> = { 
-  "Δευτέρα": 1, "Τρίτη": 2, "Τετάρτη": 3, "Πέμπτη": 4, "Παρασκευή": 5, "Σάββατο": 6 
+const DAYS_ORDER: Record<string, number> = {
+  "Δευτέρα": 1, "Τρίτη": 2, "Τετάρτη": 3, "Πέμπτη": 4, "Παρασκευή": 5, "Σάββατο": 6
 };
 
 export default function TeachersPage() {
@@ -30,17 +30,17 @@ export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [classesList, setClassesList] = useState<any[]>([]);
   const [lessonsList, setLessonsList] = useState<any[]>([]);
-  
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [subject, setSubject] = useState("");
-  
+
   const [isLockedClass, setIsLockedClass] = useState(false);
   const [assignedClassId, setAssignedClassId] = useState("");
-  
+
   const [isLockedHours, setIsLockedHours] = useState(false);
   const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
   const [newSlot, setNewSlot] = useState<AvailabilitySlot>({ day: "Δευτέρα", start: "14:00", end: "15:00" });
@@ -51,18 +51,16 @@ export default function TeachersPage() {
     return ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
   };
 
-  useEffect(() => {
-    setIsMounted(true);
-    loadData();
-  }, []);
+  useEffect(() => { setIsMounted(true); loadData(); }, []);
 
   const loadData = () => {
     if (typeof window !== "undefined") {
       try {
         const storedTeachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
-        const sorted = [...storedTeachers].sort((a, b) => a.lastName.localeCompare(b.lastName, "el"));
+        const sorted = [...storedTeachers].sort((a, b) => (a.lastName || "").localeCompare(b.lastName || "", "el"));
         setTeachers(sorted);
-        setClassesList(JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]"));
+        // ✅ σωστό key (με fallback στο παλιό)
+        setClassesList(JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"));
         setLessonsList(JSON.parse(localStorage.getItem("eduflow_lessons") || "[]"));
       } catch {
         setTeachers([]); setClassesList([]); setLessonsList([]);
@@ -89,7 +87,7 @@ export default function TeachersPage() {
     const sortFn = (a: AvailabilitySlot, b: AvailabilitySlot) => (DAYS_ORDER[a.day] || 7) - (DAYS_ORDER[b.day] || 7) || a.start.localeCompare(b.start);
     const teacherData: Teacher = {
       id: editingId || `t-${Date.now()}`,
-      firstName, lastName, phone, email, subject, 
+      firstName: firstName.trim(), lastName: lastName.trim(), phone: phone.trim(), email: email.trim(), subject,
       isLockedClass, assignedClassId: isLockedClass ? assignedClassId : null,
       isLockedHours,
       lockedSlots: isLockedHours ? [...lockedSlots].sort(sortFn) : [],
@@ -98,30 +96,27 @@ export default function TeachersPage() {
 
     const updated = editingId ? teachers.map(t => t.id === editingId ? teacherData : t) : [...teachers, teacherData];
     const sorted = [...updated].sort((a, b) => a.lastName.localeCompare(b.lastName, "el"));
-    
+
     setTeachers(sorted);
     localStorage.setItem("eduflow_teachers", JSON.stringify(sorted));
     resetForm();
   };
 
   const resetForm = () => {
-    setEditingId(null); setFirstName(""); setLastName(""); setPhone(""); setEmail(""); setSubject(""); 
+    setEditingId(null); setFirstName(""); setLastName(""); setPhone(""); setEmail(""); setSubject("");
     setIsLockedClass(false); setAssignedClassId(""); setIsLockedHours(false); setLockedSlots([]); setAvailability([]);
   };
 
   const startEdit = (t: Teacher) => {
-    setEditingId(t.id); setFirstName(t.firstName); setLastName(t.lastName); setPhone(t.phone); 
-    setEmail(t.email); setSubject(t.subject); setIsLockedClass(t.isLockedClass); setAssignedClassId(t.assignedClassId || ""); 
+    setEditingId(t.id); setFirstName(t.firstName); setLastName(t.lastName); setPhone(t.phone);
+    setEmail(t.email); setSubject(t.subject); setIsLockedClass(t.isLockedClass); setAssignedClassId(t.assignedClassId || "");
     setIsLockedHours(t.isLockedHours); setLockedSlots(t.lockedSlots || []); setAvailability(t.availability || []);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const deleteTeacher = (id: string) => {
-    if(confirm("Να διαγραφεί ο καθηγητής;")) {
-      const updated = teachers
-        .filter(t => t.id !== id)
-        .sort((a, b) => a.lastName.localeCompare(b.lastName, "el"));
-      
+    if (confirm("Να διαγραφεί ο καθηγητής;")) {
+      const updated = teachers.filter(t => t.id !== id).sort((a, b) => a.lastName.localeCompare(b.lastName, "el"));
       setTeachers(updated);
       localStorage.setItem("eduflow_teachers", JSON.stringify(updated));
     }
@@ -135,17 +130,23 @@ export default function TeachersPage() {
   return (
     <WorkspaceShell title="Διαχείριση Καθηγητών" description="Προφίλ καθηγητών, επικοινωνία, ορισμός διαθεσιμότητας και δεσμεύσεις.">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
-        
+
         {/* ΦΟΡΜΑ */}
         <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit shadow-xl">
           <form onSubmit={handleSave} className="space-y-4">
             <h4 className="text-indigo-400 font-bold text-xs uppercase flex items-center gap-2 border-b border-slate-800 pb-3 tracking-wider">
               <UserPlus size={14} /> {editingId ? "Επεξεργασία Στοιχείων" : "Εγγραφή Νέου Καθηγητή"}
             </h4>
-            
+
             <div className="grid grid-cols-2 gap-2">
-              <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Όνομα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 outline-none transition-all" />
-              <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Επίθετο *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 outline-none transition-all" />
+              <div>
+                <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1 pl-1">Όνομα *</label>
+                <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Όνομα" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 outline-none transition-all" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1 pl-1">Επίθετο *</label>
+                <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Επίθετο" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 outline-none transition-all" />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Τηλέφωνο *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 outline-none transition-all" />
@@ -153,7 +154,7 @@ export default function TeachersPage() {
             </div>
             <select required value={subject} onChange={e => setSubject(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/40 outline-none transition-all cursor-pointer">
               <option value="">Επιλέξτε Κύριο Μάθημα *</option>
-              {lessonsList.map((l: any) => <option key={l.id} value={l.name}>{l.name}</option>)}
+              {lessonsList.map((l: any, i: number) => <option key={l.id || i} value={l.name || l}>{l.name || l}</option>)}
             </select>
 
             <div className="space-y-1">
@@ -186,7 +187,7 @@ export default function TeachersPage() {
               Active: {teachers.length}
             </span>
           </h3>
-          
+
           <div className="grid grid-cols-3 gap-2 mb-4">
              <div className="bg-[#0b0e14] p-2 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500">Σύνολο</p><p className="text-sm font-bold text-white">{teachers.length}</p></div>
              <div className="bg-[#0b0e14] p-2 rounded-xl border border-slate-800 text-center"><p className="text-[10px] text-slate-500">Locked</p><p className="text-sm font-bold text-rose-400">{lockedCount}</p></div>
@@ -198,8 +199,16 @@ export default function TeachersPage() {
               <div key={t.id} className="bg-[#0b0e14] p-3 rounded-xl border border-slate-800 hover:border-indigo-500 transition-all duration-300 hover:shadow-lg border-l-4 border-l-indigo-500 group">
                 <div className="flex justify-between items-start gap-4">
                   <div>
-                    <p className="text-white text-xs font-bold uppercase">{t.lastName} {t.firstName}</p>
-                    <div className="flex flex-wrap gap-2 text-[10px] mt-1.5 items-center">
+                    {/* ✅ Όνομα & Επίθετο ξεχωριστά */}
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-[8px] text-slate-600 uppercase font-bold">Επίθετο</span>
+                      <p className="text-white text-xs font-bold uppercase">{t.lastName}</p>
+                    </div>
+                    <div className="flex items-baseline gap-2 mt-0.5">
+                      <span className="text-[8px] text-slate-600 uppercase font-bold">Όνομα</span>
+                      <p className="text-slate-300 text-xs">{t.firstName}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[10px] mt-2 items-center">
                        <span className="px-2 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold">{t.subject}</span>
                        {t.isLockedClass && <span className="bg-indigo-950 text-indigo-400 font-bold px-1.5 py-0.5 rounded border border-indigo-900/40">🔒 {t.assignedClassId}</span>}
                     </div>
@@ -209,7 +218,7 @@ export default function TeachersPage() {
                     <button onClick={() => deleteTeacher(t.id)} className="text-slate-600 hover:text-rose-500 p-1.5"><Trash2 size={12}/></button>
                   </div>
                 </div>
-                
+
                 {t.isLockedHours && t.lockedSlots?.length > 0 && (
                   <div className="mt-2 pt-2 border-t border-slate-900/60 flex flex-wrap gap-1">
                     {t.lockedSlots.map((slot, idx) => (
