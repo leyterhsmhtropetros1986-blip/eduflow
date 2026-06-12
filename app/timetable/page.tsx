@@ -68,6 +68,15 @@ export default function TimetablePage() {
     <WorkspaceShell title="Εκτυπώσιμο Πρόγραμμα" description="Εβδομαδιαίο ωρολόγιο ανά τμήμα ή καθηγητή, έτοιμο για εκτύπωση.">
 
       {/* ΕΛΕΓΧΟΙ (δεν εκτυπώνονται) */}
+      <style>{`
+        @media print {
+          @page { margin: 1.2cm; }
+          table { page-break-inside: auto; border-collapse: collapse !important; width: 100% !important; }
+          tr { page-break-inside: avoid !important; break-inside: avoid !important; }
+          thead { display: table-header-group; }
+          td, th { border: 1px solid #000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+      `}</style>
       <div className="print:hidden flex flex-col sm:flex-row gap-3 mb-6 bg-[#1e2330] p-4 rounded-2xl border border-slate-800">
         <div className="flex gap-2">
           <button onClick={() => setMode("class")} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${mode === "class" ? "bg-indigo-600 text-white" : "bg-[#0b0e14] text-slate-400 border border-slate-800"}`}>
@@ -101,7 +110,7 @@ export default function TimetablePage() {
           Δεν υπάρχει πρόγραμμα για αυτή την επιλογή. Τρέξε πρώτα «Αυτόματη Δημιουργία» στον Scheduler.
         </div>
       ) : (
-        <div className="bg-[#1e2330] border border-slate-800 rounded-2xl overflow-hidden print:bg-white print:border-0">
+        <div className="bg-[#1e2330] border border-slate-800 rounded-2xl overflow-hidden print:bg-white print:border-0 print:rounded-none print:overflow-visible">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-[#0b0e14] print:bg-slate-100">
