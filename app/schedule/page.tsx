@@ -78,13 +78,6 @@ function calculateScore(schedule: any[], students: any[]): number {
 function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; lessons: any[] }): { schedule: any[], unplaced: any[], placed: number, teacherScore: Record<string, number> } {
   const { students = [], teachers = [], classes = [], rooms = [], lessons = [] } = data;
 
-  // Ώρες/εβδομάδα ανά τμήμα (fallback πηγή ωρών, από τη σελίδα Τμημάτων)
-  const classHours: Record<string, number | null> = {};
-  classes.forEach((c: any) => {
-    const nm = c.name || c.className;
-    if (nm) classHours[nm] = Number(c.hoursPerWeek) > 0 ? Number(c.hoursPerWeek) : null;
-  });
-
   let bestResult: any = { schedule: [], unplaced: [], placed: -1, score: -Infinity, teacherScore: {} };
   let sessionCount = 0;
 
@@ -118,8 +111,8 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
       if (Array.isArray(lessonInfo?.distribution) && lessonInfo.distribution.length > 0) {
         distribution = lessonInfo.distribution.flatMap((b: number) => (b > 2 ? splitBlocks(b) : [b]));
       } else {
-        // fallback: ώρες/εβδομάδα μαθήματος -> τμήματος -> 2, σπασμένες σε μπλοκ ≤2
-        const totalHours = Number(lessonInfo?.weeklyHours ?? lessonInfo?.hoursPerWeek ?? classHours[ses.className] ?? 2) || 2;
+        // fallback: ώρες/εβδομάδα ΑΠΟ ΤΟ ΜΑΘΗΜΑ (όχι από το τμήμα), σπασμένες σε μπλοκ ≤2
+        const totalHours = Number(lessonInfo?.weeklyHours ?? lessonInfo?.hoursPerWeek ?? 2) || 2;
         distribution = splitBlocks(totalHours);
       }
       distribution = distribution.sort((a, b) => b - a); // μεγαλύτερα μπλοκ πρώτα
