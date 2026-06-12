@@ -5,21 +5,26 @@ import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Search, CheckCircle2, Save, CheckCheck, CalendarDays, Users, History as HistoryIcon } from "lucide-react";
 import { sendNotification } from "../../lib/notifications";
 
-// --- Καταστάσεις παρουσίας ---
 type Status = "present" | "absent" | "late" | "excused";
 
 const STATUSES: Record<Status, { label: string; dot: string; activeBtn: string; text: string }> = {
-  present:  { label: "Παρών",       dot: "bg-emerald-500", activeBtn: "bg-emerald-600 text-white", text: "text-emerald-400" },
-  absent:   { label: "Απών",        dot: "bg-rose-500",    activeBtn: "bg-rose-600 text-white",    text: "text-rose-400" },
-  late:     { label: "Καθυστ.",     dot: "bg-amber-500",   activeBtn: "bg-amber-600 text-white",   text: "text-amber-400" },
-  excused:  { label: "Δικαιολ.",    dot: "bg-slate-400",   activeBtn: "bg-slate-600 text-white",   text: "text-slate-300" },
+  present:  { label: "Παρών",    dot: "bg-emerald-500", activeBtn: "bg-emerald-600 text-white", text: "text-emerald-400" },
+  absent:   { label: "Απών",     dot: "bg-rose-500",    activeBtn: "bg-rose-600 text-white",    text: "text-rose-400" },
+  late:     { label: "Καθυστ.",  dot: "bg-amber-500",   activeBtn: "bg-amber-600 text-white",   text: "text-amber-400" },
+  excused:  { label: "Δικαιολ.", dot: "bg-slate-400",   activeBtn: "bg-slate-600 text-white",   text: "text-slate-300" },
 };
 const STATUS_ORDER: Status[] = ["present", "absent", "late", "excused"];
-
 const DAYS = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
 function studentName(s: any) {
   return s.name || `${s.lastName || ""} ${s.firstName || ""}`.trim() || "Άγνωστος";
+}
+
+// 🔑 Συμμετοχή σε τμήμα: μέσω enrollments[].className (ή παλιό επίπεδο className ως fallback)
+function isInClass(s: any, cls: string) {
+  if (!cls) return false;
+  if (s.className === cls) return true;
+  return (s.enrollments || []).some((e: any) => e.className === cls);
 }
 
 export default function AttendancePage() {
@@ -38,10 +43,10 @@ export default function AttendancePage() {
   const [today, setToday] = useState("");
   const [dateLabel, setDateLabel] = useState("");
 
-  // Φόρτωση
   useEffect(() => {
     setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
-    setClassesData(JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]"));
+    // ✅ σωστό key (με fallback στο παλιό)
+    setClassesData(JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"));
     setSchedule(JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"));
     setHistory(JSON.parse(localStorage.getItem("eduflow_attendance") || "[]"));
     const now = new Date();
@@ -50,27 +55,28 @@ export default function AttendancePage() {
     setMounted(true);
   }, []);
 
-  // 1. Λίστα τμημάτων για το dropdown
+  // Λίστα τμημάτων: από Τμήματα + enrollments μαθητών
   const classOptions = useMemo(() => {
     const fromClasses = classesData.map((c) => c.name || c.className).filter(Boolean);
-    const fromStudents = students.map((s) => s.className).filter(Boolean);
-    return Array.from(new Set([...fromClasses, ...fromStudents])).sort();
+    const fromEnroll = students.flatMap((s) => (s.enrollments || []).map((e: any) => e.className)).filter(Boolean);
+    const fromFlat = students.map((s) => s.className).filter(Boolean);
+    return Array.from(new Set([...fromClasses, ...fromEnroll, ...fromFlat])).sort();
   }, [classesData, students]);
 
-  // 💎 Σύνδεση με Scheduler — μαθήματα της ημέρας
+  // Μαθήματα της ημέρας (από Scheduler)
   const todaysLessons = useMemo(() => {
     return schedule
       .filter((l) => l.day?.toLowerCase() === today.toLowerCase())
       .sort((a, b) => (a.time || "").localeCompare(b.time || ""));
   }, [schedule, today]);
 
-  const countInClass = (cls: string) => students.filter((s) => (s.className || "") === cls).length;
+  const countInClass = (cls: string) => students.filter((s) => isInClass(s, cls)).length;
 
-  // 2. Μαθητές του επιλεγμένου τμήματος (+ αναζήτηση)
+  // Μαθητές του επιλεγμένου τμήματος (+ αναζήτηση)
   const classStudents = useMemo(() => {
     if (!selectedClass) return [];
     return students.filter(
-      (s) => (s.className || "") === selectedClass && studentName(s).toLowerCase().includes(search.toLowerCase())
+      (s) => isInClass(s, selectedClass) && studentName(s).toLowerCase().includes(search.toLowerCase())
     );
   }, [students, selectedClass, search]);
 
@@ -78,30 +84,27 @@ export default function AttendancePage() {
   useEffect(() => {
     if (!selectedClass) return;
     const init: Record<string, Status> = {};
-    students.filter((s) => (s.className || "") === selectedClass).forEach((s) => { init[s.id] = "present"; });
+    students.filter((s) => isInClass(s, selectedClass)).forEach((s) => { init[s.id] = "present"; });
     setStatuses(init);
     setSummary(null);
   }, [selectedClass, students]);
 
   const setStatus = (id: string, status: Status) => setStatuses((prev) => ({ ...prev, [id]: status }));
 
-  // 4. Όλοι Παρόντες
   const markAllPresent = () => {
     const all: Record<string, Status> = {};
-    students.filter((s) => (s.className || "") === selectedClass).forEach((s) => { all[s.id] = "present"; });
+    students.filter((s) => isInClass(s, selectedClass)).forEach((s) => { all[s.id] = "present"; });
     setStatuses(all);
   };
 
-  // Επιλογή τμήματος από το πρόγραμμα
   const openLesson = (lesson: any) => {
     setSelectedLesson(lesson);
     setSelectedClass(lesson.groupName);
     setSearch("");
   };
 
-  // 5 + 6. Αποθήκευση + ειδοποιήσεις απουσιών
   const handleSave = () => {
-    const list = students.filter((s) => (s.className || "") === selectedClass);
+    const list = students.filter((s) => isInClass(s, selectedClass));
     if (list.length === 0) return;
 
     const existing = JSON.parse(localStorage.getItem("eduflow_attendance") || "[]");
@@ -135,7 +138,7 @@ export default function AttendancePage() {
         studentName: studentName(s),
         className: selectedClass,
         status,
-        present, // συμβατότητα με παλιό μοντέλο
+        present,
         time: selectedLesson?.time || null,
         subject: selectedLesson?.subject || null,
         date: dateStr,
@@ -160,13 +163,11 @@ export default function AttendancePage() {
     <WorkspaceShell title="Παρουσίες" description="Διαχείριση παρουσιών μαθητών">
       <div className="space-y-6">
 
-        {/* HEADER: Ημερομηνία + Επιλογή τμήματος */}
         <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-slate-300 text-sm">
             <CalendarDays size={18} className="text-indigo-400" />
             <span className="font-bold capitalize">{dateLabel}</span>
           </div>
-          {/* 1. Επιλογή Τμήματος */}
           <select
             value={selectedClass}
             onChange={(e) => { setSelectedClass(e.target.value); setSelectedLesson(null); }}
@@ -179,7 +180,6 @@ export default function AttendancePage() {
           </select>
         </div>
 
-        {/* 💎 ΜΑΘΗΜΑΤΑ ΗΜΕΡΑΣ (από Scheduler) */}
         {todaysLessons.length > 0 && (
           <div>
             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Μαθήματα Σήμερα ({today})</p>
@@ -204,7 +204,6 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {/* SUMMARY μετά την αποθήκευση */}
         {summary && (
           <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-4 text-sm text-slate-200 space-y-1">
             <p className="text-emerald-400 font-bold flex items-center gap-2"><CheckCircle2 size={16} /> Αποθηκεύτηκαν {summary.saved} παρουσίες</p>
@@ -213,7 +212,6 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {/* ΠΑΡΟΥΣΙΟΛΟΓΙΟ ΤΜΗΜΑΤΟΣ */}
         {selectedClass ? (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -227,18 +225,15 @@ export default function AttendancePage() {
                 />
               </div>
               <div className="flex gap-2">
-                {/* 4. Όλοι Παρόντες */}
                 <button onClick={markAllPresent} className="bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 border border-emerald-500/20 transition">
                   <CheckCheck size={16} /> Όλοι Παρόντες
                 </button>
-                {/* 5. Αποθήκευση */}
                 <button onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition">
                   <Save size={16} /> Αποθήκευση
                 </button>
               </div>
             </div>
 
-            {/* 3 + ⭐ Χρωματιστές κάρτες με 4 καταστάσεις */}
             <div className="grid gap-3">
               {classStudents.map((student) => {
                 const cur: Status = statuses[student.id] || "present";
@@ -277,7 +272,6 @@ export default function AttendancePage() {
           </div>
         )}
 
-        {/* 7. ΙΣΤΟΡΙΚΟ */}
         <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-5">
           <button onClick={() => setShowHistory((v) => !v)} className="w-full flex items-center justify-between text-white font-bold text-sm">
             <span className="flex items-center gap-2"><HistoryIcon size={16} className="text-indigo-400" /> Ιστορικό Παρουσιών ({history.length})</span>
