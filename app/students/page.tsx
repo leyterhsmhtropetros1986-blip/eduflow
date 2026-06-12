@@ -1,259 +1,413 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { WorkspaceShell } from "../components/WorkspaceShell";
-import {
-  createStudent,
-  deleteStudent,
-  fetchCourses,
-  fetchStudents,
-  searchStudents,
-  updateStudent,
-} from "../lib/api";
-import type { Course, Student } from "../lib/data";
+import { useState, useEffect, useMemo } from "react";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
+import { AvailabilityMatrix } from "../../components/AvailabilityMatrix";
+import { Trash2, Edit2, UserPlus, Plus, X, GraduationCap, AlertTriangle, BookOpen, Layers } from "lucide-react";
 
-const initialStudentState: Omit<Student, "id" | "status"> = {
-  fullName: "",
-  grade: "",
-  course: "",
-  parentName: "",
-  email: "",
-  phone: "",
-};
+interface AvailabilitySlot { day: string; start: string; end: string; }
+
+interface StudentEnrollment {
+  lessonName: string;
+  className: string; 
+}
+
+interface Student {
+  id: string;
+  firstName: string;
+  lastName: string;
+  grade: string;
+  phone: string;
+  parentName: string;
+  parentPhone: string;
+  parentEmail: string;
+  enrollments: StudentEnrollment[]; 
+  isLockedHours: boolean;
+  lockedSlots: AvailabilitySlot[];
+  availability: AvailabilitySlot[];
+}
+
+interface ClassItem {
+  id?: string;
+  name: string;      
+  maxStudents: number;
+  grade: string;
+}
 
 export default function StudentsPage() {
+  const [isMounted, setIsMounted] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [formValues, setFormValues] = useState<Omit<Student, "id" | "status">>(initialStudentState);
+  const [classesList, setClassesList] = useState<ClassItem[]>([]);
+  const [lessonsList, setLessonsList] = useState<string[]>([]);
+  
+  // States Φόρμας
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [grade, setGrade] = useState("");
+  const [phone, setPhone] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
+  
+  const [formEnrollments, setFormEnrollments] = useState<StudentEnrollment[]>([]);
+  
+  const [isLockedHours, setIsLockedHours] = useState(false);
+  const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
+  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+
+  const getAvailableTimes = (day: string) => {
+    if (day === "Σάββατο") return ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
+    return ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
+  };
+
+  const [newSlot, setNewSlot] = useState<AvailabilitySlot>({ day: "Δευτέρα", start: "14:00", end: "15:00" });
 
   useEffect(() => {
-    async function load() {
-      const [studentData, courseData] = await Promise.all([fetchStudents(), fetchCourses()]);
-      setStudents(studentData);
-      setCourses(courseData);
-    }
-
-    load();
+    setIsMounted(true);
+    loadData();
   }, []);
 
-  const displayedStudents = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return students;
-    }
+  const loadData = () => {
+    if (typeof window !== "undefined") {
+      const rawStudents = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
 
-    return students.filter((student) => {
-      const term = searchTerm.toLowerCase();
-      return (
-        student.fullName.toLowerCase().includes(term) ||
-        student.course.toLowerCase().includes(term) ||
-        student.parentName.toLowerCase().includes(term)
+      // ✅ ΕΥΘΥΓΡΑΜΜΙΣΗ KEYS με Scheduler/Reports/Dashboard (+ fallback στα παλιά)
+      const rawClasses = JSON.parse(
+        localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"
       );
-    });
-  }, [students, searchTerm]);
+      const rawLessonsData = JSON.parse(
+        localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_courses") || "[]"
+      );
 
-  function resetForm() {
-    setSelectedStudent(null);
-    setFormValues(initialStudentState);
-  }
+      // Τα μαθήματα μπορεί να είναι strings ή objects -> κανονικοποίηση σε string[]
+      const rawLessons: string[] = (rawLessonsData as any[])
+        .map((l) => (typeof l === "string" ? l : (l?.name || l?.title || l?.subject || "")))
+        .filter(Boolean);
 
-  async function saveStudent() {
-    const trimmedName = formValues.fullName.trim();
-    if (!trimmedName || !formValues.grade || !formValues.course || !formValues.parentName) {
-      return;
+      const normalizedClasses = rawClasses.map((c: any) => {
+        return { 
+          id: c.id || `class-${Date.now()}-${Math.random()}`,
+          name: c.name || c.className || "",
+          grade: c.grade || "",
+          maxStudents: Number(c.maxStudents) || Number(c.maxCapacity) || Number(c.capacity) || 20
+        };
+      }).filter((c: ClassItem) => c.name !== "");
+
+      const migratedStudents = rawStudents.map((s: any) => {
+        if (!s.enrollments) {
+          const legacyEnrollments: StudentEnrollment[] = (s.selectedLessons || []).map((lesson: string) => ({
+            lessonName: lesson,
+            className: s.section || ""
+          })).filter((e: StudentEnrollment) => e.className !== "");
+          
+          return { ...s, enrollments: legacyEnrollments };
+        }
+        return s;
+      });
+
+      setStudents(migratedStudents);
+      setClassesList(normalizedClasses);
+      setLessonsList(rawLessons);
     }
+  };
 
-    const record: Student = {
-      id: selectedStudent?.id ?? `stu_${Date.now()}`,
-      status: selectedStudent?.status ?? "active",
-      fullName: trimmedName,
-      grade: formValues.grade,
-      course: formValues.course,
-      parentName: formValues.parentName,
-      email: formValues.email || `${trimmedName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
-      phone: formValues.phone || "+30 698 000 0000",
+  // 🎯 ΑΥΣΤΗΡΟ ΦΙΛΤΡΑΡΙΣΜΑ: Δείχνει ΜΟΝΟ τα τμήματα που ανήκουν στην επιλεγμένη τάξη
+  const filteredSections = useMemo(() => {
+    if (!grade) return [];
+    return classesList.filter(sec => sec.grade === grade);
+  }, [classesList, grade]);
+
+  const sectionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    students.forEach(s => {
+      if (s.id === editingId) return; 
+      s.enrollments?.forEach(e => {
+        const key = `${e.lessonName}_${e.className}`;
+        counts[key] = (counts[key] || 0) + 1;
+      });
+    });
+    return counts;
+  }, [students, editingId]);
+
+  const addSlot = () => {
+    setLockedSlots([...lockedSlots, newSlot]);
+    setNewSlot({ day: newSlot.day, start: getAvailableTimes(newSlot.day)[0], end: getAvailableTimes(newSlot.day)[1] || "15:00" });
+  };
+
+  const handleFormEnrollmentChange = (lessonName: string, className: string) => {
+    const filtered = formEnrollments.filter(e => e.lessonName !== lessonName);
+    if (className === "") {
+      setFormEnrollments(filtered);
+    } else {
+      setFormEnrollments([...filtered, { lessonName, className }]);
+    }
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const studentData: Student = {
+      id: editingId || `s-${Date.now()}`,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      grade,
+      phone: phone.trim(),
+      parentName: parentName.trim(),
+      parentPhone: parentPhone.trim(),
+      parentEmail: parentEmail.trim(),
+      enrollments: formEnrollments,
+      isLockedHours,
+      lockedSlots: isLockedHours ? lockedSlots : [],
+      availability
     };
 
-    const savedStudent = selectedStudent
-      ? await updateStudent(record.id, record)
-      : await createStudent(record);
-
-    if (!savedStudent) {
-      return;
-    }
-
-    setStudents((current) => {
-      const updated = current.filter((student) => student.id !== savedStudent.id);
-      return [savedStudent, ...updated];
-    });
-
+    const updated = editingId ? students.map(s => s.id === editingId ? studentData : s) : [...students, studentData];
+    setStudents(updated);
+    localStorage.setItem("eduflow_students", JSON.stringify(updated));
     resetForm();
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setFirstName("");
+    setLastName("");
+    setGrade("");
+    setPhone("");
+    setParentName("");
+    setParentPhone("");
+    setParentEmail("");
+    setFormEnrollments([]);
+    setIsLockedHours(false);
+    setLockedSlots([]);
+    setAvailability([]);
+  };
+
+  const startEdit = (s: Student) => {
+    setEditingId(s.id);
+    setFirstName(s.firstName || "");
+    setLastName(s.lastName || "");
+    setGrade(s.grade || "");
+    setPhone(s.phone || "");
+    setParentName(s.parentName || "");
+    setParentPhone(s.parentPhone || "");
+    setParentEmail(s.parentEmail || "");
+    setFormEnrollments(s.enrollments || []);
+    setIsLockedHours(s.isLockedHours || false);
+    setLockedSlots(s.lockedSlots || []);
+    setAvailability(s.availability || []);
+  };
+
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-[#0b0e14] flex items-center justify-center">
+        <div className="text-slate-500 text-xs font-mono animate-pulse">Φόρτωση Πίνακα Μαθητών...</div>
+      </div>
+    );
   }
 
-  async function handleDelete(id: string) {
-    const deleted = await deleteStudent(id);
-    if (!deleted) {
-      return;
-    }
-
-    setStudents((current) => current.filter((student) => student.id !== id));
-    if (selectedStudent?.id === id) {
-      resetForm();
-    }
-  }
-
-  function handleEdit(student: Student) {
-    setSelectedStudent(student);
-    setFormValues({
-      fullName: student.fullName,
-      grade: student.grade,
-      course: student.course,
-      parentName: student.parentName,
-      email: student.email,
-      phone: student.phone,
-    });
-  }
+  const sortedStudents = [...students].sort((a, b) => a.lastName.localeCompare(b.lastName, 'el'));
 
   return (
-    <WorkspaceShell
-      title="Μαθητές"
-      description="Διαχείριση προφίλ μαθητών, εγγραφών και ανάθεσης μαθημάτων από ένα κεντρικό περιβάλλον."
-    >
-      <div className="grid gap-6 lg:grid-cols-[1.75fr_1fr]">
-        <section className="space-y-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-slate-950">Κατάλογος μαθητών</h2>
-              <p className="mt-1 text-sm text-slate-500">Αναζήτηση, προβολή και ενημέρωση εγγεγραμμένων μαθητών.</p>
+    <WorkspaceShell title="Διαχείριση Μαθητών" description="Σύστημα Εγγραφών ανά Μάθημα & Έλεγχος Πληρότητας Τμημάτων (ERP-ready).">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 px-4">
+        
+        {/* 📝 ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ */}
+        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit shadow-xl">
+          <form onSubmit={handleSave} className="space-y-4">
+            <h4 className="text-indigo-400 font-bold text-xs uppercase flex items-center gap-2 border-b border-slate-800 pb-3 tracking-wider">
+              <UserPlus size={14} /> {editingId ? "Επεξεργασία Εγγραφών" : "Νέα Εγγραφή & Enrollment"}
+            </h4>
+            
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Όνομα Μαθητή *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+                <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Επώνυμο Μαθητή *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <select required value={grade} onChange={e => { setGrade(e.target.value); setFormEnrollments([]); }} className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white focus:border-indigo-500 outline-none transition-all cursor-pointer col-span-2">
+                  <option value="">Επιλέξτε Τάξη *</option>
+                  {["Α Γυμνασίου", "Β Γυμνασίου", "Γ Γυμνασίου", "Α Λυκείου", "Β Λυκείου", "Γ Λυκείου"].map((g, i) => <option key={i} value={g}>{g}</option>)}
+                </select>
+              </div>
+
+              <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Τηλέφωνο Μαθητή *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+              
+              <div className="border-t border-slate-800/60 pt-2 space-y-3">
+                <input required type="text" value={parentName} onChange={e => setParentName(e.target.value)} placeholder="Ονοματεπώνυμο Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input required type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="Τηλ. Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+                  <input required type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} placeholder="Email Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+                </div>
+              </div>
             </div>
-            <div className="w-full md:w-80">
-              <label className="block text-sm font-medium text-slate-700">Αναζήτηση μαθητών</label>
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400"
-                placeholder="Αναζήτηση με όνομα, μάθημα ή γονέα"
-              />
+
+            {/* 📘 ΔΥΝΑΜΙΚΑ Dropdowns ΜΕ ΑΥΣΤΗΡΟ ΦΙΛΤΡΑΡΙΣΜΑ */}
+            <div className="bg-[#0b0e14] border border-slate-800 rounded-xl p-4 space-y-3">
+              <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold border-b border-slate-900 pb-1 flex items-center gap-1">
+                <Layers size={12}/> Επιλογή Τμημάτων (Μόνο για {grade || "Τάξη"})
+              </p>
+              
+              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                {!grade ? (
+                  <p className="text-slate-500 text-[11px] italic text-center py-4">
+                    Παρακαλώ επιλέξτε πρώτα την Τάξη του μαθητή για να εμφανιστούν τα αντίστοιχα τμήματα.
+                  </p>
+                ) : lessonsList.length === 0 ? (
+                  <p className="text-amber-500/80 text-[11px] text-center py-4 flex items-center justify-center gap-1">
+                    <AlertTriangle size={12}/> Δεν έχουν καταχωρηθεί μαθήματα στη βάση.
+                  </p>
+                ) : (
+                  lessonsList.map((lesson, idx) => {
+                    const currentSelection = formEnrollments.find(e => e.lessonName === lesson)?.className || "";
+
+                    return (
+                      <div key={idx} className="p-2.5 bg-[#1e2330]/40 border border-slate-800/70 rounded-xl space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                            <BookOpen size={12} className="text-indigo-500"/> {lesson}
+                          </span>
+                        </div>
+
+                        <select 
+                          value={currentSelection} 
+                          onChange={e => handleFormEnrollmentChange(lesson, e.target.value)}
+                          className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none focus:border-indigo-500 cursor-pointer"
+                        >
+                          <option value="">-- Χωρίς εγγραφή --</option>
+                          
+                          {classesList.length === 0 ? (
+                            <option value="" disabled>⚠️ Δεν υπάρχουν τμήματα στο σύστημα.</option>
+                          ) : filteredSections.length === 0 ? (
+                            <option value="" disabled>⚠️ Κανένα τμήμα δεν έχει δηλωθεί για την {grade}</option>
+                          ) : (
+                            filteredSections.map((sec, sIdx) => {
+                              const maxCap = sec.maxStudents || 20;
+                              const currentStudents = sectionCounts[`${lesson}_${sec.name}`] || 0;
+                              const isFull = currentStudents >= maxCap && currentSelection !== sec.name;
+
+                              return (
+                                <option key={sIdx} value={sec.name} disabled={isFull}>
+                                  {sec.name} — ({currentStudents}/{maxCap} μαθητές) {isFull ? "🔒 FULL" : ""}
+                                </option>
+                              );
+                            })
+                          )}
+                        </select>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="overflow-hidden rounded-3xl border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-slate-700">
-                <tr>
-                  <th className="px-4 py-3 text-left font-semibold">Όνομα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Τάξη</th>
-                  <th className="px-4 py-3 text-left font-semibold">Μάθημα</th>
-                  <th className="px-4 py-3 text-left font-semibold">Γονέας</th>
-                  <th className="px-4 py-3 text-left font-semibold">Ενέργειες</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white">
-                {displayedStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-4 text-slate-900">{student.fullName}</td>
-                    <td className="px-4 py-4 text-slate-600">{student.grade}</td>
-                    <td className="px-4 py-4 text-slate-600">{student.course}</td>
-                    <td className="px-4 py-4 text-slate-600">{student.parentName}</td>
-                    <td className="px-4 py-4 space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(student)}
-                        className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        Επεξεργασία
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(student.id)}
-                        className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100"
-                      >
-                        Διαγραφή
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+            {/* INTERACTIVE AVAILABILITY MATRIX */}
+            <AvailabilityMatrix availability={availability} onChange={setAvailability} />
 
-        <section className="space-y-5 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <div>
-            <h2 className="text-xl font-semibold text-slate-950">{selectedStudent ? "Επεξεργασία μαθητή" : "Προσθήκη μαθητή"}</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              {selectedStudent
-                ? "Ενημερώστε τη εγγραφή του μαθητή και αποθηκεύστε τις αλλαγές σας."
-                : "Δημιουργήστε εγγραφές μαθητών και αντιστοιχίστε τους στο επόμενο μάθημα."}
-            </p>
-          </div>
+            {/* CHECKBOX ΓΙΑ ΚΛΕΙΔΩΜΑ ΩΡΩΝ */}
+            <div className="pt-2">
+               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                  <input type="checkbox" checked={isLockedHours} onChange={e => setIsLockedHours(e.target.checked)} className="accent-rose-500" /> Κλείδωμα / Περιορισμός ωρών διαθεσιμότητας (Busy)
+               </label>
+            </div>
 
-          <div className="space-y-4">
-            <label className="block text-sm font-medium text-slate-700">Ονοματεπώνυμο</label>
-            <input
-              value={formValues.fullName}
-              onChange={(event) => setFormValues({ ...formValues, fullName: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Ελένη Παπαδοπούλου"
-            />
+            {isLockedHours && (
+              <div className="bg-[#0b0e14] p-4 rounded-xl border border-rose-500/20 space-y-3">
+                <div className="grid grid-cols-4 gap-1">
+                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded col-span-2 border border-slate-800" value={newSlot.day} onChange={e => {const d = e.target.value; setNewSlot({day: d, start: getAvailableTimes(d)[0], end: getAvailableTimes(d)[1] || "15:00"});}}>
+                    {["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"].map(d => <option key={d}>{d}</option>)}
+                  </select>
+                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded border border-slate-800" value={newSlot.start} onChange={e => setNewSlot({...newSlot, start: e.target.value})}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
+                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded border border-slate-800" value={newSlot.end} onChange={e => setNewSlot({...newSlot, end: e.target.value})}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
+                </div>
+                <button type="button" onClick={addSlot} className="w-full bg-rose-600/90 hover:bg-rose-600 py-1.5 rounded text-white text-[11px] font-semibold flex justify-center items-center gap-1"><Plus size={12}/> Προσθήκη Slot</button>
+                
+                <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
+                  {lockedSlots.map((s, i) => (
+                    <div key={i} className="text-[10px] text-slate-300 bg-[#1e2330] p-2 rounded flex justify-between items-center border border-slate-800">
+                      <span>{s.day.substring(0,3)}: {s.start} έως {s.end}</span>
+                      <X size={12} className="cursor-pointer text-rose-500 hover:text-rose-400" onClick={() => setLockedSlots(lockedSlots.filter((_,idx) => idx !== i))}/>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            <label className="block text-sm font-medium text-slate-700">Τάξη</label>
-            <select
-              value={formValues.grade}
-              onChange={(event) => setFormValues({ ...formValues, grade: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900"
-            >
-              <option value="">Επιλογή Τάξης</option>
-              <option value="Α Γυμνασίου">Α Γυμνασίου</option>
-              <option value="Β Γυμνασίου">Β Γυμνασίου</option>
-              <option value="Γ Γυμνασίου">Γ Γυμνασίου</option>
-              <option value="Α Λυκείου">Α Λυκείου</option>
-              <option value="Β Λυκείου">Β Λυκείου</option>
-              <option value="Γ Λυκείου">Γ Λυκείου</option>
-            </select>
-
-            <label className="block text-sm font-medium text-slate-700">Μάθημα</label>
-            <select
-              value={formValues.course}
-              onChange={(event) => setFormValues({ ...formValues, course: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-            >
-              <option value="">Επιλογή μαθήματος</option>
-              {courses.map((courseOption) => (
-                <option key={courseOption.id} value={courseOption.title}>
-                  {courseOption.title}
-                </option>
-              ))}
-            </select>
-
-            <label className="block text-sm font-medium text-slate-700">Γονέας / Κηδεμόνας</label>
-            <input
-              value={formValues.parentName}
-              onChange={(event) => setFormValues({ ...formValues, parentName: event.target.value })}
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-slate-400"
-              placeholder="Μαρία Κωνσταντίνου"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={saveStudent}
-              className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-            >
-              {selectedStudent ? "Ενημέρωση μαθητή" : "Αποθήκευση μαθητή"}
-            </button>
-            {selectedStudent ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Ακύρωση
+            <div className="flex gap-2 pt-2">
+              {editingId && (
+                <button type="button" onClick={resetForm} className="w-1/3 p-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700">
+                  Ακύρωση
+                </button>
+              )}
+              <button type="submit" className={`p-3 rounded-xl text-white font-bold text-xs transition-colors shadow-lg ${editingId ? 'w-2/3 bg-emerald-600 hover:bg-emerald-500' : 'w-full bg-indigo-600 hover:bg-indigo-500'}`}>
+                {editingId ? "Ενημέρωση Εγγραφών" : "Αποθήκευση Μαθητή"}
               </button>
-            ) : null}
-          </div>
-        </section>
+            </div>
+          </form>
+        </div>
+
+        {/* 🔍 ΛΙΣΤΑ ΜΑΘΗΤΩΝ */}
+        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-xl h-fit">
+          <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-4 border-b border-slate-800 pb-2 flex justify-between items-center">
+            <span>Μαθητολόγιο & Enrollments</span>
+            <span className="bg-[#0b0e14] px-2 py-0.5 rounded-full text-indigo-400 font-extrabold">{students.length}</span>
+          </h3>
+          {sortedStudents.length === 0 ? (
+            <div className="text-center py-16 text-slate-600 text-xs border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-2">
+              <AlertTriangle size={22} className="text-slate-700" />
+              <span>Δεν υπάρχουν καταχωρημένοι μαθητές στο σύστημα.</span>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {sortedStudents.map(s => (
+                <div key={s.id} className="bg-[#0b0e14] p-4 rounded-xl border border-slate-800/80 border-l-4 border-l-indigo-500 flex flex-col gap-2 hover:border-slate-700 transition-all">
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <p className="text-white text-xs font-bold uppercase tracking-wide">{s.lastName} {s.firstName}</p>
+                      
+                      <div className="flex flex-wrap gap-2 text-[10px] mt-1.5 items-center">
+                         <span className="text-indigo-400 font-bold bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-900/30 flex items-center gap-1"><GraduationCap size={10}/> {s.grade}</span>
+                         <span className="text-emerald-400 font-medium bg-emerald-950/30 px-1.5 py-0.5 rounded border border-emerald-500/10">⏱️ {s.availability?.length || 0} ώρες διαθέσιμος</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button onClick={() => startEdit(s)} className="text-slate-500 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-slate-900" title="Επεξεργασία"><Edit2 size={12}/></button>
+                      <button onClick={() => {
+                        if(confirm(`Οριστική διαγραφή του μαθητή ${s.lastName} ${s.firstName};`)) {
+                          const updated = students.filter(x => x.id !== s.id);
+                          setStudents(updated);
+                          localStorage.setItem("eduflow_students", JSON.stringify(updated));
+                        }
+                      }} className="text-slate-600 hover:text-rose-500 p-1.5 rounded-lg hover:bg-slate-900" title="Διαγραφή"><Trash2 size={12}/></button>
+                    </div>
+                  </div>
+
+                  {s.enrollments && s.enrollments.length > 0 && (
+                    <div className="py-2 px-3 bg-[#1e2330]/50 border border-slate-800/60 rounded-xl space-y-1 mt-1">
+                      <p className="text-[9px] uppercase font-bold text-slate-500 tracking-wider mb-1">Ενεργές Εγγραφές:</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {s.enrollments.map((enroll, eIdx) => (
+                          <div key={eIdx} className="text-[11px] text-slate-300 flex items-center gap-1 bg-[#0b0e14]/60 p-1.5 rounded border border-slate-800/40">
+                            <span className="text-slate-400 font-medium truncate">{enroll.lessonName}</span>
+                            <span className="text-indigo-400 font-bold font-mono">→</span>
+                            <span className="text-indigo-400 font-extrabold bg-indigo-950/50 px-1.5 rounded border border-indigo-900/30">{enroll.className}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-900/60 text-slate-400 text-[10px] space-y-0.5">
+                     <p>📞 Κιν. Μαθητή: <span className="text-slate-200 font-mono">{s.phone || "-"}</span></p>
+                     <p>👨‍👩‍👦 Γονέας: <span className="text-slate-200 font-medium">{s.parentName}</span> <span className="text-slate-400 font-mono">({s.parentPhone || "-"})</span></p>
+                     <p className="truncate">📧 Email: <span className="text-slate-200 font-mono">{s.parentEmail || "-"}</span></p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </WorkspaceShell>
   );
