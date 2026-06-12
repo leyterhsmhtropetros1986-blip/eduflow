@@ -30,8 +30,8 @@ interface Student {
 interface ClassItem {
   id?: string;
   name: string;      
-  maxStudents: number; // Ενημέρωση με το νέο σχήμα
-  grade: string;       // Η καθαρή relational σύνδεση
+  maxStudents: number;
+  grade: string;
 }
 
 export default function StudentsPage() {
@@ -71,15 +71,26 @@ export default function StudentsPage() {
   const loadData = () => {
     if (typeof window !== "undefined") {
       const rawStudents = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
-      const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
-      const rawLessons = JSON.parse(localStorage.getItem("eduflow_lessons") || "[]");
+
+      // ✅ ΕΥΘΥΓΡΑΜΜΙΣΗ KEYS με Scheduler/Reports/Dashboard (+ fallback στα παλιά)
+      const rawClasses = JSON.parse(
+        localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"
+      );
+      const rawLessonsData = JSON.parse(
+        localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_courses") || "[]"
+      );
+
+      // Τα μαθήματα μπορεί να είναι strings ή objects -> κανονικοποίηση σε string[]
+      const rawLessons: string[] = (rawLessonsData as any[])
+        .map((l) => (typeof l === "string" ? l : (l?.name || l?.title || l?.subject || "")))
+        .filter(Boolean);
 
       const normalizedClasses = rawClasses.map((c: any) => {
         return { 
           id: c.id || `class-${Date.now()}-${Math.random()}`,
           name: c.name || c.className || "",
           grade: c.grade || "",
-          maxStudents: Number(c.maxStudents) || Number(c.capacity) || 20
+          maxStudents: Number(c.maxStudents) || Number(c.maxCapacity) || Number(c.capacity) || 20
         };
       }).filter((c: ClassItem) => c.name !== "");
 
