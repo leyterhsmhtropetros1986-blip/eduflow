@@ -2,147 +2,167 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import {
-  AlertTriangle, Calendar, CreditCard, Cake, Megaphone,
-  Mail, MessageSquare, BellRing, CheckCheck, Trash2, Inbox, Bell,
-} from "lucide-react";
+import { Trash2, Check, Pin, Bell, Mail, RefreshCw, X } from "lucide-react";
 
-const TYPE_CFG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  absence:        { label: "Απουσία",          icon: AlertTriangle, color: "text-rose-400",    bg: "bg-rose-500/10" },
-  scheduleChange: { label: "Αλλαγή Προγρ.",     icon: Calendar,      color: "text-indigo-400",  bg: "bg-indigo-500/10" },
-  payment:        { label: "Πληρωμή",           icon: CreditCard,    color: "text-emerald-400", bg: "bg-emerald-500/10" },
-  birthday:       { label: "Γενέθλια",          icon: Cake,          color: "text-amber-400",   bg: "bg-amber-500/10" },
-  announcement:   { label: "Ανακοίνωση",        icon: Megaphone,     color: "text-sky-400",     bg: "bg-sky-500/10" },
+interface AppNotification {
+  id: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  pinned?: boolean;
+}
+
+// Utility για σχετικό χρόνο
+const getTimeAgo = (date: string) => {
+  const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+  if (seconds < 60) return "πριν από λίγο";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `πριν από ${minutes} λεπτά`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `πριν από ${hours} ώρες`;
+  return new Intl.DateTimeFormat("el-GR", { dateStyle: "short", timeStyle: "short" }).format(new Date(date));
 };
 
-const CHANNEL_ICON: Record<string, any> = { email: Mail, sms: MessageSquare, push: BellRing };
-
 export default function NotificationsPage() {
-  const [mounted, setMounted] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<AppNotification[]>([]);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  useEffect(() => {
-    setMounted(true);
-    setItems(load());
-  }, []);
-
-  const load = () => {
-    try { return JSON.parse(localStorage.getItem("eduflow_notifications") || "[]"); }
+  const loadNotifications = () => {
+    try { return JSON.parse(localStorage.getItem("eduflow_notifications") || "[]"); } 
     catch { return []; }
   };
 
-  const persist = (next: any[]) => {
-    setItems(next);
-    localStorage.setItem("eduflow_notifications", JSON.stringify(next));
+  const save = (newItems: AppNotification[]) => {
+    localStorage.setItem("eduflow_notifications", JSON.stringify(newItems));
+    setItems(newItems);
+    // Custom event για συγχρονισμό στο ίδιο tab
+    window.dispatchEvent(new Event("eduflow-notifications-updated"));
   };
 
-  const unreadCount = items.filter((n) => !n.read).length;
-  const filtered = useMemo(
-    () => (filter === "unread" ? items.filter((n) => !n.read) : items),
-    [items, filter]
-  );
+  useEffect(() => {
+    setItems(loadNotifications());
 
-  const markRead = (id: string) => persist(items.map((n) => (n.id === id ? { ...n, read: true } : n)));
-  const markAllRead = () => persist(items.map((n) => ({ ...n, read: true })));
-  const remove = (id: string) => persist(items.filter((n) => n.id !== id));
-  const clearAll = () => {
-    if (confirm("Διαγραφή ΟΛΩΝ των ειδοποιήσεων;")) persist([]);
+    const reload = () => setItems(loadNotifications());
+    window.addEventListener("storage", reload);
+    window.addEventListener("eduflow-notifications-updated", reload);
+
+    return () => {
+      window.removeEventListener("storage", reload);
+      window.removeEventListener("eduflow-notifications-updated", reload);
+    };
+  }, []);
+
+  // Stats
+  const stats = {
+    total: items.length,
+    unread: items.filter(n => !n.read).length,
+    pinned: items.filter(n => n.pinned).length,
   };
 
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-[#0b0e14] flex items-center justify-center">
-        <div className="text-slate-500 text-xs font-mono animate-pulse">Φόρτωση...</div>
-      </div>
-    );
-  }
+  const markAllRead = () => {
+    if (confirm("Να σημειωθούν όλες οι ειδοποιήσεις ως διαβασμένες;")) {
+      save(items.map(n => ({ ...n, read: true })));
+    }
+  };
+
+  const deleteAll = () => {
+    if (confirm("ΠΡΟΣΟΧΗ: Θα διαγραφούν ΟΛΕΣ οι ειδοποιήσεις. Συνέχεια;")) {
+      save([]);
+    }
+  };
+
+  const remove = (id: string) => {
+    if (confirm("Να διαγραφεί η ειδοποίηση;")) {
+      save(items.filter(n => n.id !== id));
+    }
+  };
+
+  const togglePin = (id: string) => {
+    save(items.map(n => n.id === id ? { ...n, pinned: !n.pinned } : n));
+  };
+
+  const toggleRead = (id: string) => {
+    save(items.map(n => n.id === id ? { ...n, read: !n.read } : n));
+  };
+
+  const filtered = useMemo(() => {
+    const list = filter === "unread" ? items.filter((n) => !n.read) : items;
+    return [...list].sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [items, filter]);
 
   return (
-    <WorkspaceShell title="Ειδοποιήσεις" description="Όλες οι ειδοποιήσεις προς γονείς & μαθητές (απουσίες, αλλαγές, ανακοινώσεις).">
-
-      {/* Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filter === "all" ? "bg-indigo-600 text-white" : "bg-[#1e2330] text-slate-400 border border-slate-800"}`}
-          >
-            Όλες ({items.length})
-          </button>
-          <button
-            onClick={() => setFilter("unread")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition ${filter === "unread" ? "bg-indigo-600 text-white" : "bg-[#1e2330] text-slate-400 border border-slate-800"}`}
-          >
-            Αδιάβαστες ({unreadCount})
-          </button>
+    <WorkspaceShell title="Κέντρο Ειδοποιήσεων" description="Διαχείριση ενημερώσεων συστήματος.">
+      
+      {/* Summary Header */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-[#1e2330] p-4 rounded-2xl border border-slate-800">
+           <p className="text-[10px] text-slate-500 uppercase font-bold">Σύνολο</p>
+           <p className="text-xl font-black text-white">{stats.total}</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={markAllRead}
-            disabled={unreadCount === 0}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1e2330] text-slate-300 border border-slate-800 hover:text-white disabled:opacity-40 flex items-center gap-1.5"
-          >
-            <CheckCheck size={14} /> Όλες ως διαβασμένες
-          </button>
-          <button
-            onClick={clearAll}
-            disabled={items.length === 0}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#1e2330] text-rose-400 border border-slate-800 hover:bg-rose-600 hover:text-white disabled:opacity-40 flex items-center gap-1.5"
-          >
-            <Trash2 size={14} /> Καθαρισμός
-          </button>
+        <div className="bg-[#1e2330] p-4 rounded-2xl border border-slate-800">
+           <p className="text-[10px] text-indigo-400 uppercase font-bold">Μη διαβασμένες</p>
+           <p className="text-xl font-black text-indigo-400">{stats.unread}</p>
+        </div>
+        <div className="bg-[#1e2330] p-4 rounded-2xl border border-slate-800">
+           <p className="text-[10px] text-amber-400 uppercase font-bold">Καρφιτσωμένες</p>
+           <p className="text-xl font-black text-amber-400">{stats.pinned}</p>
         </div>
       </div>
 
-      {/* Λίστα */}
-      {filtered.length === 0 ? (
-        <div className="text-center py-20 text-slate-500 text-sm border border-dashed border-slate-800 rounded-3xl flex flex-col items-center gap-2">
-          <Inbox size={28} className="text-slate-700" />
-          {filter === "unread" ? "Δεν υπάρχουν αδιάβαστες ειδοποιήσεις." : "Δεν υπάρχουν ειδοποιήσεις ακόμα."}
+      <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-white font-bold text-sm flex items-center">
+            <Bell size={16} className="mr-2 text-indigo-400" />
+            Ειδοποιήσεις
+            {stats.unread > 0 && (
+              <span className="ml-2 bg-rose-500 text-white rounded-full px-2 py-0.5 text-[10px] font-bold">
+                {stats.unread}
+              </span>
+            )}
+          </h3>
+          
+          <div className="flex gap-2">
+            <button onClick={() => setFilter("all")} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${filter === "all" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-400"}`}>Όλες</button>
+            <button onClick={() => setFilter("unread")} className={`px-3 py-1.5 rounded-lg text-xs font-bold ${filter === "unread" ? "bg-indigo-600 text-white" : "bg-slate-800 text-slate-400"}`}>Μη διαβασμένες</button>
+            <button onClick={markAllRead} className="ml-2 px-3 py-1.5 rounded-lg bg-emerald-600/10 text-emerald-400 text-xs font-bold hover:bg-emerald-600/20">Διαβασμένα</button>
+            <button onClick={deleteAll} className="px-3 py-1.5 rounded-lg bg-rose-600/10 text-rose-400 text-xs font-bold hover:bg-rose-600/20">🗑</button>
+          </div>
         </div>
-      ) : (
+
         <div className="space-y-2">
-          {filtered.map((n) => {
-            const cfg = TYPE_CFG[n.type] || { label: n.type, icon: Bell, color: "text-slate-400", bg: "bg-slate-500/10" };
-            const Icon = cfg.icon;
-            const ChIcon = CHANNEL_ICON[n.channel] || Bell;
-            return (
-              <div
-                key={n.id}
-                onClick={() => !n.read && markRead(n.id)}
-                className={`bg-[#1e2330] border rounded-2xl p-4 flex items-start gap-3 cursor-pointer transition ${n.read ? "border-slate-800 opacity-70" : "border-indigo-500/30"}`}
-              >
-                <div className={`w-9 h-9 rounded-xl ${cfg.bg} ${cfg.color} flex items-center justify-center shrink-0`}>
-                  <Icon size={16} />
+          {filtered.length === 0 ? (
+            <p className="text-slate-500 text-xs text-center py-10">
+              {filter === "unread" ? "Δεν υπάρχουν μη διαβασμένες ειδοποιήσεις." : "Δεν βρέθηκαν ειδοποιήσεις."}
+            </p>
+          ) : (
+            filtered.map((n) => (
+              <div key={n.id} className={`flex items-center gap-4 p-4 rounded-xl border transition-colors ${n.read ? "bg-[#0b0e14] border-slate-800" : "bg-indigo-950/10 border-indigo-500/30"}`}>
+                <div className={`p-2 rounded-full ${n.read ? "bg-slate-800" : "bg-indigo-500/20"}`}>
+                    <Mail size={14} className={n.read ? "text-slate-500" : "text-indigo-400"} />
+                </div>
+                
+                <div className="flex-1">
+                  <p className={`text-xs ${n.read ? "text-slate-400" : "text-white font-semibold"}`}>{n.message}</p>
+                  <p className="text-[10px] text-slate-500 mt-1 font-mono">{getTimeAgo(n.createdAt)}</p>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {!n.read && <span className="w-2 h-2 rounded-full bg-indigo-500 shrink-0" />}
-                    <p className="text-white text-sm font-bold truncate">{n.title}</p>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
-                  </div>
-                  <p className="text-slate-400 text-xs mt-1 leading-relaxed">{n.message}</p>
-                  <div className="flex items-center gap-3 mt-2 text-[10px] text-slate-500">
-                    <span className="flex items-center gap-1"><ChIcon size={11} /> {n.channel}</span>
-                    <span>👤 {n.recipientName}{n.recipientEmail ? ` (${n.recipientEmail})` : ""}</span>
-                    <span className="ml-auto font-mono">{n.createdAt}</span>
-                  </div>
+                <div className="flex items-center gap-2">
+                    <button onClick={() => togglePin(n.id)} className="p-1.5 rounded-lg transition-colors">
+                        <Pin size={14} className={n.pinned ? "text-amber-400 fill-amber-400" : "text-slate-600"} />
+                    </button>
+                    {!n.read && (
+                        <button onClick={() => toggleRead(n.id)} className="p-1.5 text-indigo-400 hover:bg-indigo-500/20 rounded-lg"><Check size={14} /></button>
+                    )}
+                    <button onClick={() => remove(n.id)} className="p-1.5 text-slate-600 hover:text-rose-500 rounded-lg"><Trash2 size={14} /></button>
                 </div>
-
-                <button
-                  onClick={(e) => { e.stopPropagation(); remove(n.id); }}
-                  className="text-slate-600 hover:text-rose-500 p-1 rounded-lg shrink-0"
-                  title="Διαγραφή"
-                >
-                  <Trash2 size={14} />
-                </button>
               </div>
-            );
-          })}
+            ))
+          )}
         </div>
-      )}
+      </div>
     </WorkspaceShell>
   );
 }
