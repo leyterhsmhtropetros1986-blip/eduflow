@@ -15,10 +15,11 @@ import {
   CalendarDays,
   Zap,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 
 /* =========================================================================
-   AUTO-SCHEDULER (inline — χωρίς εξωτερικό import, για να μη σπάει το build)
+   AUTO-SCHEDULER (inline) — με υποστήριξη hoursPerWeek ανά τμήμα
    ========================================================================= */
 
 interface ScheduleItem {
@@ -59,14 +60,22 @@ function genToSet(slots: any[]): Set<string> {
 function genIsAvailable(availability: any[], lockedSlots: any[], day: string, time: string): boolean {
   const key = `${day}|${time}`;
   if (genToSet(lockedSlots).has(key)) return false;
-  if (!availability || availability.length === 0) return true; // κενή = παντού
+  if (!availability || availability.length === 0) return true;
   return genToSet(availability).has(key);
 }
 
 function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; }): GenResult {
-  const { students = [], teachers = [], rooms = [] } = data;
+  const { students = [], teachers = [], classes = [], rooms = [] } = data;
   const teacherName = (t: any) => `${t.lastName || ""} ${t.firstName || ""}`.trim() || "Καθηγητής";
 
+  // Ώρες/εβδομάδα ανά τμήμα
+  const hoursMap: Record<string, number> = {};
+  classes.forEach((c: any) => {
+    const nm = c.name || c.className;
+    if (nm) hoursMap[nm] = Number(c.hoursPerWeek) > 0 ? Number(c.hoursPerWeek) : 1;
+  });
+
+  // Ζευγάρια (μάθημα, τμήμα) από enrollments
   const pairs: Record<string, { lessonName: string; className: string; students: any[] }> = {};
   students.forEach((s) => {
     (s.enrollments || []).forEach((e: any) => {
@@ -98,10 +107,12 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
       continue;
     }
     const tName = teacherName(teacher);
+    const needed = hoursMap[ses.className] || 1;
+    let placedCount = 0;
 
-    let placed = false;
     for (const day of GEN_DAYS) {
       for (const h of genDayHours(day)) {
+        if (placedCount >= needed) break;
         const time = genHH(h);
         const key = `${day}|${time}`;
 
@@ -128,14 +139,15 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
         if (room) roomBusy.add(`${room}|${key}`);
 
         schedule.push({ id: `${ses.className}-${ses.lessonName}-${day}-${time}`, groupName: ses.className, teacher: tName, day, time, subject: ses.lessonName, room });
-        placed = true;
-        break;
+        placedCount++;
       }
-      if (placed) break;
+      if (placedCount >= needed) break;
     }
 
-    if (!placed) {
+    if (placedCount === 0) {
       unplaced.push({ lessonName: ses.lessonName, className: ses.className, students: ses.students.length, reason: "Δεν βρέθηκε ελεύθερο slot χωρίς συγκρούσεις" });
+    } else if (placedCount < needed) {
+      unplaced.push({ lessonName: ses.lessonName, className: ses.className, students: ses.students.length, reason: `Τοποθετήθηκαν μόνο ${placedCount}/${needed} ώρες` });
     }
   }
 
@@ -186,10 +198,8 @@ export default function SchedulePage() {
   useEffect(() => {
     loadData();
     setLoading(false);
-
     window.addEventListener("storage", loadData);
     window.addEventListener("focus", loadData);
-
     return () => {
       window.removeEventListener("storage", loadData);
       window.removeEventListener("focus", loadData);
@@ -210,6 +220,18 @@ export default function SchedulePage() {
     loadData();
     setGenResult(result);
     setActiveTab("grid");
+  };
+
+  const handleClearSchedule = () => {
+    const existing = JSON.parse(localStorage.getItem("eduflow_schedule") || "[]");
+    if (existing.length === 0) {
+      alert("Το πρόγραμμα είναι ήδη άδειο.");
+      return;
+    }
+    if (!confirm(`Να διαγραφεί ΟΛΟ το πρόγραμμα (${existing.length} μαθήματα);`)) return;
+    localStorage.setItem("eduflow_schedule", "[]");
+    loadData();
+    setGenResult(null);
   };
 
   const filteredClasses = useMemo(() => {
@@ -247,19 +269,25 @@ export default function SchedulePage() {
         <StatCard icon={<CalendarDays size={22} />} title="Μαθήματα" value={data.schedule.length} color="text-purple-400" />
       </div>
 
-      {/* Search + Auto Generate */}
+      {/* Search + Actions */}
       <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:items-center">
         <input
           placeholder="Αναζήτηση τμήματος / μαθητή..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full lg:w-96 bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm"
+          className="w-full lg:w-80 bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm"
         />
         <button
           onClick={handleAutoGenerate}
           className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition whitespace-nowrap"
         >
-          <Zap size={16} /> Αυτόματη Δημιουργία Προγράμματος
+          <Zap size={16} /> Αυτόματη Δημιουργία
+        </button>
+        <button
+          onClick={handleClearSchedule}
+          className="bg-[#1e2330] hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 font-bold text-sm px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition whitespace-nowrap"
+        >
+          <Trash2 size={16} /> Καθαρισμός Προγράμματος
         </button>
       </div>
 
@@ -272,7 +300,7 @@ export default function SchedulePage() {
           {genResult.unplaced.length > 0 && (
             <div className="space-y-1">
               <p className="text-amber-400 text-xs font-bold flex items-center gap-1.5">
-                <AlertTriangle size={13} /> {genResult.unplaced.length} δεν τοποθετήθηκαν:
+                <AlertTriangle size={13} /> {genResult.unplaced.length} ζητήματα:
               </p>
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {genResult.unplaced.map((u, i) => (
@@ -315,7 +343,7 @@ export default function SchedulePage() {
             <ClassesView schedule={data.schedule} classes={filteredClasses} students={data.students} />
           )}
           {activeTab === "grid" && (
-            <GridView schedule={data.schedule} />
+            <GridView schedule={data.schedule} onUpdate={loadData} />
           )}
           {activeTab === "teachers" && (
             <TeachersView schedule={data.schedule} teachers={data.teachers} />

@@ -28,7 +28,8 @@ export default function ReportsPage() {
     classes: [],
     lessons: [],
     leads: [],
-    schedule: []
+    schedule: [],
+    attendance: []
   });
 
   useEffect(() => {
@@ -37,18 +38,13 @@ export default function ReportsPage() {
       // ✅ Διόρθωση 1 & 2 & 3: σωστά keys (ίδια με το υπόλοιπο project)
       const students = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
       const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
-      const classes = JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]");
-      const lessons = JSON.parse(localStorage.getItem("eduflow_courses") || "[]");
+      const classes = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]");
+      const lessons = JSON.parse(localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_courses") || "[]");
       const leads = JSON.parse(localStorage.getItem("eduflow_crm_leads") || "[]");
       const schedule = JSON.parse(localStorage.getItem("eduflow_schedule") || "[]");
+      const attendance = JSON.parse(localStorage.getItem("eduflow_attendance") || "[]");
 
-      // 🐞 Διόρθωση 8: DEBUG logs (αν δεις [] => λάθος key)
-      console.log("Students", students);
-      console.log("Teachers", teachers);
-      console.log("Classes", classes);
-      console.log("Schedule", schedule);
-
-      setData({ students, teachers, classes, lessons, leads, schedule });
+      setData({ students, teachers, classes, lessons, leads, schedule, attendance });
     };
     load();
     window.addEventListener('storage', load);
@@ -109,6 +105,53 @@ export default function ReportsPage() {
     ];
   }, [data.leads]);
 
+  // --- ΠΑΡΟΥΣΙΕΣ: στατιστικά ανά μαθητή ---
+  const attendanceByStudent = useMemo(() => {
+    const map: any = {};
+    (data.attendance as any[]).forEach((r: any) => {
+      const key = r.studentId || r.studentName;
+      if (!key) return;
+      if (!map[key]) map[key] = { name: r.studentName || "—", className: r.className || "-", total: 0, present: 0, absent: 0, late: 0, excused: 0 };
+      const b = map[key];
+      b.total++;
+      const st = r.status || (r.present ? "present" : "absent");
+      if (st === "present") b.present++;
+      else if (st === "absent") b.absent++;
+      else if (st === "late") b.late++;
+      else if (st === "excused") b.excused++;
+      if ((!b.className || b.className === "-") && r.className) b.className = r.className;
+    });
+    return Object.values(map)
+      .map((b: any) => ({ ...b, rate: b.total ? Math.round((b.present / b.total) * 100) : 0 }))
+      .sort((a: any, b: any) => b.absent - a.absent);
+  }, [data.attendance]);
+
+  // --- ΠΑΡΟΥΣΙΕΣ: απουσίες ανά τμήμα (chart) ---
+  const absencesByClass = useMemo(() => {
+    const map: any = {};
+    (data.attendance as any[]).forEach((r: any) => {
+      const st = r.status || (r.present ? "present" : "absent");
+      if (st === "absent") {
+        const c = r.className || "-";
+        map[c] = (map[c] || 0) + 1;
+      }
+    });
+    return Object.keys(map).map((name) => ({ name, value: map[name] }));
+  }, [data.attendance]);
+
+  // --- ΠΑΡΟΥΣΙΕΣ: συνολικά ---
+  const attendanceTotals = useMemo(() => {
+    const recs = data.attendance as any[];
+    let present = 0, absent = 0;
+    recs.forEach((r: any) => {
+      const st = r.status || (r.present ? "present" : "absent");
+      if (st === "present") present++;
+      if (st === "absent") absent++;
+    });
+    const rate = recs.length ? Math.round((present / recs.length) * 100) : 0;
+    return { total: recs.length, present, absent, rate };
+  }, [data.attendance]);
+
   if (!isMounted) return null;
 
   return (
@@ -122,6 +165,7 @@ export default function ReportsPage() {
             { id: "students", icon: <Users size={16}/>, label: "Μαθητές" },
             { id: "teachers", icon: <Briefcase size={16}/>, label: "Καθηγητές" },
             { id: "classes", icon: <School size={16}/>, label: "Τμήματα" },
+            { id: "attendance", icon: <CheckCircle2 size={16}/>, label: "Παρουσίες" },
             { id: "crm", icon: <Target size={16}/>, label: "CRM" },
           ].map(tab => (
             <button
@@ -260,7 +304,7 @@ export default function ReportsPage() {
       )}
 
       {/* --- DATA TABLES (Print Ready) --- */}
-      {activeTab !== "dashboard" && (
+      {activeTab !== "dashboard" && activeTab !== "attendance" && (
         <div className="bg-white p-0 sm:p-8 text-black rounded-3xl overflow-hidden print:bg-white print:p-0">
           <div className="print:flex hidden justify-between items-center border-b-2 border-black pb-4 mb-6">
             <h1 className="text-2xl font-bold">EduFlow Executive Report</h1>
@@ -301,7 +345,85 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {/* PRINT-ONLY FOOTER */}
+      {/* --- ATTENDANCE REPORT --- */}
+      {activeTab === "attendance" && (
+        <div className="space-y-6">
+          {/* Σύνοψη + Chart (δεν εκτυπώνονται) */}
+          <div className="print:hidden space-y-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <KPICard title="Καταχωρήσεις" value={attendanceTotals.total} icon={<CheckCircle2 className="text-indigo-400" />} trend="Σύνολο" />
+              <KPICard title="Παρουσίες" value={attendanceTotals.present} icon={<CheckCircle2 className="text-emerald-400" />} trend={`${attendanceTotals.rate}% παρουσία`} />
+              <KPICard title="Απουσίες" value={attendanceTotals.absent} icon={<AlertCircle className="text-rose-400" />} trend="Σύνολο απουσιών" />
+              <KPICard title="Μαθητές" value={attendanceByStudent.length} icon={<Users className="text-amber-400" />} trend="Με καταγραφή" />
+            </div>
+
+            <div className="bg-[#1e2330] p-6 rounded-3xl border border-slate-800 shadow-md">
+              <h3 className="text-white text-xs font-black uppercase tracking-wider mb-6 flex items-center gap-2">
+                <BarChart3 size={16} className="text-rose-400" /> Απουσίες ανά Τμήμα
+              </h3>
+              {absencesByClass.length === 0 ? (
+                <p className="text-xs text-slate-500 text-center py-6">Δεν υπάρχουν καταγεγραμμένες απουσίες.</p>
+              ) : (
+                <div className="h-[280px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={absencesByClass}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                      <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} />
+                      <YAxis allowDecimals={false} stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', fontSize: '12px' }} itemStyle={{ color: '#fff' }} />
+                      <Bar dataKey="value" fill="#ef4444" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Πίνακας ανά μαθητή (εκτυπώσιμος) */}
+          <div className="bg-white p-0 sm:p-8 text-black rounded-3xl overflow-hidden print:bg-white print:p-0">
+            <div className="print:flex hidden justify-between items-center border-b-2 border-black pb-4 mb-6">
+              <h1 className="text-2xl font-bold">EduFlow — Αναφορά Παρουσιών</h1>
+              <div className="text-right text-sm">
+                <p>Ημερομηνία: {new Date().toLocaleDateString('el-GR')}</p>
+              </div>
+            </div>
+
+            <h2 className="text-lg font-black uppercase mb-4 px-4 sm:px-0 print:text-black">
+              Παρουσίες ανά Μαθητή
+            </h2>
+
+            <div className="overflow-x-auto">
+              {attendanceByStudent.length === 0 ? (
+                <p className="text-slate-500 text-sm p-6">Δεν υπάρχουν καταγεγραμμένες παρουσίες ακόμα.</p>
+              ) : (
+                <table className="w-full border-collapse border border-slate-200 print:border-black">
+                  <thead>
+                    <tr className="bg-slate-50 print:bg-slate-100">
+                      {["Μαθητής", "Τμήμα", "Σύνολο", "Παρών", "Απών", "Καθυστ.", "Δικαιολ.", "Παρουσία %"].map(h => (
+                        <th key={h} className="border border-slate-200 p-3 text-left text-[11px] font-bold uppercase print:border-black print:text-black">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceByStudent.map((r: any, i: number) => (
+                      <tr key={i} className="hover:bg-slate-50 print:bg-white">
+                        <td className="border border-slate-200 p-3 text-xs print:border-black font-medium">{r.name}</td>
+                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.className}</td>
+                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.total}</td>
+                        <td className="border border-slate-200 p-3 text-xs print:border-black text-emerald-600 font-bold">{r.present}</td>
+                        <td className="border border-slate-200 p-3 text-xs print:border-black text-rose-600 font-bold">{r.absent}</td>
+                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.late}</td>
+                        <td className="border border-slate-200 p-3 text-xs print:border-black">{r.excused}</td>
+                        <td className={`border border-slate-200 p-3 text-xs print:border-black font-bold ${r.rate < 75 ? "text-rose-600" : "text-emerald-600"}`}>{r.rate}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <div className="hidden print:block fixed bottom-0 left-0 w-full text-center text-[10px] text-slate-500 border-t border-slate-200 pt-2">
         EduFlow ERP - Σύστημα Διαχείρισης Εκπαιδευτηρίου - Εμπιστευτικό
       </div>
