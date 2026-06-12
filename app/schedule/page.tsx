@@ -6,7 +6,6 @@ import { ClassesView } from "./ClassesView";
 import { GridView } from "./GridView";
 import { TeachersView } from "./TeachersView";
 import { RoomsView } from "./RoomsView";
-import { generateSchedule, GenResult } from "../../lib/autoSchedule";
 
 import {
   Users,
@@ -17,6 +16,133 @@ import {
   Zap,
   AlertTriangle,
 } from "lucide-react";
+
+/* =========================================================================
+   AUTO-SCHEDULER (inline — χωρίς εξωτερικό import, για να μη σπάει το build)
+   ========================================================================= */
+
+interface ScheduleItem {
+  id?: string;
+  groupName: string;
+  teacher: string;
+  day: string;
+  time: string;
+  subject: string;
+  room?: string;
+}
+interface GenResult {
+  schedule: ScheduleItem[];
+  unplaced: { lessonName: string; className: string; reason: string; students: number }[];
+  placed: number;
+}
+
+const GEN_DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+
+function genDayHours(day: string): number[] {
+  return day === "Σάββατο"
+    ? [9, 10, 11, 12, 13, 14, 15, 16]
+    : [14, 15, 16, 17, 18, 19, 20, 21, 22];
+}
+const genHH = (h: number) => `${String(h).padStart(2, "0")}:00`;
+
+function genToSet(slots: any[]): Set<string> {
+  const s = new Set<string>();
+  (slots || []).forEach((sl: any) => {
+    const a = parseInt(sl.start, 10);
+    const b = parseInt(sl.end, 10);
+    if (isNaN(a) || isNaN(b)) return;
+    for (let h = a; h < b; h++) s.add(`${sl.day}|${genHH(h)}`);
+  });
+  return s;
+}
+
+function genIsAvailable(availability: any[], lockedSlots: any[], day: string, time: string): boolean {
+  const key = `${day}|${time}`;
+  if (genToSet(lockedSlots).has(key)) return false;
+  if (!availability || availability.length === 0) return true; // κενή = παντού
+  return genToSet(availability).has(key);
+}
+
+function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; }): GenResult {
+  const { students = [], teachers = [], rooms = [] } = data;
+  const teacherName = (t: any) => `${t.lastName || ""} ${t.firstName || ""}`.trim() || "Καθηγητής";
+
+  const pairs: Record<string, { lessonName: string; className: string; students: any[] }> = {};
+  students.forEach((s) => {
+    (s.enrollments || []).forEach((e: any) => {
+      if (!e.lessonName || !e.className) return;
+      const key = `${e.lessonName}|||${e.className}`;
+      if (!pairs[key]) pairs[key] = { lessonName: e.lessonName, className: e.className, students: [] };
+      pairs[key].students.push(s);
+    });
+  });
+
+  const sessions = Object.values(pairs).sort((a, b) => b.students.length - a.students.length);
+
+  const teacherBusy = new Set<string>();
+  const roomBusy = new Set<string>();
+  const groupBusy = new Set<string>();
+  const studentBusy = new Set<string>();
+  const roomNames = (rooms || []).map((r: any) => r.name || r.title || r).filter(Boolean);
+
+  const schedule: ScheduleItem[] = [];
+  const unplaced: GenResult["unplaced"] = [];
+
+  for (const ses of sessions) {
+    const cands = teachers.filter((t) => t.subject === ses.lessonName);
+    const pinned = cands.find((t) => t.isLockedClass && t.assignedClassId === ses.className);
+    const teacher = pinned || cands[0];
+
+    if (!teacher) {
+      unplaced.push({ lessonName: ses.lessonName, className: ses.className, students: ses.students.length, reason: `Δεν υπάρχει καθηγητής για "${ses.lessonName}"` });
+      continue;
+    }
+    const tName = teacherName(teacher);
+
+    let placed = false;
+    for (const day of GEN_DAYS) {
+      for (const h of genDayHours(day)) {
+        const time = genHH(h);
+        const key = `${day}|${time}`;
+
+        if (teacherBusy.has(`${tName}|${key}`)) continue;
+        if (!genIsAvailable(teacher.availability, teacher.lockedSlots, day, time)) continue;
+        if (groupBusy.has(`${ses.className}|${key}`)) continue;
+
+        let allFree = true;
+        for (const st of ses.students) {
+          if (studentBusy.has(`${st.id}|${key}`)) { allFree = false; break; }
+          if (!genIsAvailable(st.availability, st.lockedSlots, day, time)) { allFree = false; break; }
+        }
+        if (!allFree) continue;
+
+        let room: string | undefined;
+        if (roomNames.length > 0) {
+          room = roomNames.find((rn: string) => !roomBusy.has(`${rn}|${key}`));
+          if (!room) continue;
+        }
+
+        teacherBusy.add(`${tName}|${key}`);
+        groupBusy.add(`${ses.className}|${key}`);
+        ses.students.forEach((st) => studentBusy.add(`${st.id}|${key}`));
+        if (room) roomBusy.add(`${room}|${key}`);
+
+        schedule.push({ id: `${ses.className}-${ses.lessonName}-${day}-${time}`, groupName: ses.className, teacher: tName, day, time, subject: ses.lessonName, room });
+        placed = true;
+        break;
+      }
+      if (placed) break;
+    }
+
+    if (!placed) {
+      unplaced.push({ lessonName: ses.lessonName, className: ses.className, students: ses.students.length, reason: "Δεν βρέθηκε ελεύθερο slot χωρίς συγκρούσεις" });
+    }
+  }
+
+  return { schedule, unplaced, placed: schedule.length };
+}
+
+/* ========================================================================= */
 
 type TabType = "classes" | "grid" | "teachers" | "rooms" | "students";
 
@@ -47,7 +173,6 @@ export default function SchedulePage() {
     try {
       setData({
         schedule: JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"),
-        // ✅ κανονικό key τμημάτων (με fallback)
         classes: JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"),
         students: JSON.parse(localStorage.getItem("eduflow_students") || "[]"),
         teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"),
@@ -71,7 +196,6 @@ export default function SchedulePage() {
     };
   }, []);
 
-  // ⚡ ΑΥΤΟΜΑΤΗ ΔΗΜΙΟΥΡΓΙΑ ΠΡΟΓΡΑΜΜΑΤΟΣ
   const handleAutoGenerate = () => {
     const students = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
     const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
@@ -139,7 +263,7 @@ export default function SchedulePage() {
         </button>
       </div>
 
-      {/* Αποτέλεσμα αυτόματης δημιουργίας */}
+      {/* Αποτέλεσμα */}
       {genResult && (
         <div className="mb-6 bg-[#1e2330] border border-slate-800 rounded-2xl p-4 space-y-2">
           <p className="text-emerald-400 font-bold text-sm flex items-center gap-2">
