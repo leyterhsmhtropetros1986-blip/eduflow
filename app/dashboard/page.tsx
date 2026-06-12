@@ -65,10 +65,10 @@ export default function DashboardPage() {
     setData({
       students: JSON.parse(localStorage.getItem("eduflow_students") || "[]"),
       teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"),
-      classes: JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]"),
+      classes: JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"),
       schedule: JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"),
       rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || "[]"),
-      courses: JSON.parse(localStorage.getItem("eduflow_courses") || "[]"),
+      courses: JSON.parse(localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_courses") || "[]"),
     });
     setCurrentGreekDay(DAYS[new Date().getDay()]);
     setLoading(false);
@@ -102,16 +102,18 @@ export default function DashboardPage() {
       .sort((a, b) => (a.time || "").localeCompare(b.time || ""));
   }, [data.schedule, currentGreekDay]);
 
-  // Capacity
+  // Capacity — η τρέχουσα πληρότητα υπολογίζεται από τις εγγραφές μαθητών
   const capacity = useMemo(() => {
     return (data.classes as any[]).slice(0, 6).map((c) => {
       const name = c.name || c.className || "—";
-      const current = c.currentCapacity ?? 0;
-      const max = c.maxCapacity || c.maxStudents || c.capacity || 20;
+      const current = (data.students as any[]).filter((s: any) =>
+        (s.enrollments || []).some((e: any) => e.className === name)
+      ).length;
+      const max = c.maxStudents || c.maxCapacity || c.capacity || 20;
       const perc = max > 0 ? Math.min(Math.round((current / max) * 100), 100) : 0;
       return { name, current, max, perc };
     });
-  }, [data.classes]);
+  }, [data.classes, data.students]);
 
   // AI Insights (τοπικός υπολογισμός)
   const aiInsights = useMemo(() => {
