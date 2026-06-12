@@ -64,11 +64,7 @@ export default function DashboardPage() {
     const today = GR_DAYS[now.getDay()];
     const todayLessons = d.schedule.filter((s: any) => s.day === today).length;
 
-    // Οικονομικά (από eduflow_payments — 0 μέχρι να φτιαχτεί το Finance)
-    const monthRevenue = d.payments.filter((p: any) => p.status === "paid" && thisMonth(parseDate(p.date))).reduce((a: number, p: any) => a + (Number(p.amount) || 0), 0);
-    const pendingPay = d.payments.filter((p: any) => p.status === "pending").reduce((a: number, p: any) => a + (Number(p.amount) || 0), 0);
-
-    return { total: d.students.length, newStudents, activeTeachers, occupancy, attRate, todayLessons, monthRevenue, pendingPay };
+    return { total: d.students.length, newStudents, activeTeachers, occupancy, attRate, todayLessons, classesCount: d.classes.length, enrollments: seats };
   }, [d]);
 
   // ---- Πληρότητα ανά τμήμα ----
@@ -131,8 +127,8 @@ export default function DashboardPage() {
         <Kpi icon={<CalendarDays size={20} />} label="Σημερινά Μαθήματα" value={kpis.todayLessons} color="text-purple-400" />
         <Kpi icon={<Percent size={20} />} label="Πληρότητα" value={`${kpis.occupancy}%`} color="text-amber-400" />
         <Kpi icon={<CheckCircle2 size={20} />} label="Παρουσία" value={`${kpis.attRate}%`} color="text-emerald-400" />
-        <Kpi icon={<Euro size={20} />} label="Έσοδα Μήνα" value={`${kpis.monthRevenue}€`} color="text-indigo-400" note={d.payments.length === 0 ? "Finance module" : undefined} />
-        <Kpi icon={<AlertCircle size={20} />} label="Εκκρεμείς Πληρωμές" value={`${kpis.pendingPay}€`} color="text-rose-400" note={d.payments.length === 0 ? "Finance module" : undefined} />
+        <Kpi icon={<BookOpen size={20} />} label="Τμήματα" value={kpis.classesCount} color="text-amber-400" />
+        <Kpi icon={<GraduationCap size={20} />} label="Εγγραφές Μαθημάτων" value={kpis.enrollments} color="text-emerald-400" />
       </div>
 
       {/* CHARTS */}
