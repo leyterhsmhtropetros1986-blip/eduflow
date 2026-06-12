@@ -6,158 +6,217 @@ import { ClassesView } from "./ClassesView";
 import { GridView } from "./GridView";
 import { TeachersView } from "./TeachersView";
 import { RoomsView } from "./RoomsView";
-
-import {
-  Users,
-  BookOpen,
-  UserCheck,
-  Building2,
-  CalendarDays,
-  Zap,
-  AlertTriangle,
-  Trash2,
-} from "lucide-react";
+import { Users, BookOpen, UserCheck, Building2, CalendarDays, Zap, AlertTriangle, Trash2 } from "lucide-react";
 
 /* =========================================================================
-   AUTO-SCHEDULER (inline) — με υποστήριξη hoursPerWeek ανά τμήμα
+   UTILS & GENERATOR
    ========================================================================= */
 
-interface ScheduleItem {
-  id?: string;
-  groupName: string;
-  teacher: string;
-  day: string;
-  time: string;
-  subject: string;
-  room?: string;
-}
-interface GenResult {
-  schedule: ScheduleItem[];
-  unplaced: { lessonName: string; className: string; reason: string; students: number }[];
-  placed: number;
+const DAYS_MAP = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+
+function shuffleArray(array: any[]) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-const GEN_DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+const makeKey = (id: string, day: string, time: string) => `${id}|${day}|${time}`;
 
 function genDayHours(day: string): number[] {
-  return day === "Σάββατο"
-    ? [9, 10, 11, 12, 13, 14, 15, 16]
-    : [14, 15, 16, 17, 18, 19, 20, 21, 22];
+  return day === "Σάββατο" ? [9, 10, 11, 12, 13, 14, 15, 16] : [14, 15, 16, 17, 18, 19, 20, 21];
 }
-const genHH = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
-function genToSet(slots: any[]): Set<string> {
-  const s = new Set<string>();
-  (slots || []).forEach((sl: any) => {
-    const a = parseInt(sl.start, 10);
-    const b = parseInt(sl.end, 10);
-    if (isNaN(a) || isNaN(b)) return;
-    for (let h = a; h < b; h++) s.add(`${sl.day}|${genHH(h)}`);
-  });
-  return s;
-}
+function genHH(h: number) { return `${String(h).padStart(2, "0")}:00`; }
 
 function genIsAvailable(availability: any[], lockedSlots: any[], day: string, time: string): boolean {
-  const key = `${day}|${time}`;
-  if (genToSet(lockedSlots).has(key)) return false;
-  if (!availability || availability.length === 0) return true;
-  return genToSet(availability).has(key);
+  if (lockedSlots?.some((sl: any) => {
+    const start = parseInt(sl.start, 10);
+    const end = parseInt(sl.end, 10);
+    const h = parseInt(time, 10);
+    return sl.day === day && h >= start && h < end;
+  })) return false;
+  if (availability && availability.length > 0) {
+    return availability.some((sl: any) => {
+        const start = parseInt(sl.start, 10);
+        const end = parseInt(sl.end, 10);
+        const h = parseInt(time, 10);
+        return sl.day === day && h >= start && h < end;
+    });
+  }
+  return true;
 }
 
-function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; }): GenResult {
-  const { students = [], teachers = [], classes = [], rooms = [] } = data;
-  const teacherName = (t: any) => `${t.lastName || ""} ${t.firstName || ""}`.trim() || "Καθηγητής";
+// ΣΥΝΑΡΤΗΣΗ ΒΑΘΜΟΛΟΓΗΣΗΣ
+function calculateScore(schedule: any[], students: any[]): number {
+    let score = schedule.length * 1000; // Reward για κάθε μάθημα
 
-  // Ώρες/εβδομάδα ανά τμήμα
-  const hoursMap: Record<string, number> = {};
-  classes.forEach((c: any) => {
-    const nm = c.name || c.className;
-    if (nm) hoursMap[nm] = Number(c.hoursPerWeek) > 0 ? Number(c.hoursPerWeek) : 1;
-  });
-
-  // Ζευγάρια (μάθημα, τμήμα) από enrollments
-  const pairs: Record<string, { lessonName: string; className: string; students: any[] }> = {};
-  students.forEach((s) => {
-    (s.enrollments || []).forEach((e: any) => {
-      if (!e.lessonName || !e.className) return;
-      const key = `${e.lessonName}|||${e.className}`;
-      if (!pairs[key]) pairs[key] = { lessonName: e.lessonName, className: e.className, students: [] };
-      pairs[key].students.push(s);
+    schedule.forEach(item => {
+        const startHour = parseInt(item.time.split(':')[0]);
+        // Penalty αν το μάθημα είναι αργά (μετά τις 20:00)
+        if (startHour >= 20) score -= 100;
     });
-  });
 
-  const sessions = Object.values(pairs).sort((a, b) => b.students.length - a.students.length);
+    // Penalty για κενά μαθητών (Gaps)
+    students.forEach(s => {
+        DAYS_MAP.forEach(day => {
+            const studentDayItems = schedule.filter(i => i.groupName === s.class && i.day === day)
+                                            .sort((a,b) => parseInt(a.time) - parseInt(b.time));
+            for (let i = 0; i < studentDayItems.length - 1; i++) {
+                const endCurrent = parseInt(studentDayItems[i].time.split('-')[1]);
+                const startNext = parseInt(studentDayItems[i+1].time.split('-')[0]);
+                const gap = startNext - endCurrent;
+                if (gap > 0) score -= (gap * 50); // Κάθε ώρα κενού αφαιρεί σκορ
+            }
+        });
+    });
+    return score;
+}
 
-  const teacherBusy = new Set<string>();
-  const roomBusy = new Set<string>();
-  const groupBusy = new Set<string>();
-  const studentBusy = new Set<string>();
-  const roomNames = (rooms || []).map((r: any) => r.name || r.title || r).filter(Boolean);
+function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; lessons: any[] }): { schedule: any[], unplaced: any[], placed: number } {
+  const { students = [], teachers = [], classes = [], rooms = [], lessons = [] } = data;
+  
+  let bestResult = { schedule: [], unplaced: [], placed: -1, score: -Infinity };
 
-  const schedule: ScheduleItem[] = [];
-  const unplaced: GenResult["unplaced"] = [];
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const teacherBusy = new Set<string>();
+    const roomBusy = new Set<string>();
+    const groupBusy = new Set<string>();
+    const studentBusy = new Set<string>();
+    const teacherLoad: Record<string, number> = {}; // Tracking load
+    
+    const schedule: any[] = [];
+    const unplaced: any[] = [];
+    const roomNames = (rooms || []).map((r: any) => r.name || r.title || r).filter(Boolean);
 
-  for (const ses of sessions) {
-    const cands = teachers.filter((t) => t.subject === ses.lessonName);
-    const pinned = cands.find((t) => t.isLockedClass && t.assignedClassId === ses.className);
-    const teacher = pinned || cands[0];
+    const pairs: Record<string, any> = {};
+    students.forEach((s) => {
+      (s.enrollments || []).forEach((e: any) => {
+        if (!e.lessonName || !e.className) return;
+        const key = `${e.lessonName}|||${e.className}`;
+        if (!pairs[key]) pairs[key] = { lessonName: e.lessonName, className: e.className, students: [] };
+        pairs[key].students.push(s);
+      });
+    });
 
-    if (!teacher) {
-      unplaced.push({ lessonName: ses.lessonName, className: ses.className, students: ses.students.length, reason: `Δεν υπάρχει καθηγητής για "${ses.lessonName}"` });
-      continue;
-    }
-    const tName = teacherName(teacher);
-    const needed = hoursMap[ses.className] || 1;
-    let placedCount = 0;
+    const sessions = shuffleArray(Object.values(pairs));
 
-    for (const day of GEN_DAYS) {
-      for (const h of genDayHours(day)) {
-        if (placedCount >= needed) break;
-        const time = genHH(h);
-        const key = `${day}|${time}`;
+    for (const ses of sessions) {
+      const lessonInfo = lessons.find((l: any) => l.name === ses.lessonName);
+      const distribution = lessonInfo ? [...lessonInfo.distribution].sort((a, b) => b - a) : [1];
+      const minGap = lessonInfo?.minGapDays ?? 1;
+      
+      // Επιλογή καθηγητή με το μικρότερο load
+      const candidates = teachers.filter((t) => t.subject === ses.lessonName);
+      const bestTeacher = candidates.sort((a,b) => {
+          const nameA = `${a.lastName || ""} ${a.firstName || ""}`.trim();
+          const nameB = `${b.lastName || ""} ${b.firstName || ""}`.trim();
+          return (teacherLoad[nameA] || 0) - (teacherLoad[nameB] || 0);
+      })[0];
 
-        if (teacherBusy.has(`${tName}|${key}`)) continue;
-        if (!genIsAvailable(teacher.availability, teacher.lockedSlots, day, time)) continue;
-        if (groupBusy.has(`${ses.className}|${key}`)) continue;
-
-        let allFree = true;
-        for (const st of ses.students) {
-          if (studentBusy.has(`${st.id}|${key}`)) { allFree = false; break; }
-          if (!genIsAvailable(st.availability, st.lockedSlots, day, time)) { allFree = false; break; }
-        }
-        if (!allFree) continue;
-
-        let room: string | undefined;
-        if (roomNames.length > 0) {
-          room = roomNames.find((rn: string) => !roomBusy.has(`${rn}|${key}`));
-          if (!room) continue;
-        }
-
-        teacherBusy.add(`${tName}|${key}`);
-        groupBusy.add(`${ses.className}|${key}`);
-        ses.students.forEach((st) => studentBusy.add(`${st.id}|${key}`));
-        if (room) roomBusy.add(`${room}|${key}`);
-
-        schedule.push({ id: `${ses.className}-${ses.lessonName}-${day}-${time}`, groupName: ses.className, teacher: tName, day, time, subject: ses.lessonName, room });
-        placedCount++;
+      if (!bestTeacher) {
+        unplaced.push({ ...ses, reason: "Δεν υπάρχει καθηγητής" });
+        continue;
       }
-      if (placedCount >= needed) break;
+
+      const tName = `${bestTeacher.lastName || ""} ${bestTeacher.firstName || ""}`.trim();
+      
+      const tempSchedule: any[] = [];
+      const tempBusy = { teacher: [] as string[], group: [] as string[], student: [] as string[], room: [] as string[] };
+      let placedAllBlocks = true;
+      let usedDayIndices: number[] = [];
+
+      for (const blockHours of distribution) {
+        let placedBlock = false;
+        const shuffledDays = shuffleArray(DAYS_MAP);
+
+        for (const day of shuffledDays) {
+          const dayIdx = DAYS_MAP.indexOf(day);
+          if (usedDayIndices.some(uIdx => Math.abs(uIdx - dayIdx) <= minGap)) continue;
+
+          const availableHours = genDayHours(day);
+          const shuffledHours = shuffleArray(availableHours);
+
+          for (const h of shuffledHours) {
+            const isWithinBounds = (h + blockHours - 1) <= Math.max(...availableHours);
+            if (!isWithinBounds) continue;
+
+            const timeSlots = [];
+            for(let i=0; i<blockHours; i++) timeSlots.push(genHH(h + i));
+
+            let possible = true;
+            for (const ts of timeSlots) {
+              const tKey = makeKey(tName, day, ts);
+              const gKey = makeKey(ses.className, day, ts);
+              if (teacherBusy.has(tKey) || groupBusy.has(gKey)) { possible = false; break; }
+              if (!genIsAvailable(bestTeacher.availability, bestTeacher.lockedSlots, day, ts)) { possible = false; break; }
+              
+              for (const st of ses.students) {
+                const sKey = makeKey(st.id, day, ts);
+                if (studentBusy.has(sKey) || !genIsAvailable(st.availability, st.lockedSlots, day, ts)) { possible = false; break; }
+              }
+              
+              if (roomNames.length > 0) {
+                 if (roomNames.every(rn => roomBusy.has(makeKey(rn, day, ts)))) { possible = false; break; }
+              }
+            }
+
+            if (possible) {
+              const room = roomNames.find(rn => !timeSlots.some(ts => roomBusy.has(makeKey(rn, day, ts))));
+              
+              timeSlots.forEach(ts => {
+                const tKey = makeKey(tName, day, ts);
+                const gKey = makeKey(ses.className, day, ts);
+                const rKey = room ? makeKey(room, day, ts) : null;
+                
+                teacherBusy.add(tKey); tempBusy.teacher.push(tKey);
+                groupBusy.add(gKey); tempBusy.group.push(gKey);
+                ses.students.forEach((st: any) => {
+                  const sKey = makeKey(st.id, day, ts);
+                  studentBusy.add(sKey); tempBusy.student.push(sKey);
+                });
+                if (rKey) { roomBusy.add(rKey); tempBusy.room.push(rKey); }
+              });
+
+              tempSchedule.push({ id: `${ses.className}-${ses.lessonName}-${day}-${h}`, groupName: ses.className, teacher: tName, day, time: `${genHH(h)}-${genHH(h + blockHours)}`, subject: ses.lessonName, room });
+              usedDayIndices.push(dayIdx);
+              placedBlock = true;
+              break;
+            }
+          }
+          if (placedBlock) break;
+        }
+        if (!placedBlock) { placedAllBlocks = false; break; }
+      }
+
+      if (placedAllBlocks) {
+        schedule.push(...tempSchedule);
+        teacherLoad[tName] = (teacherLoad[tName] || 0) + 1;
+      } else {
+        tempBusy.teacher.forEach(k => teacherBusy.delete(k));
+        tempBusy.group.forEach(k => groupBusy.delete(k));
+        tempBusy.student.forEach(k => studentBusy.delete(k));
+        tempBusy.room.forEach(k => roomBusy.delete(k));
+        unplaced.push({ ...ses, reason: "Αποτυχία τοποθέτησης ολοκληρωμένου distribution" });
+      }
     }
 
-    if (placedCount === 0) {
-      unplaced.push({ lessonName: ses.lessonName, className: ses.className, students: ses.students.length, reason: "Δεν βρέθηκε ελεύθερο slot χωρίς συγκρούσεις" });
-    } else if (placedCount < needed) {
-      unplaced.push({ lessonName: ses.lessonName, className: ses.className, students: ses.students.length, reason: `Τοποθετήθηκαν μόνο ${placedCount}/${needed} ώρες` });
+    const currentScore = calculateScore(schedule, students);
+    if (currentScore > bestResult.score) {
+      bestResult = { schedule, unplaced, placed: schedule.length, score: currentScore };
     }
   }
 
-  return { schedule, unplaced, placed: schedule.length };
+  return bestResult;
 }
 
-/* ========================================================================= */
+/* =========================================================================
+   COMPONENT
+   ========================================================================= */
 
 type TabType = "classes" | "grid" | "teachers" | "rooms" | "students";
-
 const tabs: { id: TabType; label: string }[] = [
   { id: "classes", label: "🏫 Ανά Τάξη" },
   { id: "grid", label: "📅 Grid" },
@@ -169,53 +228,28 @@ const tabs: { id: TabType; label: string }[] = [
 export default function SchedulePage() {
   const [activeTab, setActiveTab] = useState<TabType>("classes");
   const [loading, setLoading] = useState(true);
-  const [genResult, setGenResult] = useState<GenResult | null>(null);
-
-  const [data, setData] = useState({
-    schedule: [],
-    classes: [],
-    students: [],
-    teachers: [],
-    rooms: [],
-  });
-
+  const [genResult, setGenResult] = useState<any>(null);
+  const [data, setData] = useState({ schedule: [], classes: [], students: [], teachers: [], rooms: [], lessons: [] });
   const [search, setSearch] = useState("");
 
   const loadData = () => {
     try {
       setData({
         schedule: JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"),
-        classes: JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"),
+        classes: JSON.parse(localStorage.getItem("eduflow_classes") || "[]"),
         students: JSON.parse(localStorage.getItem("eduflow_students") || "[]"),
         teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"),
         rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || "[]"),
+        lessons: JSON.parse(localStorage.getItem("eduflow_lessons") || "[]"),
       });
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
-  useEffect(() => {
-    loadData();
-    setLoading(false);
-    window.addEventListener("storage", loadData);
-    window.addEventListener("focus", loadData);
-    return () => {
-      window.removeEventListener("storage", loadData);
-      window.removeEventListener("focus", loadData);
-    };
-  }, []);
+  useEffect(() => { loadData(); setLoading(false); }, []);
 
   const handleAutoGenerate = () => {
-    const students = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
-    const teachers = JSON.parse(localStorage.getItem("eduflow_teachers") || "[]");
-    const classes = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]");
-    const rooms = JSON.parse(localStorage.getItem("eduflow_rooms") || "[]");
-    const existing = JSON.parse(localStorage.getItem("eduflow_schedule") || "[]");
-
-    if (existing.length > 0 && !confirm("Υπάρχει ήδη πρόγραμμα. Να αντικατασταθεί με νέο αυτόματο;")) return;
-
-    const result = generateSchedule({ students, teachers, classes, rooms });
+    if (data.schedule.length > 0 && !confirm("Να αντικατασταθεί το υπάρχον πρόγραμμα;")) return;
+    const result = generateSchedule(data);
     localStorage.setItem("eduflow_schedule", JSON.stringify(result.schedule));
     loadData();
     setGenResult(result);
@@ -223,182 +257,52 @@ export default function SchedulePage() {
   };
 
   const handleClearSchedule = () => {
-    const existing = JSON.parse(localStorage.getItem("eduflow_schedule") || "[]");
-    if (existing.length === 0) {
-      alert("Το πρόγραμμα είναι ήδη άδειο.");
-      return;
+    if (confirm("Καθαρισμός προγράμματος;")) {
+      localStorage.setItem("eduflow_schedule", "[]");
+      loadData();
+      setGenResult(null);
     }
-    if (!confirm(`Να διαγραφεί ΟΛΟ το πρόγραμμα (${existing.length} μαθήματα);`)) return;
-    localStorage.setItem("eduflow_schedule", "[]");
-    loadData();
-    setGenResult(null);
   };
 
-  const filteredClasses = useMemo(() => {
-    if (!search.trim()) return data.classes;
-    const q = search.toLowerCase();
-    return data.classes.filter((cls: any) =>
-      cls.name?.toLowerCase().includes(q) ||
-      cls.grade?.toLowerCase().includes(q) ||
-      cls.course?.toLowerCase().includes(q) ||
-      cls.subject?.toLowerCase().includes(q)
-    );
-  }, [search, data.classes]);
-
-  const filteredStudents = useMemo(() => {
-    if (!search.trim()) return data.students;
-    const q = search.toLowerCase();
-    return data.students.filter((s: any) =>
-      s.name?.toLowerCase().includes(q) ||
-      s.lastName?.toLowerCase().includes(q) ||
-      s.grade?.toLowerCase().includes(q)
-    );
-  }, [search, data.students]);
+  const filteredClasses = useMemo(() => data.classes.filter((c: any) => c.name?.toLowerCase().includes(search.toLowerCase())), [search, data.classes]);
+  const filteredStudents = useMemo(() => data.students.filter((s: any) => s.name?.toLowerCase().includes(search.toLowerCase())), [search, data.students]);
 
   return (
-    <WorkspaceShell
-      title="Master Scheduler"
-      description="Πλήρης διαχείριση προγράμματος φροντιστηρίου"
-    >
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-        <StatCard icon={<BookOpen size={22} />} title="Τμήματα" value={data.classes.length} color="text-indigo-400" />
-        <StatCard icon={<Users size={22} />} title="Μαθητές" value={data.students.length} color="text-emerald-400" />
-        <StatCard icon={<UserCheck size={22} />} title="Καθηγητές" value={data.teachers.length} color="text-sky-400" />
-        <StatCard icon={<Building2 size={22} />} title="Αίθουσες" value={data.rooms.length} color="text-amber-400" />
-        <StatCard icon={<CalendarDays size={22} />} title="Μαθήματα" value={data.schedule.length} color="text-purple-400" />
+    <WorkspaceShell title="Master Scheduler" description="Πλήρης διαχείριση προγράμματος">
+      <div className="flex gap-3 mb-6">
+        <input placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm w-80" />
+        <button onClick={handleAutoGenerate} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><Zap size={16} /> Αυτόματη Δημιουργία</button>
+        <button onClick={handleClearSchedule} className="bg-[#1e2330] text-rose-400 border border-rose-500/30 px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><Trash2 size={16} /> Καθαρισμός</button>
       </div>
 
-      {/* Search + Actions */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-3 sm:items-center">
-        <input
-          placeholder="Αναζήτηση τμήματος / μαθητή..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full lg:w-80 bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm"
-        />
-        <button
-          onClick={handleAutoGenerate}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition whitespace-nowrap"
-        >
-          <Zap size={16} /> Αυτόματη Δημιουργία
-        </button>
-        <button
-          onClick={handleClearSchedule}
-          className="bg-[#1e2330] hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 font-bold text-sm px-5 py-3 rounded-2xl flex items-center justify-center gap-2 transition whitespace-nowrap"
-        >
-          <Trash2 size={16} /> Καθαρισμός Προγράμματος
-        </button>
-      </div>
-
-      {/* Αποτέλεσμα */}
-      {genResult && (
-        <div className="mb-6 bg-[#1e2330] border border-slate-800 rounded-2xl p-4 space-y-2">
-          <p className="text-emerald-400 font-bold text-sm flex items-center gap-2">
-            <Zap size={16} /> Τοποθετήθηκαν {genResult.placed} μαθήματα στο πρόγραμμα.
-          </p>
-          {genResult.unplaced.length > 0 && (
-            <div className="space-y-1">
-              <p className="text-amber-400 text-xs font-bold flex items-center gap-1.5">
-                <AlertTriangle size={13} /> {genResult.unplaced.length} ζητήματα:
-              </p>
-              <div className="space-y-1 max-h-40 overflow-y-auto">
-                {genResult.unplaced.map((u, i) => (
-                  <div key={i} className="text-[11px] text-slate-400 bg-[#0b0e14] border border-slate-800 rounded-lg px-2.5 py-1.5">
-                    <span className="text-slate-200 font-medium">{u.lessonName} → {u.className}</span>
-                    <span className="text-slate-500"> ({u.students} μαθ.) — {u.reason}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 mb-8">
+      <div className="flex gap-2 mb-8">
         {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition ${
-              activeTab === tab.id
-                ? "bg-indigo-600 text-white"
-                : "bg-[#1e2330] text-slate-400"
-            }`}
-          >
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-5 py-2 rounded-xl text-sm font-bold ${activeTab === tab.id ? "bg-indigo-600 text-white" : "bg-[#1e2330] text-slate-400"}`}>
             {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="text-slate-500 text-sm py-10 text-center">
-          Φόρτωση δεδομένων...
-        </div>
-      ) : (
+      {!loading && (
         <>
-          {activeTab === "classes" && (
-            <ClassesView schedule={data.schedule} classes={filteredClasses} students={data.students} />
-          )}
-          {activeTab === "grid" && (
-            <GridView schedule={data.schedule} onUpdate={loadData} />
-          )}
-          {activeTab === "teachers" && (
-            <TeachersView schedule={data.schedule} teachers={data.teachers} />
-          )}
-          {activeTab === "rooms" && (
-            <RoomsView schedule={data.schedule} rooms={data.rooms} />
-          )}
-          {activeTab === "students" && (
-            <StudentsView students={filteredStudents} />
-          )}
+          {activeTab === "classes" && <ClassesView schedule={data.schedule} classes={filteredClasses} students={data.students} />}
+          {activeTab === "grid" && <GridView schedule={data.schedule} onUpdate={loadData} />}
+          {activeTab === "teachers" && <TeachersView schedule={data.schedule} teachers={data.teachers} />}
+          {activeTab === "rooms" && <RoomsView schedule={data.schedule} rooms={data.rooms} />}
+          {activeTab === "students" && <StudentsView students={filteredStudents} />}
         </>
       )}
     </WorkspaceShell>
   );
 }
 
-function StatCard({ icon, title, value, color }: { icon: React.ReactNode; title: string; value: number; color: string; }) {
-  return (
-    <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-5 flex items-center justify-between">
-      <div>
-        <p className="text-[10px] uppercase font-bold text-slate-500">{title}</p>
-        <h3 className={`text-3xl font-black ${color}`}>{value}</h3>
-      </div>
-      <div className="text-slate-700">{icon}</div>
-    </div>
-  );
-}
-
 function StudentsView({ students }: { students: any[] }) {
-  if (!students || students.length === 0) {
-    return (
-      <div className="text-slate-500 text-sm py-10 text-center">
-        Δεν βρέθηκαν μαθητές.
-      </div>
-    );
-  }
-
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {students.map((s: any, i: number) => (
-        <div
-          key={s.id ?? i}
-          className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4 flex items-center gap-3"
-        >
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-bold">
-            {(s.firstName?.[0] || s.lastName?.[0] || s.name?.[0] || "?").toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <p className="text-white text-sm font-bold truncate">
-              {[s.lastName, s.firstName].filter(Boolean).join(" ") || s.name || "Άγνωστος"}
-            </p>
-            <p className="text-slate-500 text-xs truncate">
-              {s.grade || s.class || "—"}
-            </p>
-          </div>
+        <div key={i} className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4 text-white">
+          <p className="font-bold">{[s.lastName, s.firstName].join(" ")}</p>
+          <p className="text-slate-500 text-xs">{s.grade}</p>
         </div>
       ))}
     </div>
