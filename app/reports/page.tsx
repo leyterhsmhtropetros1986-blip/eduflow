@@ -154,6 +154,24 @@ export default function ReportsPage() {
 
   if (!isMounted) return null;
 
+  // 📤 Εξαγωγή όλων των δεδομένων σε στοιχισμένο Excel (πολλά φύλλα)
+  const handleExportExcel = async () => {
+    const { exportWorkbook } = await import("../../lib/exportExcel");
+    const toRows = (objs: any[]) => objs.map((o) => Object.values(o) as any[]);
+    const sheets = [
+      { name: "Μαθητές", headers: getTableHeaders("students"), rows: toRows(getTableData("students", data)) },
+      { name: "Καθηγητές", headers: getTableHeaders("teachers"), rows: toRows(getTableData("teachers", data)) },
+      { name: "Τμήματα", headers: getTableHeaders("classes"), rows: toRows(getTableData("classes", data)) },
+      { name: "CRM", headers: getTableHeaders("crm"), rows: toRows(getTableData("crm", data)) },
+      {
+        name: "Παρουσίες",
+        headers: ["Μαθητής", "Τμήμα", "Σύνολο", "Παρών", "Απών", "Καθυστ.", "Δικαιολ.", "Παρουσία %"],
+        rows: attendanceByStudent.map((r: any) => [r.name, r.className, r.total, r.present, r.absent, r.late, r.excused, `${r.rate}%`]),
+      },
+    ];
+    await exportWorkbook(sheets, `EduFlow-Αναφορά-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   return (
     <WorkspaceShell title="Αναφορές" description="Πλήρης εποπτεία, στατιστική ανάλυση και εξαγωγή αναφορών.">
       
@@ -181,6 +199,12 @@ export default function ReportsPage() {
         </div>
         
         <div className="flex gap-2 w-full md:w-auto">
+          <button 
+            onClick={handleExportExcel}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all"
+          >
+            <FileDown size={16} /> Εξαγωγή Excel
+          </button>
           <button 
             onClick={() => window.print()}
             className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all"
