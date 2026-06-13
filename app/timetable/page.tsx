@@ -60,7 +60,7 @@ export default function TimetablePage() {
   }, [mode, options]); // eslint-disable-line
 
   // Φιλτράρισμα + χτίσιμο πίνακα
-  const { dayMap, hours, hasSaturday, items } = useMemo(() => {
+  const { dayMap, hours, hasSaturday, items, totalHours, subjectsCount } = useMemo(() => {
     const items = schedule.filter((it: any) => {
       if (mode === "teacher") return it.teacher === selected;
       // class mode: value = "name|||grade"
