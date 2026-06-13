@@ -40,6 +40,7 @@ export function WorkspaceShell({ title, description, children }: { title: string
   const [unread, setUnread] = useState(0);
   const [healthCount, setHealthCount] = useState(0);
   const [crmCount, setCrmCount] = useState(0);
+  const [backupDays, setBackupDays] = useState<number | null>(null);
 
   // Δεδομένα για global search
   const [data, setData] = useState<{ students: any[]; teachers: any[]; parents: string[]; classes: any[]; lessons: string[] }>({
@@ -78,6 +79,11 @@ export function WorkspaceShell({ title, description, children }: { title: string
         const d = new Date(l.followUpDate); d.setHours(0, 0, 0, 0);
         return !isNaN(d.getTime()) && d <= today;
       }).length);
+
+      // Backup reminder
+      const lastBackup = localStorage.getItem("eduflow_last_backup");
+      if (!lastBackup) setBackupDays(999);
+      else setBackupDays(Math.floor((Date.now() - new Date(lastBackup).getTime()) / 86400000));
 
       // Δεδομένα αναζήτησης
       const parentSet = new Set<string>();
@@ -203,7 +209,16 @@ export function WorkspaceShell({ title, description, children }: { title: string
           </div>
         </header>
 
-        <div className="p-10 print:p-0">{children}</div>
+        <div className="p-10 print:p-0">
+          {backupDays !== null && backupDays >= 7 && pathname !== "/backup" && (
+            <Link href="/backup" className="block mb-6 p-3 rounded-xl bg-amber-950/30 border border-amber-900/50 hover:bg-amber-950/50 transition print:hidden">
+              <p className="text-xs text-amber-300 font-bold flex items-center gap-2">
+                ⚠ {backupDays >= 999 ? "Δεν έχεις κάνει ποτέ backup!" : `Πέρασαν ${backupDays} μέρες από το τελευταίο backup.`} <span className="text-amber-400 underline">Πήγαινε στο Backup →</span>
+              </p>
+            </Link>
+          )}
+          {children}
+        </div>
       </main>
     </div>
   );

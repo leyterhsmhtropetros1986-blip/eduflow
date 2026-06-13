@@ -1,226 +1,160 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { Download, Upload, Database, AlertTriangle, CheckCircle2, RefreshCw, Loader2, Calendar, FileJson } from "lucide-react";
+import { Download, Upload, CheckCircle2, AlertTriangle, Calendar, HardDrive } from "lucide-react";
 
-const ALLOWED_KEYS = [
-  "eduflow_students",
-  "eduflow_teachers",
-  "eduflow_classes_data",
-  "eduflow_lessons",
-  "eduflow_schedule",
-  "eduflow_rooms",
-  "eduflow_attendance",
-  "eduflow_notifications",
-  "eduflow_payments",
-  "eduflow_crm_leads",
-  "eduflow_backup_metadata" // Για αποθήκευση ιστορικού
+const KEYS = [
+  "eduflow_students", "eduflow_teachers", "eduflow_classes", "eduflow_classes_data",
+  "eduflow_lessons", "eduflow_courses", "eduflow_rooms", "eduflow_schedule",
+  "eduflow_attendance", "eduflow_progress", "eduflow_exams", "eduflow_crm_leads",
+  "eduflow_notifications", "eduflow_parents",
 ];
+const LAST_BACKUP_KEY = "eduflow_last_backup";
+const REMINDER_DAYS = 7;
 
-const KEY_LABELS: Record<string, string> = {
-  eduflow_students: "Μαθητές",
-  eduflow_teachers: "Καθηγητές",
-  eduflow_classes_data: "Τμήματα",
-  eduflow_lessons: "Μαθήματα",
-  eduflow_schedule: "Πρόγραμμα",
-  eduflow_rooms: "Αίθουσες",
-  eduflow_attendance: "Παρουσίες",
-  eduflow_notifications: "Ειδοποιήσεις",
-  eduflow_payments: "Πληρωμές",
-  eduflow_crm_leads: "CRM Leads",
+const LABELS: Record<string,string> = {
+  eduflow_students: "Μαθητές", eduflow_teachers: "Καθηγητές", eduflow_classes: "Τμήματα", eduflow_classes_data: "Τμήματα (data)",
+  eduflow_lessons: "Μαθήματα", eduflow_courses: "Μαθήματα (legacy)", eduflow_rooms: "Αίθουσες", eduflow_schedule: "Πρόγραμμα",
+  eduflow_attendance: "Παρουσίες", eduflow_progress: "Πρόοδος", eduflow_exams: "Διαγωνίσματα", eduflow_crm_leads: "CRM Leads",
+  eduflow_notifications: "Ειδοποιήσεις", eduflow_parents: "Γονείς",
 };
 
-interface BackupMeta { lastBackup: string; version: number; }
-
 export default function BackupPage() {
-  const [mounted, setMounted] = useState(false);
-  const [keys, setKeys] = useState<{ key: string; label: string; count: number }[]>([]);
-  const [meta, setMeta] = useState<BackupMeta | null>(null);
-  const [status, setStatus] = useState<{ type: "ok" | "err" | "loading", text: string } | null>(null);
-  const [importMode, setImportMode] = useState<"merge" | "replace">("replace");
-  const [isDragging, setIsDragging] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+  const [lastBackup, setLastBackup] = useState<string | null>(null);
+  const [stats, setStats] = useState<Record<string, number>>({});
+  const [totalSize, setTotalSize] = useState(0);
+  const [message, setMessage] = useState("");
 
-  const scan = () => {
-    const found: any[] = [];
-    ALLOWED_KEYS.filter(k => k !== "eduflow_backup_metadata").forEach((k) => {
-      let count = 0;
+  const computeStats = () => {
+    const s: Record<string, number> = {};
+    let total = 0;
+    KEYS.forEach((k) => {
+      const raw = localStorage.getItem(k);
+      if (!raw) return;
       try {
-        const raw = localStorage.getItem(k);
-        const parsed = raw ? JSON.parse(raw) : null;
-        count = Array.isArray(parsed) ? parsed.length : parsed ? 1 : 0;
-      } catch { count = 0; }
-      found.push({ key: k, label: KEY_LABELS[k] || k, count });
+        const d = JSON.parse(raw);
+        if (Array.isArray(d)) s[k] = d.length;
+        else if (typeof d === "object" && d !== null) s[k] = Object.keys(d).length;
+        else s[k] = 1;
+        total += raw.length;
+      } catch {}
     });
-    setKeys(found);
-
-    const m = localStorage.getItem("eduflow_backup_metadata");
-    if (m) setMeta(JSON.parse(m));
+    setStats(s); setTotalSize(total);
   };
 
   useEffect(() => {
-    setMounted(true);
-    scan();
+    setIsMounted(true);
+    setLastBackup(localStorage.getItem(LAST_BACKUP_KEY));
+    computeStats();
   }, []);
 
-  const totalRecords = keys.reduce((acc, k) => acc + k.count, 0);
+  const daysSince = useMemo(() => {
+    if (!lastBackup) return null;
+    return Math.floor((Date.now() - new Date(lastBackup).getTime()) / 86400000);
+  }, [lastBackup]);
+  const needs = daysSince === null || daysSince >= REMINDER_DAYS;
 
-  const handleExport = () => {
-    try {
-      setStatus({ type: "loading", text: "Προετοιμασία backup..." });
-      
-      const data: Record<string, any> = {};
-      ALLOWED_KEYS.forEach((k) => {
-        const val = localStorage.getItem(k);
-        try { data[k] = val ? JSON.parse(val) : []; } catch { data[k] = val; }
-      });
-
-      const payload = {
-        app: "eduflow",
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        recordCount: totalRecords,
-        data,
-      };
-
-      // Save metadata locally
-      localStorage.setItem("eduflow_backup_metadata", JSON.stringify({ lastBackup: payload.exportedAt, version: 1 }));
-
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `eduflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      setStatus({ type: "ok", text: "Το backup ολοκληρώθηκε." });
-      scan();
-    } catch {
-      setStatus({ type: "err", text: "Σφάλμα κατά την εξαγωγή." });
-    }
+  const handleBackup = () => {
+    const backup: any = { _meta: { version: "1.0", createdAt: new Date().toISOString(), app: "EduFlow" } };
+    KEYS.forEach((k) => { const raw = localStorage.getItem(k); if (raw) { try { backup[k] = JSON.parse(raw); } catch {} } });
+    const name = `eduflow-backup-${new Date().toISOString().slice(0,10)}.json`;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+    a.download = name; a.click();
+    const now = new Date().toISOString();
+    localStorage.setItem(LAST_BACKUP_KEY, now); setLastBackup(now);
+    setMessage(`✓ Backup ολοκληρώθηκε: ${name}`);
+    setTimeout(() => setMessage(""), 4000);
   };
 
-  const processImport = (file: File) => {
-    const reader = new FileReader();
-    setStatus({ type: "loading", text: "Επεξεργασία αρχείου..." });
-
-    reader.onload = () => {
+  const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    if (!confirm("⚠ Η επαναφορά θα ΑΝΤΙΚΑΤΑΣΤΗΣΕΙ όλα τα τρέχοντα δεδομένα. Σίγουρα;")) { e.target.value = ""; return; }
+    const r = new FileReader();
+    r.onload = () => {
       try {
-        const parsed = JSON.parse(String(reader.result));
-        if (parsed?.app !== "eduflow") throw new Error("Μη έγκυρο αρχείο EduFlow.");
-        
-        // Confirm replace
-        if (importMode === "replace") {
-          if (!confirm("ΠΡΟΣΟΧΗ: Θα αντικατασταθούν όλα τα υπάρχοντα δεδομένα. Συνέχεια;")) {
-            setStatus(null);
-            return;
-          }
-          ALLOWED_KEYS.forEach(k => localStorage.removeItem(k));
-        }
-        
-        const data = parsed.data;
-        Object.keys(data).forEach(k => {
-          if (!ALLOWED_KEYS.includes(k)) return;
-          
-          if (importMode === "merge") {
-            const existingRaw = localStorage.getItem(k);
-            let existingData = [];
-            try { existingData = existingRaw ? JSON.parse(existingRaw) : []; } catch {}
-            
-            if (Array.isArray(existingData) && Array.isArray(data[k])) {
-                const merged = [...existingData, ...data[k]].filter(
-                  (item, index, self) => index === self.findIndex((x) => x.id === item.id)
-                );
-                localStorage.setItem(k, JSON.stringify(merged));
-            } else {
-                localStorage.setItem(k, JSON.stringify(data[k]));
-            }
-          } else {
-            localStorage.setItem(k, JSON.stringify(data[k]));
-          }
-        });
-
-        localStorage.setItem("eduflow_backup_metadata", JSON.stringify({ lastBackup: new Date().toISOString(), version: parsed.version || 1 }));
-        
-        scan();
-        setStatus({ type: "ok", text: "Η επαναφορά ολοκληρώθηκε. Ανανεώνεται..." });
-        setTimeout(() => window.location.reload(), 1000);
-      } catch (e: any) {
-        setStatus({ type: "err", text: e.message || "Σφάλμα εισαγωγής." });
-      }
+        const b = JSON.parse(r.result as string);
+        let n = 0;
+        KEYS.forEach((k) => { if (b[k] !== undefined) { localStorage.setItem(k, JSON.stringify(b[k])); n++; } });
+        setMessage(`✓ Επαναφορά: ${n} σύνολα δεδομένων. Επαναφόρτωση...`);
+        computeStats();
+        setTimeout(() => window.location.reload(), 1500);
+      } catch { alert("⛔ Μη έγκυρο αρχείο."); }
     };
-    reader.readAsText(file);
+    r.readAsText(f);
+    e.target.value = "";
   };
 
-  if (!mounted) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0b0e14] text-slate-500 font-mono text-xs">
-        <Loader2 className="animate-spin mr-2" size={16} /> Φόρτωση συστήματος...
-      </div>
-    );
-  }
+  const fmtSize = (b: number) => b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(2)} MB`;
+  const fmtDate = (iso: string | null) => iso ? new Date(iso).toLocaleString("el-GR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Ποτέ";
+
+  if (!isMounted) return null;
 
   return (
-    <WorkspaceShell title="Αντίγραφα Αφαλείας" description="Διαχείριση ασφάλειας δεδομένων φροντιστηρίου.">
-      
-      {status && (
-        <div className={`mb-6 rounded-2xl p-4 text-sm flex items-center gap-2 border ${status.type === "ok" ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : status.type === "loading" ? "bg-blue-500/10 border-blue-500/20 text-blue-400" : "bg-rose-500/10 border-rose-500/20 text-rose-400"}`}>
-          {status.type === "loading" ? <Loader2 size={16} className="animate-spin" /> : status.type === "ok" ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-          {status.text}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-6 flex flex-col">
-          <h2 className="text-white font-bold text-sm mb-4 flex items-center gap-2"><Download size={16} className="text-emerald-400" /> Εξαγωγή</h2>
-          <button onClick={handleExport} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm py-3 rounded-xl transition flex items-center justify-center gap-2">
-            <Download size={16} /> Λήψη Backup
-          </button>
-        </div>
-
-        <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-6 flex flex-col">
-          <h2 className="text-white font-bold text-sm mb-4 flex items-center gap-2"><Upload size={16} className="text-indigo-400" /> Επαναφορά</h2>
-          <div className="flex gap-2 mb-4">
-             <button onClick={() => setImportMode("replace")} className={`flex-1 text-[10px] font-bold py-2 rounded-lg border ${importMode === "replace" ? "bg-indigo-600 border-indigo-500 text-white" : "bg-[#0b0e14] border-slate-800 text-slate-400"}`}>♻️ Αντικατάσταση</button>
-             <button onClick={() => setImportMode("merge")} className={`flex-1 text-[10px] font-bold py-2 rounded-lg border ${importMode === "merge" ? "bg-indigo-600 border-indigo-500 text-white" : "bg-[#0b0e14] border-slate-800 text-slate-400"}`}>🔄 Συγχώνευση (Merge)</button>
-          </div>
-          <div 
-            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={(e) => { if (e.currentTarget.contains(e.relatedTarget as Node)) return; setIsDragging(false); }}
-            onDrop={(e) => { e.preventDefault(); setIsDragging(false); if(e.dataTransfer.files[0]) processImport(e.dataTransfer.files[0]); }}
-            onClick={() => fileRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition ${isDragging ? "border-indigo-500 bg-indigo-500/10" : "border-slate-700 bg-[#0b0e14] hover:border-slate-600"}`}
-          >
-            <Upload size={24} className="mx-auto text-slate-500 mb-2" />
-            <p className="text-xs text-slate-400">Σύρε το αρχείο εδώ ή κάνε κλικ</p>
-          </div>
-          <input ref={fileRef} type="file" accept=".json" onChange={(e) => e.target.files?.[0] && processImport(e.target.files[0])} className="hidden" />
+    <WorkspaceShell title="Backup & Επαναφορά" description="Αποθήκευσε τα δεδομένα σου τοπικά. Συστήνεται κάθε εβδομάδα.">
+      <div className={`mb-6 p-5 rounded-2xl border flex items-start gap-4 ${needs ? "bg-amber-950/30 border-amber-900/50" : "bg-emerald-950/20 border-emerald-900/40"}`}>
+        {needs ? <AlertTriangle size={28} className="text-amber-400 shrink-0" /> : <CheckCircle2 size={28} className="text-emerald-400 shrink-0" />}
+        <div className="flex-1">
+          <h3 className={`font-black text-base ${needs ? "text-amber-300" : "text-emerald-300"}`}>
+            {needs ? (lastBackup ? "⚠ Συστήνεται νέο backup" : "⚠ Δεν έχεις κάνει ποτέ backup!") : "✓ Τα δεδομένα σου είναι ασφαλή"}
+          </h3>
+          <p className="text-xs text-slate-400 mt-1">
+            Τελευταίο backup: <span className="text-white font-bold">{fmtDate(lastBackup)}</span>
+            {daysSince !== null && <span> · πριν <span className="font-bold">{daysSince} ημέρες</span></span>}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-1">Τα δεδομένα ζουν τοπικά στον browser. Καθαρισμός cookies/cache = χάνονται όλα. Κάνε backup τακτικά (κάθε {REMINDER_DAYS} μέρες).</p>
         </div>
       </div>
 
-      <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-6">
-        <div className="flex flex-col md:flex-row justify-between md:items-center mb-6 gap-4">
-          <h3 className="text-white font-bold text-sm flex items-center gap-2"><Database size={16} /> Τρέχοντα Δεδομένα</h3>
-          <div className="flex gap-4 text-xs">
-            <div className="text-slate-500">Συνολικές εγγραφές: <span className="text-white font-bold">{totalRecords}</span></div>
-            <div className="text-slate-500 flex items-center gap-1"><Calendar size={12}/> {meta?.lastBackup ? new Date(meta.lastBackup).toLocaleString() : "Κανένα backup"}</div>
-            <div className="text-slate-500">Έκδοση: <span className="text-white font-bold">v{meta?.version || 1}</span></div>
+      {message && <div className="mb-4 p-3 rounded-xl bg-emerald-950/40 border border-emerald-900/50 text-emerald-300 text-sm font-bold">{message}</div>}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <button onClick={handleBackup} className="bg-indigo-600 hover:bg-indigo-500 text-white p-6 rounded-3xl shadow-xl flex items-center gap-4 transition-all">
+          <Download size={32} className="shrink-0" />
+          <div className="text-left">
+            <p className="font-black text-base">Δημιουργία Backup</p>
+            <p className="text-xs text-indigo-200 mt-0.5">Κατεβάζει JSON με όλα τα δεδομένα</p>
           </div>
+        </button>
+        <label className="bg-[#1e2330] hover:bg-[#262d3d] border border-slate-800 text-white p-6 rounded-3xl shadow-xl flex items-center gap-4 cursor-pointer transition-all">
+          <Upload size={32} className="text-emerald-400 shrink-0" />
+          <div className="text-left">
+            <p className="font-black text-base">Επαναφορά από αρχείο</p>
+            <p className="text-xs text-slate-400 mt-0.5">Αντικαθιστά τα τρέχοντα δεδομένα</p>
+          </div>
+          <input type="file" accept=".json" onChange={handleRestore} className="hidden" />
+        </label>
+      </div>
+
+      <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-white font-bold text-sm flex items-center gap-2"><HardDrive size={16} className="text-indigo-400" /> Δεδομένα προς backup</h3>
+          <span className="text-xs text-slate-400">Συνολικό μέγεθος: <span className="text-white font-bold">{fmtSize(totalSize)}</span></span>
         </div>
-        
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {keys.map((k) => (
-            <div key={k.key} className="bg-[#0b0e14] border border-slate-800 p-3 rounded-xl">
-              <p className="text-[10px] uppercase font-bold text-slate-500 truncate">{k.label}</p>
-              <p className="text-lg font-black text-white">{k.count}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {KEYS.filter((k) => stats[k] > 0).map((k) => (
+            <div key={k} className="bg-[#0b0e14] border border-slate-800 rounded-xl px-3 py-2.5">
+              <p className="text-[10px] uppercase text-slate-500 font-bold tracking-wider">{LABELS[k] || k}</p>
+              <p className="text-white font-black text-lg">{stats[k]}</p>
             </div>
           ))}
+          {Object.keys(stats).length === 0 && <p className="col-span-full text-slate-600 text-xs text-center py-4">Δεν υπάρχουν δεδομένα ακόμα.</p>}
         </div>
+      </div>
+
+      <div className="bg-indigo-950/20 border border-indigo-900/40 rounded-3xl p-6">
+        <h3 className="text-indigo-300 font-bold text-sm mb-3 flex items-center gap-2"><Calendar size={16} /> Συστάσεις ασφαλείας</h3>
+        <ul className="space-y-2 text-xs text-slate-300">
+          <li className="flex gap-2"><span className="text-indigo-400">•</span> Κάνε backup <b>κάθε εβδομάδα</b> ή μετά από σημαντικές αλλαγές.</li>
+          <li className="flex gap-2"><span className="text-indigo-400">•</span> Αποθήκευσε τα αρχεία σε <b>Google Drive / Dropbox / OneDrive</b>.</li>
+          <li className="flex gap-2"><span className="text-indigo-400">•</span> Κράτα <b>πολλαπλά</b> backups (τουλάχιστον 3-4 τελευταία).</li>
+          <li className="flex gap-2"><span className="text-indigo-400">•</span> ΜΗΝ καθαρίσεις cookies/cache χωρίς πρόσφατο backup.</li>
+          <li className="flex gap-2"><span className="text-indigo-400">•</span> Όταν είμαστε έτοιμοι, θα μεταφερθούν αυτόματα σε cloud (Supabase).</li>
+        </ul>
       </div>
     </WorkspaceShell>
   );
 }
+  
