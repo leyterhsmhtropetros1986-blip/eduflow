@@ -5,7 +5,7 @@ import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Users, GraduationCap, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 
 const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
-const HOURS = Array.from({ length: 13 }, (_, i) => i + 9); // 9..21
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 9); // 9..22
 const pad = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 // Διαθεσιμότητα μαθητή σε (μέρα, ώρα) — ίδια λογική με τον scheduler

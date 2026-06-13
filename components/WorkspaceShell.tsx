@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   Building, Library, Calendar, CheckCircle2, Briefcase,
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList
+  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer
 } from "lucide-react";
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { href: "/students", label: "Μαθητές", icon: <GraduationCap size={20} /> },
   { href: "/progress", label: "Πρόοδος", icon: <TrendingUp size={20} /> },
   { href: "/teachers", label: "Καθηγητές", icon: <Users size={20} /> },
+  { href: "/teacher-hours", label: "Ώρες Καθηγητών", icon: <Timer size={20} /> },
   { href: "/classes", label: "Τάξεις", icon: <BookOpen size={20} /> },
   { href: "/availability", label: "Διαθεσιμότητα", icon: <Clock size={20} /> },
   { href: "/rooms", label: "Αίθουσες", icon: <Building size={20} /> },

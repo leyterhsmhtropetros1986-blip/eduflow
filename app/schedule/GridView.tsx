@@ -10,7 +10,7 @@ interface GridViewProps {
 
 const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const BASE_HOUR = 9;
-const HOURS = Array.from({ length: 13 }, (_, i) => i + BASE_HOUR); // 9..21
+const HOURS = Array.from({ length: 14 }, (_, i) => i + BASE_HOUR); // 9..22
 const pad = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 const parseTime = (t: string) => {

@@ -21,7 +21,7 @@ function shuffleArray(array: any[]) {
 const makeKey = (id: string, day: string, time: string) => `${id}|${day}|${time}`;
 
 function genDayHours(day: string): number[] {
-  return day === "Σάββατο" ? [9, 10, 11, 12, 13, 14, 15, 16] : [14, 15, 16, 17, 18, 19, 20, 21];
+  return day === "Σάββατο" ? [9, 10, 11, 12, 13, 14, 15, 16] : [14, 15, 16, 17, 18, 19, 20, 21, 22];
 }
 function genHH(h: number) { return `${String(h).padStart(2, "0")}:00`; }
 
@@ -369,4 +369,3 @@ function StudentsView({ students }: { students: any[] }) {
     </div>
   );
 }
-  

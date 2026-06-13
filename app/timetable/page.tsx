@@ -101,7 +101,7 @@ export default function TimetablePage() {
         for (let h = start + 1; h < end; h++) dayMap[it.day][h] = "covered";
       }
     });
-    if (items.length === 0) { minH = 14; maxH = 21; }
+    if (items.length === 0) { minH = 14; maxH = 23; }
     const hours: number[] = [];
     for (let h = minH; h < maxH; h++) hours.push(h);
     const hasSaturday = items.some((it: any) => it.day === "Σάββατο");
