@@ -7,6 +7,23 @@ import { Printer, School, Briefcase } from "lucide-react";
 const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const pad = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
+// Σταθερό χρώμα ανά μάθημα (literal classes ώστε να τα «πιάνει» το Tailwind)
+const PALETTE = [
+  "bg-indigo-600/30 print:bg-indigo-100 border-indigo-500",
+  "bg-emerald-600/30 print:bg-emerald-100 border-emerald-500",
+  "bg-amber-600/30 print:bg-amber-100 border-amber-500",
+  "bg-sky-600/30 print:bg-sky-100 border-sky-500",
+  "bg-rose-600/30 print:bg-rose-100 border-rose-500",
+  "bg-purple-600/30 print:bg-purple-100 border-purple-500",
+  "bg-teal-600/30 print:bg-teal-100 border-teal-500",
+  "bg-pink-600/30 print:bg-pink-100 border-pink-500",
+];
+const colorFor = (subject: string) => {
+  let sum = 0;
+  for (const ch of String(subject || "")) sum += ch.charCodeAt(0);
+  return PALETTE[sum % PALETTE.length];
+};
+
 export default function TimetablePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [schedule, setSchedule] = useState<any[]>([]);
@@ -71,7 +88,12 @@ export default function TimetablePage() {
     const hours: number[] = [];
     for (let h = minH; h < maxH; h++) hours.push(h);
     const hasSaturday = items.some((it: any) => it.day === "Σάββατο");
-    return { dayMap, hours, hasSaturday, items };
+    const totalHours = items.reduce((acc: number, it: any) => {
+      const p = String(it.time).split("-"); const a = parseInt(p[0]); const b = p[1] ? parseInt(p[1]) : a + 1;
+      return acc + (isNaN(a) ? 0 : Math.max(1, b - a));
+    }, 0);
+    const subjectsCount = new Set(items.map((it: any) => it.subject)).size;
+    return { dayMap, hours, hasSaturday, items, totalHours, subjectsCount };
   }, [schedule, mode, selected]);
 
   const visibleDays = hasSaturday ? DAYS : DAYS.slice(0, 5);
@@ -111,11 +133,12 @@ export default function TimetablePage() {
       {/* ΕΠΙΚΕΦΑΛΙΔΑ ΕΚΤΥΠΩΣΗΣ */}
       <div className="hidden print:flex justify-between items-center border-b-2 border-black pb-3 mb-4">
         <h1 className="text-xl font-bold text-black">Εβδομαδιαίο Πρόγραμμα — {selectedLabel}</h1>
-        <p className="text-sm text-black">{new Date().toLocaleDateString("el-GR")}</p>
+        <p className="text-sm text-black">{totalHours} ώρες/εβδ. · {subjectsCount} μαθήματα · {new Date().toLocaleDateString("el-GR")}</p>
       </div>
 
       <h2 className="text-sm font-black uppercase tracking-wider mb-4 text-white print:text-black print:hidden">
         {mode === "class" ? "Τμήμα" : "Καθηγητής"}: <span className="text-indigo-400">{selectedLabel || "—"}</span>
+        {items.length > 0 && <span className="text-slate-500 normal-case font-normal ml-2">· {totalHours} ώρες/εβδ. · {subjectsCount} μαθήματα</span>}
       </h2>
 
       {/* ΠΙΝΑΚΑΣ */}
@@ -137,14 +160,14 @@ export default function TimetablePage() {
             <tbody>
               {hours.map((hour) => (
                 <tr key={hour}>
-                  <td className="border border-slate-800 p-2 text-[11px] font-mono text-slate-400 print:border-black print:text-black text-center bg-[#0b0e14] print:bg-slate-50">{pad(hour)}</td>
+                  <td className="border border-slate-800 p-2 h-14 text-[11px] font-mono text-slate-400 print:border-black print:text-black text-center bg-[#0b0e14] print:bg-slate-50">{pad(hour)}</td>
                   {visibleDays.map((day) => {
                     const cell = dayMap[day][hour];
                     if (cell === "covered") return null;
                     if (cell && cell.item) {
                       const it = cell.item;
                       return (
-                        <td key={day} rowSpan={cell.span} className="border border-slate-800 p-2 align-top print:border-black bg-indigo-950/30 print:bg-indigo-50">
+                        <td key={day} rowSpan={cell.span} className={`border border-slate-800 p-2 align-middle text-center print:border-black border-l-4 ${colorFor(it.subject)}`}>
                           <div className="text-[11px] font-bold text-white print:text-black">{it.subject}</div>
                           <div className="text-[10px] text-indigo-300 print:text-indigo-700">
                             {mode === "class" ? it.teacher : it.groupName}
