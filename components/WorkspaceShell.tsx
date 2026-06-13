@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   Building, Library, Calendar, CheckCircle2, Briefcase,
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer
+  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +19,7 @@ const navItems = [
   { href: "/availability", label: "Διαθεσιμότητα", icon: <Clock size={20} /> },
   { href: "/rooms", label: "Αίθουσες", icon: <Building size={20} /> },
   { href: "/courses", label: "Μαθήματα", icon: <Library size={20} /> },
+  { href: "/library", label: "Βιβλιοθήκη Υλικού", icon: <LibraryIcon size={20} /> },
   { href: "/health", label: "Έλεγχος", icon: <Activity size={20} /> },
   { href: "/schedule", label: "Scheduler", icon: <Calendar size={20} /> },
   { href: "/timetable", label: "Πρόγραμμα", icon: <Printer size={20} /> },
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/crm", label: "CRM", icon: <Briefcase size={20} /> },
   { href: "/parents", label: "Γονείς", icon: <UserCircle size={20} /> },
   { href: "/reports", label: "Αναφορές", icon: <FileText size={20} /> },
+  { href: "/student-report", label: "Αναφορά Μαθητή PDF", icon: <FileBarChart size={20} /> },
   { href: "/backup", label: "Backup", icon: <Database size={20} /> },
 ];
 
