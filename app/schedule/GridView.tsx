@@ -147,7 +147,7 @@ export function GridView({ schedule, onUpdate }: GridViewProps) {
                     key={session.id ?? idx}
                     onClick={(e) => e.stopPropagation()}
                     style={{ flex: span }}
-                    className="relative rounded-lg bg-indigo-600/25 border-l-4 border-indigo-500 p-2 pointer-events-auto overflow-hidden"
+                    className="relative rounded-lg bg-indigo-600/25 border-l-4 border-indigo-500 p-2 pointer-events-auto overflow-hidden flex flex-col justify-center"
                   >
                     <button onClick={(e) => { e.stopPropagation(); removeSession(session); }} className="absolute top-1 right-1 text-slate-400 hover:text-rose-400" title="Διαγραφή"><X size={11} /></button>
                     <p className="text-[11px] font-bold text-white truncate pr-4">{session.groupName}</p>
@@ -204,4 +204,3 @@ export function GridView({ schedule, onUpdate }: GridViewProps) {
     </div>
   );
 }
-

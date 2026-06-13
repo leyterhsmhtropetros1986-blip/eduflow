@@ -156,6 +156,12 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
             // ⛔ διαφορετική μέρα ανά μπλοκ ίδιου μαθήματος
             if (usedDayIndices.some(uIdx => Math.abs(uIdx - dayIdx) < minGap)) continue;
             const availableHours = genDayHours(day);
+            // ⛔ Όριο 4 ωρών/μέρα ανά μαθητή (συνολικά σε όλα τα μαθήματα)
+            const exceedsDaily = ses.students.some((st: any) => {
+              const cur = availableHours.filter((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh)))).length;
+              return cur + blockHours > 4;
+            });
+            if (exceedsDaily) continue;
             // Γυμνάσιο: νωρίτερες ώρες πρώτα. Λύκειο/άλλο: αργότερες ώρες πρώτα.
             const orderedHours = [...availableHours].sort((a, b) => (isGym ? a - b : b - a));
             for (const h of orderedHours) {
@@ -191,7 +197,7 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
                   });
                   if (rKey) { roomBusy.add(rKey); tempBusy.room.push(rKey); }
                 });
-                tempSchedule.push({ id: `${ses.className}-${ses.lessonName}-${day}-${h}`, groupName: ses.className, teacher: tName, day, time: `${genHH(h)}-${genHH(h + blockHours)}`, subject: ses.lessonName, room });
+                tempSchedule.push({ id: `${ses.className}-${ses.lessonName}-${day}-${h}`, groupName: ses.className, grade: sesGrade, teacher: tName, day, time: `${genHH(h)}-${genHH(h + blockHours)}`, subject: ses.lessonName, room });
                 usedDayIndices.push(dayIdx);
                 placedBlock = true;
                 break;

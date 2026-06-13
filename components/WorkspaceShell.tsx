@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, Users, GraduationCap, BookOpen, 
   Building, Library, Calendar, CheckCircle2, Briefcase, 
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer
+  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send
 } from "lucide-react";
 
 const navItems = [
@@ -21,6 +21,7 @@ const navItems = [
   { href: "/timetable", label: "Πρόγραμμα", icon: <Printer size={20} /> },
   { href: "/attendance", label: "Παρουσίες", icon: <CheckCircle2 size={20} /> },
   { href: "/notifications", label: "Ειδοποιήσεις", icon: <Bell size={20} /> },
+  { href: "/messages", label: "Επικοινωνία", icon: <Send size={20} /> },
   { href: "/crm", label: "CRM", icon: <Briefcase size={20} /> },
   { href: "/parents", label: "Γονείς", icon: <UserCircle size={20} /> },
   { href: "/reports", label: "Αναφορές", icon: <FileText size={20} /> },

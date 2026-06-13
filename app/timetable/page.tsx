@@ -23,21 +23,35 @@ export default function TimetablePage() {
     setTeachers(JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"));
   }, []);
 
-  const classNames = useMemo(() => classes.map((c: any) => c.name || c.className).filter(Boolean), [classes]);
+  // Τμήματα με διαφοροποίηση τάξης (π.χ. Β1 Β Γυμνασίου vs Β1 Β Λυκείου)
+  const classOptions = useMemo(() => classes.map((c: any) => {
+    const name = c.name || c.className || "";
+    const grade = c.grade || "";
+    return { value: `${name}|||${grade}`, name, grade, label: grade ? `${name} — ${grade}` : name };
+  }).filter((o: any) => o.name), [classes]);
   const teacherNames = useMemo(() => teachers.map((t: any) => `${t.lastName || ""} ${t.firstName || ""}`.trim()).filter(Boolean), [teachers]);
-  const options = mode === "class" ? classNames : teacherNames;
+  const options = mode === "class" ? classOptions.map((o: any) => ({ value: o.value, label: o.label })) : teacherNames.map((n: string) => ({ value: n, label: n }));
+
+  // Ετικέτα επιλογής για επικεφαλίδα
+  const selectedLabel = options.find((o: any) => o.value === selected)?.label || selected;
 
   // Αυτόματη επιλογή πρώτης τιμής όταν αλλάζει mode
   useEffect(() => {
-    if (options.length && !options.includes(selected)) setSelected(options[0]);
-    if (!options.length) setSelected("");
+    const vals = options.map((o: any) => o.value);
+    if (vals.length && !vals.includes(selected)) setSelected(vals[0]);
+    if (!vals.length) setSelected("");
   }, [mode, options]); // eslint-disable-line
 
   // Φιλτράρισμα + χτίσιμο πίνακα
   const { dayMap, hours, hasSaturday, items } = useMemo(() => {
-    const items = schedule.filter((it: any) =>
-      mode === "class" ? it.groupName === selected : it.teacher === selected
-    );
+    const items = schedule.filter((it: any) => {
+      if (mode === "teacher") return it.teacher === selected;
+      // class mode: value = "name|||grade"
+      const [nm, gr] = String(selected).split("|||");
+      if (it.groupName !== nm) return false;
+      // Αν το πρόγραμμα έχει grade, ταίριαξέ το· αλλιώς (παλιά δεδομένα) δέξου το.
+      return !gr || !it.grade || it.grade === gr;
+    });
     const dayMap: Record<string, Record<number, any>> = {};
     DAYS.forEach((d) => (dayMap[d] = {}));
     let minH = 24, maxH = 0;
@@ -87,7 +101,7 @@ export default function TimetablePage() {
           </button>
         </div>
         <select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 bg-[#0b0e14] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500 cursor-pointer">
-          {options.length === 0 ? <option value="">— Δεν υπάρχουν δεδομένα —</option> : options.map((o) => <option key={o} value={o}>{o}</option>)}
+          {options.length === 0 ? <option value="">— Δεν υπάρχουν δεδομένα —</option> : options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
         <button onClick={() => window.print()} disabled={!selected} className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white px-6 py-2.5 rounded-xl text-xs font-bold">
           <Printer size={14} /> Εκτύπωση
@@ -96,12 +110,12 @@ export default function TimetablePage() {
 
       {/* ΕΠΙΚΕΦΑΛΙΔΑ ΕΚΤΥΠΩΣΗΣ */}
       <div className="hidden print:flex justify-between items-center border-b-2 border-black pb-3 mb-4">
-        <h1 className="text-xl font-bold text-black">Εβδομαδιαίο Πρόγραμμα — {selected}</h1>
+        <h1 className="text-xl font-bold text-black">Εβδομαδιαίο Πρόγραμμα — {selectedLabel}</h1>
         <p className="text-sm text-black">{new Date().toLocaleDateString("el-GR")}</p>
       </div>
 
       <h2 className="text-sm font-black uppercase tracking-wider mb-4 text-white print:text-black print:hidden">
-        {mode === "class" ? "Τμήμα" : "Καθηγητής"}: <span className="text-indigo-400">{selected || "—"}</span>
+        {mode === "class" ? "Τμήμα" : "Καθηγητής"}: <span className="text-indigo-400">{selectedLabel || "—"}</span>
       </h2>
 
       {/* ΠΙΝΑΚΑΣ */}
