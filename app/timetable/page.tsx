@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { Printer, School, Briefcase } from "lucide-react";
+import { Printer, School, Briefcase, GraduationCap } from "lucide-react";
 
 const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 const pad = (h: number) => `${String(h).padStart(2, "0")}:00`;
@@ -29,8 +29,9 @@ export default function TimetablePage() {
   const [schedule, setSchedule] = useState<any[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [teachers, setTeachers] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
 
-  const [mode, setMode] = useState<"class" | "teacher">("class");
+  const [mode, setMode] = useState<"class" | "teacher" | "student">("class");
   const [selected, setSelected] = useState("");
 
   useEffect(() => {
@@ -38,7 +39,14 @@ export default function TimetablePage() {
     setSchedule(JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"));
     setClasses(JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]"));
     setTeachers(JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"));
+    setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
   }, []);
+
+  // Μαθητές (ταξινομημένοι) για το dropdown
+  const studentOptions = useMemo(() => [...students]
+    .sort((a: any, b: any) => (a.lastName || "").localeCompare(b.lastName || "", "el"))
+    .map((s: any) => ({ value: s.id, label: `${s.lastName || ""} ${s.firstName || ""}`.trim() || "—", student: s })), [students]);
+  const studentsById = useMemo(() => { const m: Record<string, any> = {}; students.forEach((s: any) => { m[s.id] = s; }); return m; }, [students]);
 
   // Τμήματα με διαφοροποίηση τάξης (π.χ. Β1 Β Γυμνασίου vs Β1 Β Λυκείου)
   const classOptions = useMemo(() => classes.map((c: any) => {
@@ -47,7 +55,11 @@ export default function TimetablePage() {
     return { value: `${name}|||${grade}`, name, grade, label: grade ? `${name} — ${grade}` : name };
   }).filter((o: any) => o.name), [classes]);
   const teacherNames = useMemo(() => teachers.map((t: any) => `${t.lastName || ""} ${t.firstName || ""}`.trim()).filter(Boolean), [teachers]);
-  const options = mode === "class" ? classOptions.map((o: any) => ({ value: o.value, label: o.label })) : teacherNames.map((n: string) => ({ value: n, label: n }));
+  const options = mode === "class"
+    ? classOptions.map((o: any) => ({ value: o.value, label: o.label }))
+    : mode === "teacher"
+      ? teacherNames.map((n: string) => ({ value: n, label: n }))
+      : studentOptions.map((o: any) => ({ value: o.value, label: o.label }));
 
   // Ετικέτα επιλογής για επικεφαλίδα
   const selectedLabel = options.find((o: any) => o.value === selected)?.label || selected;
@@ -63,10 +75,15 @@ export default function TimetablePage() {
   const { dayMap, hours, hasSaturday, items, totalHours, subjectsCount } = useMemo(() => {
     const items = schedule.filter((it: any) => {
       if (mode === "teacher") return it.teacher === selected;
+      if (mode === "student") {
+        const st = studentsById[selected];
+        if (!st) return false;
+        // Ο μαθητής παρακολουθεί το session αν έχει εγγραφή (μάθημα + τμήμα) που ταιριάζει
+        return (st.enrollments || []).some((e: any) => e.className === it.groupName && e.lessonName === it.subject);
+      }
       // class mode: value = "name|||grade"
       const [nm, gr] = String(selected).split("|||");
       if (it.groupName !== nm) return false;
-      // Αν το πρόγραμμα έχει grade, ταίριαξέ το· αλλιώς (παλιά δεδομένα) δέξου το.
       return !gr || !it.grade || it.grade === gr;
     });
     const dayMap: Record<string, Record<number, any>> = {};
@@ -94,7 +111,7 @@ export default function TimetablePage() {
     }, 0);
     const subjectsCount = new Set(items.map((it: any) => it.subject)).size;
     return { dayMap, hours, hasSaturday, items, totalHours, subjectsCount };
-  }, [schedule, mode, selected]);
+  }, [schedule, mode, selected, studentsById]);
 
   const visibleDays = hasSaturday ? DAYS : DAYS.slice(0, 5);
 
@@ -121,6 +138,9 @@ export default function TimetablePage() {
           <button onClick={() => setMode("teacher")} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${mode === "teacher" ? "bg-indigo-600 text-white" : "bg-[#0b0e14] text-slate-400 border border-slate-800"}`}>
             <Briefcase size={14} /> Ανά Καθηγητή
           </button>
+          <button onClick={() => setMode("student")} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition ${mode === "student" ? "bg-indigo-600 text-white" : "bg-[#0b0e14] text-slate-400 border border-slate-800"}`}>
+            <GraduationCap size={14} /> Ανά Μαθητή
+          </button>
         </div>
         <select value={selected} onChange={(e) => setSelected(e.target.value)} className="flex-1 bg-[#0b0e14] border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-indigo-500 cursor-pointer">
           {options.length === 0 ? <option value="">— Δεν υπάρχουν δεδομένα —</option> : options.map((o: any) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -137,7 +157,7 @@ export default function TimetablePage() {
       </div>
 
       <h2 className="text-sm font-black uppercase tracking-wider mb-4 text-white print:text-black print:hidden">
-        {mode === "class" ? "Τμήμα" : "Καθηγητής"}: <span className="text-indigo-400">{selectedLabel || "—"}</span>
+        {mode === "class" ? "Τμήμα" : mode === "teacher" ? "Καθηγητής" : "Μαθητής"}: <span className="text-indigo-400">{selectedLabel || "—"}</span>
         {items.length > 0 && <span className="text-slate-500 normal-case font-normal ml-2">· {totalHours} ώρες/εβδ. · {subjectsCount} μαθήματα</span>}
       </h2>
 
@@ -170,7 +190,7 @@ export default function TimetablePage() {
                         <td key={day} rowSpan={cell.span} className={`border border-slate-800 p-2 align-middle text-center print:border-black border-l-4 ${colorFor(it.subject)}`}>
                           <div className="text-[11px] font-bold text-white print:text-black">{it.subject}</div>
                           <div className="text-[10px] text-indigo-300 print:text-indigo-700">
-                            {mode === "class" ? it.teacher : it.groupName}
+                            {mode === "class" ? it.teacher : mode === "teacher" ? it.groupName : `${it.teacher} · ${it.groupName}`}
                           </div>
                           {it.room && <div className="text-[9px] text-slate-400 print:text-slate-600">🚪 {it.room}</div>}
                           <div className="text-[9px] text-slate-500 print:text-slate-500">{it.time}</div>
