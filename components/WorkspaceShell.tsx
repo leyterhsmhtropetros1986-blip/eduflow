@@ -6,12 +6,13 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   Building, Library, Calendar, CheckCircle2, Briefcase,
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw
+  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp
 } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: <LayoutDashboard size={20} /> },
   { href: "/students", label: "Μαθητές", icon: <GraduationCap size={20} /> },
+  { href: "/progress", label: "Πρόοδος", icon: <TrendingUp size={20} /> },
   { href: "/teachers", label: "Καθηγητές", icon: <Users size={20} /> },
   { href: "/classes", label: "Τάξεις", icon: <BookOpen size={20} /> },
   { href: "/availability", label: "Διαθεσιμότητα", icon: <Clock size={20} /> },

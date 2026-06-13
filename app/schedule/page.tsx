@@ -5,7 +5,7 @@ import { ClassesView } from "./ClassesView";
 import { GridView } from "./GridView";
 import { TeachersView } from "./TeachersView";
 import { RoomsView } from "./RoomsView";
-import { Zap, Trash2 } from "lucide-react";
+import { Zap, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 const DAYS_MAP = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
@@ -237,6 +237,32 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
   return bestResult;
 }
 
+// Δείκτες ποιότητας προγράμματος
+function computeQuality(schedule: any[], students: any[]) {
+  const parseT = (t: string) => { const [a, b] = String(t).split("-"); const s = parseInt(a); const e = b ? parseInt(b) : s + 1; return { s, e: isNaN(e) ? s + 1 : e }; };
+  const gapsFor = (sessions: any[]) => {
+    let gaps = 0;
+    DAYS_MAP.forEach((day) => {
+      const items = sessions.filter((i) => i.day === day).map((i) => parseT(i.time)).sort((a, b) => a.s - b.s);
+      for (let i = 0; i < items.length - 1; i++) { const g = items[i + 1].s - items[i].e; if (g > 0) gaps += g; }
+    });
+    return gaps;
+  };
+  let studentGaps = 0;
+  students.forEach((st) => {
+    const sess = schedule.filter((it) => (st.enrollments || []).some((e: any) => e.className === it.groupName && e.lessonName === it.subject));
+    studentGaps += gapsFor(sess);
+  });
+  let teacherGaps = 0;
+  [...new Set(schedule.map((it) => it.teacher))].forEach((name) => { teacherGaps += gapsFor(schedule.filter((it) => it.teacher === name)); });
+  const perDay = DAYS_MAP.map((d) => schedule.filter((it) => it.day === d).length);
+  const active = perDay.filter((n) => n > 0);
+  const mean = active.length ? active.reduce((a, b) => a + b, 0) / active.length : 0;
+  const stdev = active.length ? Math.sqrt(active.reduce((a, b) => a + (b - mean) ** 2, 0) / active.length) : 0;
+  const balanced = mean === 0 ? true : stdev / mean <= 0.6;
+  return { studentGaps, teacherGaps, balanced, perDay };
+}
+
 type TabType = "classes" | "grid" | "teachers" | "rooms" | "students";
 const tabs: { id: TabType; label: string }[] = [
   { id: "classes", label: "🏫 Ανά Τάξη" },
@@ -282,6 +308,7 @@ export default function SchedulePage() {
   };
 
   const filteredClasses = useMemo(() => data.classes.filter((c: any) => c.name?.toLowerCase().includes(search.toLowerCase())), [search, data.classes]);
+  const quality = useMemo(() => computeQuality(data.schedule, data.students), [data.schedule, data.students]);
   const filteredStudents = useMemo(() => data.students.filter((s: any) => s.name?.toLowerCase().includes(search.toLowerCase())), [search, data.students]);
 
   return (
@@ -291,6 +318,13 @@ export default function SchedulePage() {
         <button onClick={handleAutoGenerate} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><Zap size={16} /> Αυτόματη Δημιουργία</button>
         <button onClick={handleClearSchedule} className="bg-[#1e2330] text-rose-400 border border-rose-500/30 px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><Trash2 size={16} /> Καθαρισμός</button>
       </div>
+      {data.schedule.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
+          <QualityRow ok={quality.balanced} label="Ισοκατανομή εβδομάδας" detail={`Ανά μέρα: ${quality.perDay.filter((n) => n > 0).join(" · ") || "—"}`} />
+          <QualityRow ok={quality.studentGaps === 0} label="Ελάχιστα κενά μαθητών" detail={quality.studentGaps === 0 ? "Χωρίς κενά 🎉" : `${quality.studentGaps} ώρες κενά συνολικά`} />
+          <QualityRow ok={quality.teacherGaps === 0} label="Ελάχιστα κενά καθηγητών" detail={quality.teacherGaps === 0 ? "Χωρίς κενά 🎉" : `${quality.teacherGaps} ώρες κενά συνολικά`} />
+        </div>
+      )}
       <div className="flex gap-2 mb-8">
         {tabs.map((tab) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-5 py-2 rounded-xl text-sm font-bold ${activeTab === tab.id ? "bg-indigo-600 text-white" : "bg-[#1e2330] text-slate-400"}`}>
@@ -311,6 +345,18 @@ export default function SchedulePage() {
   );
 }
 
+function QualityRow({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
+  return (
+    <div className={`flex items-start gap-3 p-4 rounded-2xl border ${ok ? "bg-emerald-950/20 border-emerald-900/40" : "bg-amber-950/20 border-amber-900/40"}`}>
+      {ok ? <CheckCircle2 size={18} className="text-emerald-400 shrink-0 mt-0.5" /> : <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />}
+      <div>
+        <p className={`text-xs font-bold ${ok ? "text-emerald-400" : "text-amber-400"}`}>{label}</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">{detail}</p>
+      </div>
+    </div>
+  );
+}
+
 function StudentsView({ students }: { students: any[] }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -323,3 +369,4 @@ function StudentsView({ students }: { students: any[] }) {
     </div>
   );
 }
+  
