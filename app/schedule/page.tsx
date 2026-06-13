@@ -96,6 +96,7 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
   for (let attempt = 0; attempt < 50; attempt++) {
     const teacherBusy = new Set<string>();
     const roomBusy = new Set<string>();
+    const classRoom: Record<string, string> = {}; // 🚪 σταθερή αίθουσα ανά τμήμα (να μην μπερδεύονται)
     const groupBusy = new Set<string>();
     const studentBusy = new Set<string>();
     const teacherLoad: Record<string, number> = {}; // 🏷️ score ανά καθηγητή = προγραμματισμένες ώρες
@@ -184,7 +185,11 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
                 }
               }
               if (possible) {
-                const room = roomNames.find((rn: string) => !timeSlots.some(ts => roomBusy.has(makeKey(rn, day, ts))));
+                // Προτίμησε τη σταθερή αίθουσα του τμήματος (αν είναι ελεύθερη), αλλιώς την πρώτη ελεύθερη
+                const roomFree = (rn: string) => !timeSlots.some((ts) => roomBusy.has(makeKey(rn, day, ts)));
+                const preferred = classRoom[ses.className];
+                let room: string | undefined = preferred && roomFree(preferred) ? preferred : roomNames.find(roomFree);
+                if (room && !classRoom[ses.className]) classRoom[ses.className] = room; // «κλείδωσε» την αίθουσα στο τμήμα
                 timeSlots.forEach(ts => {
                   const tKey = makeKey(tName, day, ts);
                   const gKey = makeKey(ses.className, day, ts);
@@ -263,6 +268,27 @@ function computeQuality(schedule: any[], students: any[]) {
   return { studentGaps, teacherGaps, balanced, perDay };
 }
 
+// Κάλυψη ωρών: σύγκριση δηλωμένων ωρών μαθήματος (weeklyHours) με τις προγραμματισμένες
+function computeCoverage(schedule: any[], students: any[], lessons: any[]) {
+  const lessonHours: Record<string, number> = {};
+  lessons.forEach((l: any) => { const name = typeof l === "string" ? l : l?.name; if (name) lessonHours[name] = typeof l === "object" ? (l.weeklyHours || 0) : 0; });
+  const dur = (t: string) => { const [a, b] = String(t).split("-"); const s = parseInt(a); const e = b ? parseInt(b) : s + 1; return isNaN(s) || isNaN(e) ? 0 : Math.max(0, e - s); };
+  const pairs: Record<string, { className: string; lessonName: string; students: string[] }> = {};
+  students.forEach((st: any) => (st.enrollments || []).forEach((e: any) => {
+    if (!e.className || !e.lessonName) return;
+    const k = `${e.className}|||${e.lessonName}`;
+    (pairs[k] = pairs[k] || { className: e.className, lessonName: e.lessonName, students: [] }).students.push(`${st.lastName || ""} ${st.firstName || ""}`.trim());
+  }));
+  const shortfalls: { className: string; lessonName: string; expected: number; scheduled: number; missing: number; students: string[] }[] = [];
+  Object.values(pairs).forEach((p) => {
+    const expected = lessonHours[p.lessonName] || 0;
+    if (expected <= 0) return;
+    const scheduled = schedule.filter((it) => it.groupName === p.className && it.subject === p.lessonName).reduce((a, it) => a + dur(it.time), 0);
+    if (scheduled < expected) shortfalls.push({ className: p.className, lessonName: p.lessonName, expected, scheduled, missing: expected - scheduled, students: [...new Set(p.students)] });
+  });
+  return { shortfalls };
+}
+
 type TabType = "classes" | "grid" | "teachers" | "rooms" | "students";
 const tabs: { id: TabType; label: string }[] = [
   { id: "classes", label: "🏫 Ανά Τάξη" },
@@ -309,7 +335,8 @@ export default function SchedulePage() {
 
   const filteredClasses = useMemo(() => data.classes.filter((c: any) => c.name?.toLowerCase().includes(search.toLowerCase())), [search, data.classes]);
   const quality = useMemo(() => computeQuality(data.schedule, data.students), [data.schedule, data.students]);
-  const filteredStudents = useMemo(() => data.students.filter((s: any) => s.name?.toLowerCase().includes(search.toLowerCase())), [search, data.students]);
+  const coverage = useMemo(() => computeCoverage(data.schedule, data.students, data.lessons), [data.schedule, data.students, data.lessons]);
+  const filteredStudents = useMemo(() => data.students.filter((s: any) => `${s.lastName || ""} ${s.firstName || ""}`.toLowerCase().includes(search.toLowerCase())), [search, data.students]);
 
   return (
     <WorkspaceShell title="Master Scheduler" description="Πλήρης διαχείριση προγράμματος">
@@ -324,6 +351,27 @@ export default function SchedulePage() {
           <QualityRow ok={quality.studentGaps === 0} label="Ελάχιστα κενά μαθητών" detail={quality.studentGaps === 0 ? "Χωρίς κενά 🎉" : `${quality.studentGaps} ώρες κενά συνολικά`} />
           <QualityRow ok={quality.teacherGaps === 0} label="Ελάχιστα κενά καθηγητών" detail={quality.teacherGaps === 0 ? "Χωρίς κενά 🎉" : `${quality.teacherGaps} ώρες κενά συνολικά`} />
         </div>
+      )}
+      {data.schedule.length > 0 && (
+        coverage.shortfalls.length === 0 ? (
+          <div className="mb-8 flex items-center gap-3 p-4 rounded-2xl border bg-emerald-950/20 border-emerald-900/40">
+            <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
+            <p className="text-xs font-bold text-emerald-400">Όλες οι δηλωμένες ώρες των μαθημάτων καλύφθηκαν πλήρως.</p>
+          </div>
+        ) : (
+          <div className="mb-8 p-4 rounded-2xl border bg-rose-950/20 border-rose-900/50">
+            <div className="flex items-center gap-2 mb-3"><AlertTriangle size={18} className="text-rose-400" /><p className="text-xs font-black text-rose-400 uppercase tracking-wider">Ακάλυπτες ώρες ({coverage.shortfalls.length})</p></div>
+            <div className="space-y-1.5">
+              {coverage.shortfalls.map((s, i) => (
+                <div key={i} className="text-[11px] bg-[#0b0e14] border border-rose-900/30 rounded-xl px-3 py-2">
+                  <span className="text-white font-bold">{s.className} · {s.lessonName}</span>: <span className="text-rose-400 font-bold">{s.scheduled}/{s.expected} ώρες</span> <span className="text-slate-500">(λείπει {s.missing}ω)</span>
+                  <div className="text-slate-500 mt-0.5">Επηρεάζονται: {s.students.slice(0, 6).join(", ")}{s.students.length > 6 ? ` +${s.students.length - 6}` : ""}</div>
+                </div>
+              ))}
+            </div>
+            <p className="text-[10px] text-slate-500 mt-3">Συνήθεις αιτίες: περιορισμένη διαθεσιμότητα μαθητών/καθηγητή, όριο 4 ωρών/μέρα, ή λίγες ελεύθερες αίθουσες. Δοκίμασε ξανά «Αυτόματη Δημιουργία» ή χαλάρωσε περιορισμούς.</p>
+          </div>
+        )
       )}
       <div className="flex gap-2 mb-8">
         {tabs.map((tab) => (

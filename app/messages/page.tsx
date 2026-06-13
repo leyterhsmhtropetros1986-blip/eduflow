@@ -46,6 +46,7 @@ export default function MessagesPage() {
   const [body, setBody] = useState(TEMPLATES[0].body);
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
+  const [singleId, setSingleId] = useState("");
 
   useEffect(() => {
     setIsMounted(true);
@@ -83,6 +84,17 @@ export default function MessagesPage() {
   const bulkEmails = useMemo(() => visible.map((s) => s.parentEmail).filter(Boolean), [visible]);
   const bulkMailto = `mailto:?bcc=${encodeURIComponent(bulkEmails.join(","))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body.replace(/{student}/g, "").replace(/{parent}/g, "γονείς"))}`;
 
+  // Γονείς με email — για μεμονωμένο email (ονοματεπώνυμο — email)
+  const parentOptions = useMemo(() => [...students]
+    .filter((s) => s.parentEmail)
+    .sort((a, b) => (a.parentName || a.lastName || "").localeCompare(b.parentName || b.lastName || "", "el"))
+    .map((s) => ({ id: s.id, label: `${s.parentName || `Γονέας ${s.lastName}`} — ${s.parentEmail}`, student: s })), [students]);
+
+  const singleStudent = students.find((s) => s.id === singleId);
+  const singleMailto = singleStudent
+    ? `mailto:${singleStudent.parentEmail}?subject=${encodeURIComponent(render(subject, singleStudent))}&body=${encodeURIComponent(render(body, singleStudent))}`
+    : "";
+
   if (!isMounted) return null;
 
   return (
@@ -118,6 +130,21 @@ export default function MessagesPage() {
             <Mail size={14} /> Email σε όλους ({bulkEmails.length}) — BCC
           </a>
           <p className="text-[10px] text-slate-500 -mt-2">Το μαζικό email στέλνεται χωρίς προσωποποίηση ({"{student}"} αφαιρείται).</p>
+
+          {/* ΜΕΜΟΝΩΜΕΝΟ EMAIL */}
+          <div className="border-t border-slate-800 pt-4 space-y-2">
+            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-1.5"><Mail size={12} /> Μεμονωμένο Email</label>
+            <select value={singleId} onChange={(e) => setSingleId(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-indigo-500 cursor-pointer">
+              <option value="">Επίλεξε γονέα...</option>
+              {parentOptions.length === 0 ? <option value="" disabled>— Κανένας γονέας με email —</option> : parentOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+            {singleStudent && (
+              <p className="text-[10px] text-slate-500">Προς: <span className="text-slate-300">{singleStudent.parentName}</span> · μαθητής/τρια: <span className="text-slate-300">{singleStudent.firstName} {singleStudent.lastName}</span></p>
+            )}
+            <a href={singleMailto || undefined} className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl text-xs font-bold transition ${singleStudent ? "bg-indigo-600 hover:bg-indigo-500 text-white" : "bg-slate-900 text-slate-600 pointer-events-none"}`}>
+              <Send size={14} /> Αποστολή ατομικού email
+            </a>
+          </div>
         </div>
 
         {/* ΔΕΞΙΑ: ΛΙΣΤΑ ΠΑΡΑΛΗΠΤΩΝ */}
