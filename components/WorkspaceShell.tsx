@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   Building, Library, Calendar, CheckCircle2, Briefcase,
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock
+  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw
 } from "lucide-react";
 
 const navItems = [
@@ -46,6 +46,7 @@ export function WorkspaceShell({ title, description, children }: { title: string
   // Global search UI
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const calc = () => {
@@ -179,7 +180,23 @@ export function WorkspaceShell({ title, description, children }: { title: string
               {unread > 0 && <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">{unread > 99 ? "99+" : unread}</span>}
             </Link>
 
-            <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm">Λ</div>
+            <div className="relative">
+              <button onClick={() => setMenuOpen((v) => !v)} onBlur={() => setTimeout(() => setMenuOpen(false), 150)} className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white font-bold text-sm transition-colors">
+                Λ
+              </button>
+              {menuOpen && (
+                <div className="absolute top-full mt-2 right-0 w-52 bg-[#1e2330] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-30">
+                  <div className="px-4 py-3 border-b border-slate-800">
+                    <p className="text-xs font-bold text-white">EduFlow</p>
+                    <p className="text-[10px] text-slate-500">Διαχειριστής</p>
+                  </div>
+                  <button onMouseDown={() => go("/health")} className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-[#0b0e14] flex items-center gap-2"><Activity size={14} /> Έλεγχος Δεδομένων</button>
+                  <button onMouseDown={() => go("/backup")} className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-[#0b0e14] flex items-center gap-2"><Database size={14} /> Backup / Εξαγωγή</button>
+                  <button onMouseDown={() => go("/reports")} className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-[#0b0e14] flex items-center gap-2"><FileText size={14} /> Αναφορές</button>
+                  <button onMouseDown={() => window.location.reload()} className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-[#0b0e14] flex items-center gap-2 border-t border-slate-800"><RefreshCw size={14} /> Ανανέωση δεδομένων</button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
