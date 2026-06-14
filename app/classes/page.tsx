@@ -150,39 +150,10 @@ export default function ClassesPage() {
         <p className="text-[10px] text-slate-500 mt-2">π.χ. «Α Γυμνασίου» + 6 → δημιουργεί Α1, Α2, Α3, Α4, Α5, Α6</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6">
 
-        {/* ΦΟΡΜΑ */}
-        <div className="bg-[#1e2330] border border-slate-800 p-5 rounded-3xl h-fit lg:sticky lg:top-28 space-y-3">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-indigo-400 font-bold text-xs uppercase flex items-center gap-2 tracking-wider"><Plus size={14} /> {editing ? "Επεξεργασία" : "Νέο Τμήμα"}</h3>
-            {editing && <button onClick={reset} className="text-slate-500 hover:text-rose-400"><X size={14} /></button>}
-          </div>
-
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Τάξη * (υποχρεωτικό)</label>
-            <select value={form.grade} onChange={(e) => handleGradeChange(e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-indigo-500">
-              <option value="">— Επίλεξε —</option>
-              {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Όνομα Τμήματος *</label>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={form.grade ? `π.χ. ${SHORT[form.grade]}1` : "Πρώτα επίλεξε τάξη"} className="w-full bg-[#0b0e14] border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-indigo-500" />
-            {form.grade && <p className="text-[10px] text-slate-500 mt-1">💡 Προτεινόμενο: {nextNameFor(form.grade)}</p>}
-          </div>
-
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Μέγιστος αριθμός μαθητών (προαιρ.)</label>
-            <input type="number" min={1} max={50} value={form.maxStudents ?? ""} onChange={(e) => setForm({ ...form, maxStudents: e.target.value ? +e.target.value : undefined })} className="w-full bg-[#0b0e14] border border-slate-800 p-2.5 rounded-xl text-xs text-white outline-none focus:border-indigo-500" />
-          </div>
-
-          <button onClick={submit} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-xl text-xs font-bold">{editing ? "Αποθήκευση" : "+ Προσθήκη"}</button>
-        </div>
-
-        {/* ΛΙΣΤΑ */}
-        <div className="lg:col-span-2 space-y-4">
+        {/* ΛΙΣΤΑ — full width */}
+        <div className="space-y-4">
           <div className="bg-[#1e2330] border border-slate-800 rounded-2xl p-3 flex gap-2">
             <div className="relative flex-1">
               <Search size={14} className="absolute left-3 top-2.5 text-slate-500" />
@@ -195,12 +166,12 @@ export default function ClassesPage() {
           </div>
 
           {visible.length === 0 ? (
-            <div className="text-center py-16 text-slate-600 text-xs border border-dashed border-slate-800 rounded-2xl">{classes.length === 0 ? "Δεν υπάρχουν τμήματα. Δοκίμασε τη Γρήγορη Δημιουργία πάνω." : "Καμία αντιστοιχία."}</div>
+            <div className="text-center py-16 text-slate-600 text-xs border border-dashed border-slate-800 rounded-2xl">{classes.length === 0 ? "Δεν υπάρχουν τμήματα. Χρησιμοποίησε τη Γρήγορη Δημιουργία πάνω." : "Καμία αντιστοιχία."}</div>
           ) : (
             Object.entries(byGrade).map(([grade, list]) => (
               <div key={grade} className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4">
                 <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 pb-2 border-b border-slate-800 ${grade.includes("Χωρίς") ? "text-amber-400" : "text-indigo-400"}`}>{grade} <span className="text-slate-500 text-[10px] font-normal">· {list.length} τμή{list.length > 1 ? "ματα" : "μα"}</span></h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                   {list.map((c) => (
                     <div key={c.id} className="bg-[#0b0e14] border border-slate-800 rounded-xl p-3 flex items-center gap-2">
                       <BookOpen size={14} className="text-indigo-400 shrink-0" />

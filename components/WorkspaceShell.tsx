@@ -22,7 +22,6 @@ const navGroups = [
     icon: <Database size={14} />,
     items: [
       { href: "/students", label: "Μαθητές", icon: <GraduationCap size={18} /> },
-      { href: "/import", label: "Εισαγωγή από Excel", icon: <Upload size={18} /> },
       { href: "/teachers", label: "Καθηγητές", icon: <Users size={18} /> },
       { href: "/classes", label: "Τάξεις", icon: <BookOpen size={18} /> },
       { href: "/placement", label: "Τοποθέτηση σε Τμήματα", icon: <Move size={18} /> },

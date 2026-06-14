@@ -81,13 +81,32 @@ export default function CoursesPage() {
 
   // Διανομή ωρών — γρήγορες επιλογές
   const setDistribution = (parts: number[]) => setForm({ ...form, distribution: parts, weeklyHours: parts.reduce((a, b) => a + b, 0) });
+  // Διανομές: όλες οι συνδυασμοί μέχρι 7 ώρες/εβδ με max 2 ώρες/μάθημα
   const distributionPresets = [
-    { label: "1ω/εβδ", parts: [1] },
-    { label: "2ω/εβδ (μαζί)", parts: [2] },
-    { label: "2ω (1+1)", parts: [1, 1] },
-    { label: "3ω (2+1)", parts: [2, 1] },
-    { label: "3ω (1+1+1)", parts: [1, 1, 1] },
-    { label: "4ω (2+2)", parts: [2, 2] },
+    // 1 ώρα
+    { label: "1ω", parts: [1] },
+    // 2 ώρες
+    { label: "2ω", parts: [2] },
+    { label: "1+1", parts: [1, 1] },
+    // 3 ώρες
+    { label: "2+1", parts: [2, 1] },
+    { label: "1+1+1", parts: [1, 1, 1] },
+    // 4 ώρες
+    { label: "2+2", parts: [2, 2] },
+    { label: "2+1+1", parts: [2, 1, 1] },
+    { label: "1+1+1+1", parts: [1, 1, 1, 1] },
+    // 5 ώρες
+    { label: "2+2+1", parts: [2, 2, 1] },
+    { label: "2+1+1+1", parts: [2, 1, 1, 1] },
+    { label: "1+1+1+1+1", parts: [1, 1, 1, 1, 1] },
+    // 6 ώρες
+    { label: "2+2+2", parts: [2, 2, 2] },
+    { label: "2+2+1+1", parts: [2, 2, 1, 1] },
+    { label: "2+1+1+1+1", parts: [2, 1, 1, 1, 1] },
+    // 7 ώρες
+    { label: "2+2+2+1", parts: [2, 2, 2, 1] },
+    { label: "2+2+1+1+1", parts: [2, 2, 1, 1, 1] },
+    { label: "2+1+1+1+1+1", parts: [2, 1, 1, 1, 1, 1] },
   ];
 
   const classesByGradeMap = useMemo(() => {
