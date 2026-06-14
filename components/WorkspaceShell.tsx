@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   Building, Library, Calendar, CheckCircle2, Briefcase,
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight, Palette, Target, Move
+  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight, Palette, Target, Move, Upload
 } from "lucide-react";
 
 // ΟΜΑΔΟΠΟΙΗΜΕΝΟ ΜΕΝΟΥ — 5 κατηγορίες
@@ -22,6 +22,7 @@ const navGroups = [
     icon: <Database size={14} />,
     items: [
       { href: "/students", label: "Μαθητές", icon: <GraduationCap size={18} /> },
+      { href: "/import", label: "Εισαγωγή από Excel", icon: <Upload size={18} /> },
       { href: "/teachers", label: "Καθηγητές", icon: <Users size={18} /> },
       { href: "/classes", label: "Τάξεις", icon: <BookOpen size={18} /> },
       { href: "/placement", label: "Τοποθέτηση σε Τμήματα", icon: <Move size={18} /> },
