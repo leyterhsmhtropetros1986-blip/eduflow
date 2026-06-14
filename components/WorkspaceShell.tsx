@@ -36,6 +36,7 @@ const navGroups = [
     items: [
       { href: "/schedule", label: "AI Scheduler", icon: <Bot size={18} /> },
       { href: "/timetable", label: "Εκτυπώσιμο", icon: <Printer size={18} /> },
+      { href: "/calendar", label: "Ημερολόγιο & Αλλαγές", icon: <Calendar size={18} /> },
       { href: "/availability", label: "Διαθεσιμότητα", icon: <Clock size={18} /> },
       { href: "/teacher-hours", label: "Ώρες Καθηγητών", icon: <Timer size={18} /> },
     ],

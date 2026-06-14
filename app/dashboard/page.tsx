@@ -1,189 +1,233 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { 
-  Users, GraduationCap, School, BookOpen, BarChart3, Target, TrendingUp, 
-  Download, Printer, FileText, Mail, Table as TableIcon 
-} from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import Link from "next/link";
+import { WorkspaceShell } from "../../components/WorkspaceShell";
+import { Calendar, CheckCircle2, ClipboardList, Briefcase, AlertTriangle, GraduationCap, Users, BookOpen, TrendingUp, CalendarOff, Plus, ChevronRight, Activity } from "lucide-react";
 
-export default function ReportsPDFPage() {
-  const [students, setStudents] = useState([]);
-  const [teachers, setTeachers] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [schedule, setSchedule] = useState([]);
+const DAY_NAMES = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
-  const reportDate = useMemo(() => new Date(), []);
+const parse = (k: string, fb: any = []) => { try { return JSON.parse(localStorage.getItem(k) || JSON.stringify(fb)); } catch { return fb; } };
+
+export default function DashboardPage() {
+  const [isMounted, setIsMounted] = useState(false);
+  const [data, setData] = useState({ students: [] as any[], teachers: [] as any[], classes: [] as any[], schedule: [] as any[], attendance: [] as any[], exams: [] as any[], holidays: [] as any[], changes: [] as any[], leads: [] as any[] });
+
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayName = DAY_NAMES[new Date().getDay()];
 
   useEffect(() => {
-    setStudents(JSON.parse(localStorage.getItem("eduflow_students") || "[]"));
-    setTeachers(JSON.parse(localStorage.getItem("eduflow_teachers") || "[]"));
-    setClasses(JSON.parse(localStorage.getItem("eduflow_classes_data") || "[]"));
-    setSchedule(JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"));
+    setIsMounted(true);
+    setData({
+      students: parse("eduflow_students"),
+      teachers: parse("eduflow_teachers"),
+      classes: parse("eduflow_classes").length ? parse("eduflow_classes") : parse("eduflow_classes_data"),
+      schedule: parse("eduflow_schedule"),
+      attendance: parse("eduflow_attendance"),
+      exams: parse("eduflow_exams"),
+      holidays: parse("eduflow_holidays"),
+      changes: parse("eduflow_changes"),
+      leads: parse("eduflow_crm_leads"),
+    });
   }, []);
 
-  // --- Logic Helpers ---
-  const classCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    students.forEach((s: any) => { if (s.className) counts[s.className] = (counts[s.className] || 0) + 1; });
-    return counts;
-  }, [students]);
+  // Είναι σήμερα αργία;
+  const todayHoliday = useMemo(() => data.holidays.find((h: any) => h.date === todayISO), [data.holidays, todayISO]);
 
-  const stats = useMemo(() => {
-    const totalCapacity = classes.reduce((sum: number, c: any) => sum + (c.maxStudents || 20), 0);
-    return {
-      avgS: classes.length > 0 ? (students.length / classes.length).toFixed(1) : 0,
-      ratio: teachers.length > 0 ? (students.length / teachers.length).toFixed(1) : 0,
-      occupancy: totalCapacity > 0 ? Math.round((students.length / totalCapacity) * 100) : 0
-    };
-  }, [students, teachers, classes]);
+  // Σημερινά μαθήματα (με αλλαγές)
+  const todayLessons = useMemo(() => {
+    const cancelledIds = new Set(data.changes.filter((c: any) => c.type === "cancel" && c.date === todayISO).map((c: any) => c.scheduleId));
+    const makeups = data.changes.filter((c: any) => (c.type === "makeup" || c.type === "swap") && c.newDate === todayISO);
+    const regular = data.schedule.filter((s: any) => s.day === todayName && !cancelledIds.has(s.id));
+    // Προσθέτω και τις αναπληρώσεις/μεταθέσεις που πέφτουν σήμερα
+    const extras = makeups.map((c: any) => {
+      const orig = data.schedule.find((s: any) => s.id === c.scheduleId);
+      if (!orig) return null;
+      return { ...orig, time: c.newStart ? `${c.newStart}-${c.newStart}` : orig.time, _makeup: true };
+    }).filter(Boolean);
+    return [...regular, ...extras].sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)));
+  }, [data, todayName, todayISO]);
 
-  const insights = useMemo(() => {
-    // Top Subject
-    const subCount: Record<string, number> = {};
-    schedule.forEach((s: any) => subCount[s.subject] = (subCount[s.subject] || 0) + 1);
-    const topSub = Object.entries(subCount).sort((a,b) => b[1] - a[1])[0] || ["-", 0];
+  // Παρουσίες σήμερα — ποιοι έχουν περαστεί
+  const attendanceDone = useMemo(() => {
+    const recs = data.attendance.filter((a: any) => a.date === todayISO);
+    return new Set(recs.map((a: any) => `${a.studentId || a.studentName}-${a.lessonName || a.subject}`));
+  }, [data.attendance, todayISO]);
 
-    // Busiest Teacher
-    const tCount: Record<string, number> = {};
-    schedule.forEach((s: any) => tCount[s.teacher] = (tCount[s.teacher] || 0) + 1);
-    const topTeacher = Object.entries(tCount).sort((a,b) => b[1] - a[1])[0] || ["-", 0];
+  // Επερχόμενα διαγωνίσματα (επόμενες 7 μέρες)
+  const upcomingExams = useMemo(() => {
+    const today = new Date(todayISO); const limit = new Date(today); limit.setDate(today.getDate() + 7);
+    return data.exams
+      .filter((e: any) => { const d = new Date(e.date); return d >= today && d <= limit; })
+      .sort((a: any, b: any) => (a.date + a.start).localeCompare(b.date + b.start));
+  }, [data.exams, todayISO]);
 
-    return { topSub, topTeacher };
-  }, [schedule]);
+  // Επερχόμενες αργίες (επόμενες 30 μέρες)
+  const upcomingHolidays = useMemo(() => {
+    const today = new Date(todayISO); const limit = new Date(today); limit.setDate(today.getDate() + 30);
+    return data.holidays.filter((h: any) => { const d = new Date(h.date); return d >= today && d <= limit; }).sort((a: any, b: any) => a.date.localeCompare(b.date));
+  }, [data.holidays, todayISO]);
 
-  const sortedSchedule = useMemo(() => {
-    const dayOrder: Record<string, number> = { "Δευτέρα": 1, "Τρίτη": 2, "Τετάρτη": 3, "Πέμπτη": 4, "Παρασκευή": 5, "Σάββατο": 6, "Κυριακή": 7 };
-    return [...schedule].sort((a: any, b: any) => (dayOrder[a.day] || 99) - (dayOrder[b.day] || 99));
-  }, [schedule]);
+  // Εκκρεμή CRM follow-ups
+  const overdueFollowUps = useMemo(() => {
+    return data.leads.filter((l: any) => {
+      if (!l.followUpDate || l.status === "Εγγραφή" || l.status === "Χάθηκε") return false;
+      return l.followUpDate <= todayISO;
+    });
+  }, [data.leads, todayISO]);
 
-  // Heatmap Data
-  const days = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
-  const hours = ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"];
+  // Health alerts
+  const healthAlerts = useMemo(() => {
+    const lessonsRaw = parse("eduflow_lessons");
+    const enrollByLesson: Record<string, number> = {};
+    data.students.forEach((s: any) => (s.enrollments || []).forEach((e: any) => { if (e.lessonName) enrollByLesson[e.lessonName] = (enrollByLesson[e.lessonName] || 0) + 1; }));
+    const noHours = lessonsRaw.filter((l: any) => typeof l === "object" && (!l.weeklyHours || !(l.distribution?.length))).length;
+    const lessonNames = lessonsRaw.map((l: any) => typeof l === "string" ? l : l?.name).filter(Boolean);
+    const noTeacher = lessonNames.filter((nm: string) => (enrollByLesson[nm] || 0) > 0 && !data.teachers.some((t: any) => t.subject === nm)).length;
+    return noHours + noTeacher;
+  }, [data]);
 
-  // Export functions
-  const handlePrint = () => window.print();
-  
+  const pendingAttendance = useMemo(() => {
+    let pending = 0;
+    todayLessons.forEach((l: any) => {
+      // Πόσοι μαθητές αυτού του τμήματος δεν έχουν περαστεί
+      const studentsInClass = data.students.filter((s: any) => (s.enrollments || []).some((e: any) => e.className === l.groupName && e.lessonName === l.subject));
+      studentsInClass.forEach((s: any) => {
+        const key = `${s.id}-${l.subject}`;
+        const altKey = `${`${s.firstName} ${s.lastName}`.trim()}-${l.subject}`;
+        if (!attendanceDone.has(key) && !attendanceDone.has(altKey)) pending++;
+      });
+    });
+    return pending;
+  }, [todayLessons, data.students, attendanceDone]);
+
+  if (!isMounted) return null;
+
   return (
-    <div className="relative min-h-screen bg-white text-black p-8 max-w-5xl mx-auto font-sans print:p-0">
-      
-      {/* Export Controls (Hide on Print) */}
-      <div className="flex gap-2 mb-6 print:hidden justify-center bg-gray-100 p-3 rounded-lg">
-        <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"><Printer size={16}/> Εκτύπωση</button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-white border hover:bg-gray-50 transition-colors"><FileText size={16}/> PDF</button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-white border hover:bg-gray-50 transition-colors"><TableIcon size={16}/> Excel</button>
-        <button className="flex items-center gap-2 px-4 py-2 bg-white border hover:bg-gray-50 transition-colors"><Mail size={16}/> Email</button>
+    <WorkspaceShell title="Dashboard" description={`Σήμερα: ${new Date().toLocaleDateString("el-GR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}`}>
+
+      {/* HOLIDAY BANNER */}
+      {todayHoliday && (
+        <div className="mb-6 p-5 rounded-2xl bg-rose-950/30 border border-rose-900/50 flex items-center gap-4">
+          <CalendarOff size={28} className="text-rose-400 shrink-0" />
+          <div>
+            <h2 className="text-rose-300 font-black text-lg">⚠ {todayHoliday.label}</h2>
+            <p className="text-xs text-rose-400/80">Σήμερα είναι {todayHoliday.type === "holiday" ? "αργία" : todayHoliday.type === "closure" ? "κλειστά" : "ειδική ημέρα"}.</p>
+          </div>
+        </div>
+      )}
+
+      {/* KPIs ΣΥΝΟΛΑ */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <Stat label="Μαθητές" value={data.students.length} icon={<GraduationCap size={16} />} href="/students" />
+        <Stat label="Καθηγητές" value={data.teachers.length} icon={<Users size={16} />} href="/teachers" />
+        <Stat label="Τμήματα" value={data.classes.length} icon={<BookOpen size={16} />} href="/classes" />
+        <Stat label="Ώρες/εβδ." value={data.schedule.reduce((acc: number, s: any) => { const [a,b] = String(s.time).split("-"); return acc + (parseInt(b)-parseInt(a) || 0); }, 0)} icon={<TrendingUp size={16} />} href="/schedule" />
       </div>
 
-      <div className="relative z-10">
-        <style jsx global>{`
-          table { page-break-inside: auto; border-collapse: collapse; }
-          tr { page-break-inside: avoid; }
-          .heatmap-cell { transition: background-color 0.3s; }
-        `}</style>
+      {/* QUICK ACTIONS */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-6">
+        <QuickAction href="/students" icon={<Plus size={14} />} label="Νέος μαθητής" color="indigo" />
+        <QuickAction href="/attendance" icon={<CheckCircle2 size={14} />} label="Παρουσίες σήμερα" color="emerald" />
+        <QuickAction href="/calendar" icon={<CalendarOff size={14} />} label="Νέα αλλαγή" color="amber" />
+        <QuickAction href="/schedule" icon={<Activity size={14} />} label="Δημιουργία προγρ." color="purple" />
+      </div>
 
-        {/* Header */}
-        <div className="flex justify-between items-center border-b-4 border-indigo-600 pb-6 mb-8">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-black">EF</div>
-            <div>
-              <h1 className="text-3xl font-black text-indigo-700">EduFlow</h1>
-              <p className="text-gray-500 font-bold uppercase text-xs">Smart Tutoring ERP</p>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ΣΗΜΕΡΑ — μαθήματα + παρουσίες */}
+        <div className="lg:col-span-2 bg-[#1e2330] border border-slate-800 rounded-3xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-white font-bold text-sm flex items-center gap-2"><Calendar size={16} className="text-indigo-400" /> Σήμερα — {todayName}</h3>
+            <div className="flex items-center gap-2 text-[11px]">
+              {pendingAttendance > 0 ? <span className="bg-amber-950/40 text-amber-400 px-2 py-1 rounded font-bold">⏳ {pendingAttendance} εκκρεμείς παρουσίες</span> : todayLessons.length > 0 ? <span className="bg-emerald-950/40 text-emerald-400 px-2 py-1 rounded font-bold">✓ Όλες ΟΚ</span> : null}
             </div>
           </div>
-          <div className="text-right">
-            <h2 className="text-2xl font-bold">REPORT</h2>
-            <p className="text-sm font-mono">{reportDate.toLocaleString("el-GR")}</p>
-          </div>
-        </div>
 
-        {/* Executive Summary */}
-        <div className="grid grid-cols-4 xl:grid-cols-7 gap-3 mb-10">
-           {[
-              { l: "Μαθητές", v: students.length, i: <Users size={18} className="text-blue-600" /> },
-              { l: "Καθηγητές", v: teachers.length, i: <GraduationCap size={18} className="text-purple-600" /> },
-              { l: "Τμήματα", v: classes.length, i: <School size={18} className="text-emerald-600" /> },
-              { l: "Μαθήματα", v: schedule.length, i: <BookOpen size={18} className="text-amber-600" /> },
-              { l: "Μ.Ο. Μ/Τ", v: stats.avgS, i: <BarChart3 size={18} className="text-indigo-600" /> },
-              { l: "Αν. Μ/Κ", v: stats.ratio, i: <Target size={18} className="text-rose-600" /> },
-              { l: "Πληρότητα", v: `${stats.occupancy}%`, i: <TrendingUp size={18} className="text-teal-600" /> }
-            ].map((item, idx) => (
-              <div key={idx} className="bg-gray-50 p-3 rounded-xl border">
-                {item.i}
-                <p className="text-[8px] text-gray-500 uppercase font-bold mt-1">{item.l}</p>
-                <p className="text-md font-black">{item.v}</p>
-              </div>
-            ))}
-        </div>
-
-        {/* Heatmap Section */}
-        <h2 className="text-lg font-bold mb-4 border-l-4 border-indigo-600 pl-2">Heatmap Ωρών Αιχμής</h2>
-        <div className="overflow-x-auto mb-10">
-          <table className="w-full text-xs text-center border">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="p-2">Ώρα</th>
-                {days.map(d => <th key={d} className="p-2">{d.slice(0, 3)}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {hours.map(h => (
-                <tr key={h} className="border-b">
-                  <td className="font-bold p-2 bg-gray-50">{h}</td>
-                  {days.map(d => {
-                    const count = schedule.filter((s:any) => s.day === d && s.time?.startsWith(h.split(':')[0])).length;
-                    const opacity = count === 0 ? "bg-white" : count < 2 ? "bg-indigo-100" : count < 4 ? "bg-indigo-300" : "bg-indigo-600 text-white";
-                    return <td key={d} className={`p-2 ${opacity} heatmap-cell font-bold`}>{count || "-"}</td>
-                  })}
-                </tr>
+          {todayHoliday ? (
+            <p className="text-slate-500 text-sm text-center py-8">🏖 Σήμερα δεν υπάρχουν μαθήματα — {todayHoliday.label}.</p>
+          ) : todayLessons.length === 0 ? (
+            <p className="text-slate-500 text-sm text-center py-8">Δεν υπάρχουν προγραμματισμένα μαθήματα σήμερα.</p>
+          ) : (
+            <div className="space-y-2">
+              {todayLessons.map((l: any) => (
+                <div key={l.id} className="bg-[#0b0e14] border border-slate-800 rounded-xl p-3 flex items-center gap-3">
+                  <div className="font-mono text-xs text-indigo-400 font-bold w-24">{l.time}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-bold text-sm flex items-center gap-2">
+                      {l.subject}
+                      {l._makeup && <span className="text-[9px] bg-emerald-950/50 text-emerald-400 px-2 py-0.5 rounded">ΑΝΑΠΛΗΡΩΣΗ</span>}
+                    </p>
+                    <p className="text-[11px] text-slate-400">{l.groupName} · {l.teacher}{l.room ? ` · 🚪 ${l.room}` : ""}</p>
+                  </div>
+                  <Link href="/attendance" className="text-[10px] bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg font-bold">Παρουσίες</Link>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          )}
         </div>
 
-        {/* Insights Grid */}
-        <h2 className="text-lg font-bold mb-4 border-l-4 border-indigo-600 pl-2">Top Insights</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10 text-xs">
-          <div className="p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-500">
-            <p className="font-bold text-gray-600">Πιο δημοφιλές μάθημα</p>
-            <p className="text-xl font-black text-indigo-700">{insights.topSub[0]}</p>
-          </div>
-          <div className="p-4 bg-emerald-50 rounded-lg border-l-4 border-emerald-500">
-            <p className="font-bold text-gray-600">Πληρότητα</p>
-            <p className="text-xl font-black text-emerald-700">{stats.occupancy}%</p>
-          </div>
-          <div className="p-4 bg-amber-50 rounded-lg border-l-4 border-amber-500">
-            <p className="font-bold text-gray-600">Απασχολημένος Καθηγητής</p>
-            <p className="text-xl font-black text-amber-700">{insights.topTeacher[0]}</p>
-          </div>
-          <div className="p-4 bg-rose-50 rounded-lg border-l-4 border-rose-500">
-            <p className="font-bold text-gray-600">Συνολικές Ώρες/Εβδ</p>
-            <p className="text-xl font-black text-rose-700">{schedule.length}</p>
-          </div>
-        </div>
+        {/* SIDEBAR */}
+        <div className="space-y-4">
+          {/* ALERTS */}
+          {(healthAlerts > 0 || overdueFollowUps.length > 0) && (
+            <div className="bg-amber-950/20 border border-amber-900/40 rounded-3xl p-5">
+              <h3 className="text-amber-300 font-bold text-sm mb-3 flex items-center gap-2"><AlertTriangle size={14} /> Προσοχή</h3>
+              <div className="space-y-2">
+                {healthAlerts > 0 && <Link href="/health" className="block bg-[#0b0e14] border border-amber-900/30 rounded-lg p-2.5 text-xs hover:bg-amber-950/30 transition">⚠ <span className="text-white font-bold">{healthAlerts}</span> <span className="text-slate-400">θέματα στα δεδομένα</span></Link>}
+                {overdueFollowUps.length > 0 && <Link href="/crm" className="block bg-[#0b0e14] border border-amber-900/30 rounded-lg p-2.5 text-xs hover:bg-amber-950/30 transition">📞 <span className="text-white font-bold">{overdueFollowUps.length}</span> <span className="text-slate-400">εκκρεμή follow-ups</span></Link>}
+              </div>
+            </div>
+          )}
 
-        {/* Schedule Table */}
-        <h2 className="text-lg font-bold mb-3 border-l-4 border-indigo-600 pl-2">5. Αναλυτικό Πρόγραμμα</h2>
-        <table className="w-full text-xs mb-10 border">
-          <thead className="bg-gray-100"><tr className="text-left"><th className="p-2">Ώρα</th><th className="p-2">Ημέρα</th><th className="p-2">Μάθημα</th><th className="p-2">Καθηγητής</th><th className="p-2">Αίθουσα</th></tr></thead>
-          <tbody>
-            {sortedSchedule.map((s: any, i: number) => (
-              <tr key={i} className="border-b"><td className="p-2 font-mono">{s.time}</td><td className="p-2">{s.day}</td><td className="p-2 font-bold text-indigo-700">{s.subject}</td><td className="p-2">{s.teacher}</td><td className="p-2">{s.room || "-"}</td></tr>
-            ))}
-          </tbody>
-        </table>
+          {/* ΕΠΕΡΧΟΜΕΝΑ ΔΙΑΓΩΝΙΣΜΑΤΑ */}
+          <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-5">
+            <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-indigo-400" /> Διαγωνίσματα 7 ημερών</h3>
+            {upcomingExams.length === 0 ? <p className="text-slate-500 text-xs">Κανένα.</p> :
+              <div className="space-y-1.5">
+                {upcomingExams.slice(0, 5).map((e: any) => (
+                  <Link key={e.id} href="/exams" className="block bg-[#0b0e14] rounded-lg p-2 text-[11px] hover:bg-slate-800/40">
+                    <p className="text-white font-bold">{e.subject} <span className="text-slate-400 font-normal">· {e.grade}</span></p>
+                    <p className="text-slate-400">{new Date(e.date).toLocaleDateString("el-GR", { weekday: "short", day: "2-digit", month: "2-digit" })} · {e.start}</p>
+                  </Link>
+                ))}
+              </div>
+            }
+          </div>
 
-        {/* Footer */}
-        <div className="mt-20 border-t pt-6 text-center">
-           <div className="flex justify-between items-center text-gray-400 text-[10px] uppercase tracking-widest font-bold">
-              <p>Confidential Document</p>
-              <p>EduFlow ERP | Generated Automatically</p>
-              <p>Version 3.0</p>
-           </div>
-           <div className="absolute bottom-4 left-0 right-0 opacity-10 pointer-events-none select-none text-center">
-              <span className="text-[100px] font-black text-gray-800">EDUFLOW</span>
-           </div>
+          {/* ΕΠΕΡΧΟΜΕΝΕΣ ΑΡΓΙΕΣ */}
+          <div className="bg-[#1e2330] border border-slate-800 rounded-3xl p-5">
+            <h3 className="text-white font-bold text-sm mb-3 flex items-center gap-2"><CalendarOff size={14} className="text-rose-400" /> Επερχόμενες αργίες</h3>
+            {upcomingHolidays.length === 0 ? <p className="text-slate-500 text-xs">Καμία τις επόμενες 30 μέρες.</p> :
+              <div className="space-y-1.5">
+                {upcomingHolidays.slice(0, 5).map((h: any) => (
+                  <div key={h.id} className="bg-[#0b0e14] rounded-lg p-2 text-[11px]">
+                    <p className="text-white font-bold">{h.label}</p>
+                    <p className="text-slate-400">{new Date(h.date).toLocaleDateString("el-GR", { weekday: "short", day: "2-digit", month: "2-digit" })}</p>
+                  </div>
+                ))}
+              </div>
+            }
+          </div>
         </div>
       </div>
-    </div>
+    </WorkspaceShell>
+  );
+}
+
+function Stat({ label, value, icon, href }: { label: string; value: number; icon: any; href: string }) {
+  return (
+    <Link href={href} className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4 hover:border-indigo-500/40 transition group">
+      <div className="flex items-center gap-2 text-slate-400 text-[10px] uppercase font-bold tracking-wider">{icon} {label}</div>
+      <p className="text-2xl font-black text-white mt-1 group-hover:text-indigo-400 transition">{value}</p>
+    </Link>
+  );
+}
+function QuickAction({ href, icon, label, color }: { href: string; icon: any; label: string; color: string }) {
+  const c: Record<string,string> = { indigo: "bg-indigo-950/40 hover:bg-indigo-950/60 text-indigo-400 border-indigo-900/40", emerald: "bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-400 border-emerald-900/40", amber: "bg-amber-950/40 hover:bg-amber-950/60 text-amber-400 border-amber-900/40", purple: "bg-purple-950/40 hover:bg-purple-950/60 text-purple-400 border-purple-900/40" };
+  return (
+    <Link href={href} className={`${c[color]} border rounded-xl p-3 text-xs font-bold flex items-center justify-between gap-2 transition`}>
+      <span className="flex items-center gap-2">{icon} {label}</span>
+      <ChevronRight size={12} />
+    </Link>
   );
 }
