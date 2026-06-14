@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   Building, Library, Calendar, CheckCircle2, Briefcase,
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight
+  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight, Palette, Target, Move
 } from "lucide-react";
 
 // ΟΜΑΔΟΠΟΙΗΜΕΝΟ ΜΕΝΟΥ — 5 κατηγορίες
@@ -24,6 +24,7 @@ const navGroups = [
       { href: "/students", label: "Μαθητές", icon: <GraduationCap size={18} /> },
       { href: "/teachers", label: "Καθηγητές", icon: <Users size={18} /> },
       { href: "/classes", label: "Τάξεις", icon: <BookOpen size={18} /> },
+      { href: "/placement", label: "Τοποθέτηση σε Τμήματα", icon: <Move size={18} /> },
       { href: "/courses", label: "Μαθήματα", icon: <Library size={18} /> },
       { href: "/rooms", label: "Αίθουσες", icon: <Building size={18} /> },
       { href: "/parents", label: "Γονείς", icon: <UserCircle size={18} /> },
@@ -48,6 +49,7 @@ const navGroups = [
     items: [
       { href: "/attendance", label: "Παρουσίες", icon: <CheckCircle2 size={18} /> },
       { href: "/progress", label: "Πρόοδος", icon: <TrendingUp size={18} /> },
+      { href: "/goals", label: "Στόχοι Μαθητών", icon: <Target size={18} /> },
       { href: "/exams", label: "Διαγωνίσματα", icon: <ClipboardList size={18} /> },
       { href: "/library", label: "Βιβλιοθήκη Υλικού", icon: <LibraryIcon size={18} /> },
     ],
@@ -71,6 +73,7 @@ const navGroups = [
       { href: "/reports", label: "Αναφορές", icon: <FileText size={18} /> },
       { href: "/student-report", label: "Αναφορά Μαθητή PDF", icon: <FileBarChart size={18} /> },
       { href: "/backup", label: "Backup", icon: <Database size={18} /> },
+      { href: "/settings", label: "Branding & Ρυθμίσεις", icon: <Palette size={18} /> },
       { href: "/cloud-demo", label: "🌥 Cloud Demo", icon: <Cloud size={18} /> },
     ],
   },
@@ -99,6 +102,15 @@ export function WorkspaceShell({ title, description, children }: { title: string
     } catch {}
     return { main: true, data: true, schedule: true, operations: true, communication: true, system: false };
   });
+
+  // Branding state
+  const [brand, setBrand] = useState<{ name: string; tagline: string; logo: string; primaryColor: string }>({ name: "EduFlow", tagline: "Smart Tutoring ERP", logo: "", primaryColor: "#4f46e5" });
+  useEffect(() => {
+    const load = () => { try { const b = JSON.parse(localStorage.getItem("eduflow_branding") || "{}"); setBrand({ name: b.name || "EduFlow", tagline: b.tagline || "Smart Tutoring ERP", logo: b.logo || "", primaryColor: b.primaryColor || "#4f46e5" }); } catch {} };
+    load();
+    window.addEventListener("storage", load);
+    return () => window.removeEventListener("storage", load);
+  }, []);
 
   useEffect(() => {
     // Άνοιξε αυτόματα το group της τρέχουσας σελίδας
@@ -181,8 +193,13 @@ export function WorkspaceShell({ title, description, children }: { title: string
     <div className="min-h-screen bg-[#0b0e14] flex text-slate-200">
       <aside className="w-64 bg-[#1e2330] flex flex-col border-r border-slate-800 print:hidden">
         <div className="p-6 border-b border-slate-800/50">
-          <div className="text-2xl font-black text-indigo-400">EduFlow</div>
-          <div className="text-slate-500 mt-0.5 text-[10px] font-semibold tracking-wider uppercase">Smart Tutoring ERP</div>
+          <div className="flex items-center gap-2">
+            {brand.logo && <img src={brand.logo} alt="logo" className="w-8 h-8 rounded object-contain" />}
+            <div>
+              <div className="text-2xl font-black" style={{ color: brand.primaryColor }}>{brand.name}</div>
+              <div className="text-slate-500 mt-0.5 text-[10px] font-semibold tracking-wider uppercase">{brand.tagline}</div>
+            </div>
+          </div>
         </div>
 
         <nav className="flex-1 p-3 overflow-y-auto">
