@@ -178,7 +178,7 @@ export default function TeachersPage() {
               <Lock size={12} /> Έχει σταθερές ώρες διαθεσιμότητας
             </label>
             {form.isLockedHours && (
-              <AvailabilityMatrix value={form.availability || []} onChange={(av: any) => setForm({ ...form, availability: av })} />
+              <AvailabilityMatrix availability={form.availability || []} onChange={(av: any) => setForm({ ...form, availability: av })} />
             )}
           </div>
 
