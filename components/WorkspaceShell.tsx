@@ -9,13 +9,23 @@ import {
   UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight, Palette, Target, Move, Upload
 } from "lucide-react";
 
-// ΟΜΑΔΟΠΟΙΗΜΕΝΟ ΜΕΝΟΥ — 5 κατηγορίες
+// Helper: hex → rgba με alpha
+const hexToRgba = (hex: string, alpha: number = 1): string => {
+  const c = hex.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const navGroups = [
   {
     id: "main",
     label: "Αρχική",
-    items: [{ href: "/", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-      { href: "/workflow", label: "🗺 Workflow", icon: <ClipboardList size={18} /> }],
+    items: [
+      { href: "/", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+      { href: "/workflow", label: "🗺 Workflow", icon: <ClipboardList size={18} /> },
+    ],
   },
   {
     id: "data",
@@ -94,7 +104,6 @@ export function WorkspaceShell({ title, description, children }: { title: string
   const [focused, setFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Ποια group είναι ανοιχτά — αυτόματα ανοιχτό αυτό που περιέχει τη current σελίδα
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return { main: true };
     try {
@@ -104,17 +113,39 @@ export function WorkspaceShell({ title, description, children }: { title: string
     return { main: true, data: true, schedule: true, operations: true, communication: true, system: false };
   });
 
-  // Branding state
-  const [brand, setBrand] = useState<{ name: string; tagline: string; logo: string; primaryColor: string }>({ name: "EduFlow", tagline: "Smart Tutoring ERP", logo: "", primaryColor: "#4f46e5" });
+  // ===== BRANDING =====
+  const [brand, setBrand] = useState<{ name: string; tagline: string; logo: string; primaryColor: string }>({
+    name: "EduFlow", tagline: "Smart Tutoring ERP", logo: "", primaryColor: "#4f46e5",
+  });
+
   useEffect(() => {
-    const load = () => { try { const b = JSON.parse(localStorage.getItem("eduflow_branding") || "{}"); setBrand({ name: b.name || "EduFlow", tagline: b.tagline || "Smart Tutoring ERP", logo: b.logo || "", primaryColor: b.primaryColor || "#4f46e5" }); } catch {} };
+    const load = () => {
+      try {
+        const b = JSON.parse(localStorage.getItem("eduflow_branding") || "{}");
+        setBrand({
+          name: b.name || "EduFlow",
+          tagline: b.tagline || "Smart Tutoring ERP",
+          logo: b.logo || "",
+          primaryColor: b.primaryColor || "#4f46e5",
+        });
+      } catch {}
+    };
     load();
     window.addEventListener("storage", load);
     return () => window.removeEventListener("storage", load);
   }, []);
 
+  // CSS variables για ΟΛΟ το app (κάθε σελίδα μπορεί να χρησιμοποιεί var(--brand-primary))
   useEffect(() => {
-    // Άνοιξε αυτόματα το group της τρέχουσας σελίδας
+    const root = document.documentElement;
+    root.style.setProperty("--brand-primary", brand.primaryColor);
+    root.style.setProperty("--brand-primary-hover", hexToRgba(brand.primaryColor, 0.85));
+    root.style.setProperty("--brand-primary-bg", hexToRgba(brand.primaryColor, 0.1));
+    root.style.setProperty("--brand-primary-border", hexToRgba(brand.primaryColor, 0.4));
+    root.style.setProperty("--brand-primary-shadow", hexToRgba(brand.primaryColor, 0.2));
+  }, [brand.primaryColor]);
+
+  useEffect(() => {
     const group = navGroups.find((g) => g.items.some((it) => it.href === pathname));
     if (group && !openGroups[group.id]) {
       setOpenGroups((s) => ({ ...s, [group.id]: true }));
@@ -143,7 +174,7 @@ export function WorkspaceShell({ title, description, children }: { title: string
       const enrollByLesson: Record<string, number> = {};
       students.forEach((s: any) => (s.enrollments || []).forEach((e: any) => { if (e.lessonName) enrollByLesson[e.lessonName] = (enrollByLesson[e.lessonName] || 0) + 1; }));
       const noHours = lessonsRaw.filter((l: any) => typeof l === "object" && (!l.weeklyHours || !(l.distribution?.length))).length;
-      const noTeacher = lessonNames.filter((nm) => (enrollByLesson[nm] || 0) > 0 && !teachers.some((t: any) => t.subject === nm)).length;
+      const noTeacher = lessonNames.filter((nm) => (enrollByLesson[nm] || 0) > 0 && !teachers.some((t: any) => (t.subjects && t.subjects.includes(nm)) || t.subject === nm)).length;
       setHealthCount(noHours + noTeacher);
 
       const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -170,7 +201,6 @@ export function WorkspaceShell({ title, description, children }: { title: string
 
   const badgeFor = (href: string) => href === "/notifications" ? unread : href === "/health" ? healthCount : href === "/crm" ? crmCount : 0;
 
-  // Σύνολο badges ανά group (για εμφάνιση στον τίτλο)
   const groupBadge = (gid: string) => {
     const g = navGroups.find((x) => x.id === gid); if (!g) return 0;
     return g.items.reduce((acc, it) => acc + badgeFor(it.href), 0);
@@ -190,6 +220,13 @@ export function WorkspaceShell({ title, description, children }: { title: string
 
   const go = (href: string) => { setQuery(""); setFocused(false); router.push(href); };
 
+  // Computed brand styles
+  const brandPrimary = brand.primaryColor;
+  const brandHover = hexToRgba(brandPrimary, 0.85);
+  const brandBg = hexToRgba(brandPrimary, 0.1);
+  const brandBorder = hexToRgba(brandPrimary, 0.4);
+  const brandShadow = hexToRgba(brandPrimary, 0.2);
+
   return (
     <div className="min-h-screen bg-[#0b0e14] flex text-slate-200">
       <aside className="w-64 bg-[#1e2330] flex flex-col border-r border-slate-800 print:hidden">
@@ -197,7 +234,7 @@ export function WorkspaceShell({ title, description, children }: { title: string
           <div className="flex items-center gap-2">
             {brand.logo && <img src={brand.logo} alt="logo" className="w-8 h-8 rounded object-contain" />}
             <div>
-              <div className="text-2xl font-black" style={{ color: brand.primaryColor }}>{brand.name}</div>
+              <div className="text-2xl font-black" style={{ color: brandPrimary }}>{brand.name}</div>
               <div className="text-slate-500 mt-0.5 text-[10px] font-semibold tracking-wider uppercase">{brand.tagline}</div>
             </div>
           </div>
@@ -227,7 +264,11 @@ export function WorkspaceShell({ title, description, children }: { title: string
                       const b = badgeFor(item.href);
                       return (
                         <Link key={item.href} href={item.href}
-                          className={`flex items-center gap-2.5 rounded-lg px-3 py-2 transition-all text-[13px] ${active ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 font-medium" : "text-slate-400 hover:bg-[#0b0e14] hover:text-white"}`}>
+                          className={`flex items-center gap-2.5 rounded-lg px-3 py-2 transition-all text-[13px] ${active ? "text-white font-medium" : "text-slate-400 hover:bg-[#0b0e14] hover:text-white"}`}
+                          style={active ? {
+                            backgroundColor: brandPrimary,
+                            boxShadow: `0 4px 12px ${brandShadow}`,
+                          } : {}}>
                           {item.icon}
                           <span className="flex-1">{item.label}</span>
                           {b > 0 && <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] text-center">{b}</span>}
@@ -242,9 +283,12 @@ export function WorkspaceShell({ title, description, children }: { title: string
         </nav>
 
         <div className="p-3 border-t border-slate-800">
-          <div className="rounded-xl bg-indigo-900/20 border border-indigo-500/10 p-3">
-            <div className="flex items-center gap-2 text-indigo-400 font-bold mb-1 text-xs"><Bot size={14} /> AI Scheduler</div>
-            <Link href="/schedule" className="block w-full text-center bg-indigo-600 hover:bg-indigo-500 text-white py-1.5 rounded-lg font-semibold text-[11px] transition-colors">Άνοιγμα</Link>
+          <div className="rounded-xl p-3 border" style={{ backgroundColor: brandBg, borderColor: brandBorder }}>
+            <div className="flex items-center gap-2 font-bold mb-1 text-xs" style={{ color: brandPrimary }}><Bot size={14} /> AI Scheduler</div>
+            <Link href="/schedule" className="block w-full text-center text-white py-1.5 rounded-lg font-semibold text-[11px] transition-colors"
+              style={{ backgroundColor: brandPrimary }}>
+              Άνοιγμα
+            </Link>
           </div>
         </div>
       </aside>
@@ -259,7 +303,14 @@ export function WorkspaceShell({ title, description, children }: { title: string
           <div className="flex items-center gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 text-slate-500" size={18} />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)} placeholder="Αναζήτηση παντού..." className="bg-[#0b0e14] border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 w-64 text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={(e) => { setFocused(true); e.currentTarget.style.borderColor = brandPrimary; }}
+                onBlur={(e) => { setTimeout(() => setFocused(false), 150); e.currentTarget.style.borderColor = ""; }}
+                placeholder="Αναζήτηση παντού..."
+                className="bg-[#0b0e14] border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 w-64 text-sm focus:outline-none transition-colors"
+              />
               {focused && query.trim().length >= 2 && (
                 <div className="absolute top-full mt-2 w-80 right-0 bg-[#1e2330] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-30 max-h-96 overflow-y-auto">
                   {results.length === 0 ? (
@@ -267,7 +318,8 @@ export function WorkspaceShell({ title, description, children }: { title: string
                   ) : results.map((r, i) => (
                     <button key={i} onMouseDown={() => go(r.href)} className="w-full text-left px-4 py-2.5 hover:bg-[#0b0e14] flex items-center justify-between gap-3 transition-colors">
                       <span className="text-sm text-white truncate">{r.label}</span>
-                      <span className="text-[10px] uppercase font-bold text-indigo-400 bg-indigo-950/40 px-2 py-0.5 rounded shrink-0">{r.type}</span>
+                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded shrink-0"
+                        style={{ color: brandPrimary, backgroundColor: brandBg }}>{r.type}</span>
                     </button>
                   ))}
                 </div>
@@ -280,11 +332,17 @@ export function WorkspaceShell({ title, description, children }: { title: string
             </Link>
 
             <div className="relative">
-              <button onClick={() => setMenuOpen((v) => !v)} onBlur={() => setTimeout(() => setMenuOpen(false), 150)} className="w-10 h-10 rounded-full bg-indigo-600 hover:bg-indigo-500 flex items-center justify-center text-white font-bold text-sm transition-colors">Λ</button>
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm transition-colors"
+                style={{ backgroundColor: brandPrimary }}>
+                {brand.name[0]?.toUpperCase() || "Λ"}
+              </button>
               {menuOpen && (
                 <div className="absolute top-full mt-2 right-0 w-52 bg-[#1e2330] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden z-30">
                   <div className="px-4 py-3 border-b border-slate-800">
-                    <p className="text-xs font-bold text-white">EduFlow</p>
+                    <p className="text-xs font-bold text-white">{brand.name}</p>
                     <p className="text-[10px] text-slate-500">Διαχειριστής</p>
                   </div>
                   <button onMouseDown={() => go("/health")} className="w-full text-left px-4 py-2.5 text-xs text-slate-300 hover:bg-[#0b0e14] flex items-center gap-2"><Activity size={14} /> Έλεγχος Δεδομένων</button>
