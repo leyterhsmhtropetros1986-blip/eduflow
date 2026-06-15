@@ -25,7 +25,6 @@ function genDayHours(day: string): number[] {
 }
 function genHH(h: number) { return `${String(h).padStart(2, "0")}:00`; }
 
-// 🔑 Σπάει τις συνολικές ώρες σε μπλοκ ΕΩΣ 2 ώρες (π.χ. 5 -> [2,2,1], 4 -> [2,2], 3 -> [2,1])
 function splitBlocks(total: number): number[] {
   const blocks: number[] = [];
   let rem = Math.max(0, Math.round(total || 0));
@@ -52,10 +51,8 @@ function genIsAvailable(availability: any[], lockedSlots: any[], day: string, ti
   return true;
 }
 
-// Score προγράμματος: μεγιστοποίηση τοποθετήσεων, ελαχιστοποίηση κενών μαθητών & αργών ωρών
 function calculateScore(schedule: any[], students: any[]): number {
     let score = schedule.length * 1000;
-    // Βαθμίδα ανά τμήμα (από τις εγγραφές των μαθητών)
     const gradeByClass: Record<string, string> = {};
     students.forEach((s: any) => (s.enrollments || []).forEach((e: any) => {
         if (e.className && !gradeByClass[e.className]) gradeByClass[e.className] = s.grade || "";
@@ -63,9 +60,9 @@ function calculateScore(schedule: any[], students: any[]): number {
     schedule.forEach(item => {
         const startHour = parseInt(item.time.split('-')[0].split(':')[0]);
         const g = gradeByClass[item.groupName] || "";
-        if (g.includes("Γυμν")) score -= startHour * 8;          // Γυμνάσιο: όσο νωρίτερα, τόσο καλύτερα
-        else if (g.includes("Λυκείου")) score += startHour * 8;  // Λύκειο: όσο αργότερα, τόσο καλύτερα
-        else if (startHour >= 20) score -= 50;                   // αδιευκρίνιστο: μικρή ποινή πολύ αργά
+        if (g.includes("Γυμν")) score -= startHour * 8;
+        else if (g.includes("Λυκείου")) score += startHour * 8;
+        else if (startHour >= 20) score -= 50;
     });
     students.forEach(s => {
         const cls = s.class || s.className;
@@ -76,7 +73,7 @@ function calculateScore(schedule: any[], students: any[]): number {
                 const endCurrent = parseInt(studentDayItems[i].time.split('-')[1].split(':')[0]);
                 const startNext = parseInt(studentDayItems[i+1].time.split('-')[0].split(':')[0]);
                 const gap = startNext - endCurrent;
-                if (gap > 0) score -= (gap * 120); // βαριά ποινή στα κενά των παιδιών
+                if (gap > 0) score -= (gap * 120);
             }
         });
     });
@@ -86,9 +83,12 @@ function calculateScore(schedule: any[], students: any[]): number {
 function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; lessons: any[] }): { schedule: any[], unplaced: any[], placed: number, teacherScore: Record<string, number> } {
   const { students = [], teachers = [], classes = [], rooms = [], lessons = [] } = data;
 
-  // Βαθμίδα ανά τμήμα (για προτεραιότητα ώρας: Γυμνάσιο νωρίς, Λύκειο αργά)
+  // Διαβάζει και grade (νέο schema) και category (legacy)
   const classGrade: Record<string, string> = {};
-  classes.forEach((c: any) => { const nm = c.name || c.className; if (nm) classGrade[nm] = c.grade || ""; });
+  classes.forEach((c: any) => {
+    const nm = c.name || c.className;
+    if (nm) classGrade[nm] = c.grade || c.category || "";
+  });
 
   let bestResult: any = { schedule: [], unplaced: [], placed: -1, score: -Infinity, teacherScore: {} };
   let sessionCount = 0;
@@ -96,10 +96,10 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
   for (let attempt = 0; attempt < 50; attempt++) {
     const teacherBusy = new Set<string>();
     const roomBusy = new Set<string>();
-    const classRoom: Record<string, string> = {}; // 🚪 σταθερή αίθουσα ανά τμήμα (να μην μπερδεύονται)
+    const classRoom: Record<string, string> = {};
     const groupBusy = new Set<string>();
     const studentBusy = new Set<string>();
-    const teacherLoad: Record<string, number> = {}; // 🏷️ score ανά καθηγητή = προγραμματισμένες ώρες
+    const teacherLoad: Record<string, number> = {};
     const schedule: any[] = [];
     const unplaced: any[] = [];
     const roomNames = (rooms || []).map((r: any) => r.name || r.title || r).filter(Boolean);
@@ -119,22 +119,19 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
 
     for (const ses of sessions) {
       const lessonInfo = lessons.find((l: any) => (l?.name || l) === ses.lessonName);
-      // Σεβόμαστε την κατανομή που όρισε ο χρήστης στη σελίδα Μαθημάτων (ασφαλώς ≤2)
       let distribution: number[];
       if (Array.isArray(lessonInfo?.distribution) && lessonInfo.distribution.length > 0) {
         distribution = lessonInfo.distribution.flatMap((b: number) => (b > 2 ? splitBlocks(b) : [b]));
       } else {
-        // fallback: ώρες/εβδομάδα ΑΠΟ ΤΟ ΜΑΘΗΜΑ (όχι από το τμήμα), σπασμένες σε μπλοκ ≤2
         const totalHours = Number(lessonInfo?.weeklyHours ?? lessonInfo?.hoursPerWeek ?? 2) || 2;
         distribution = splitBlocks(totalHours);
       }
-      distribution = distribution.sort((a, b) => b - a); // μεγαλύτερα μπλοκ (2ωρα) πρώτα
-      const minGap = lessonInfo?.minGapDays ?? 1; // 1 = διαφορετική μέρα ανά μπλοκ
-      // Προτεραιότητα ώρας ανά βαθμίδα
+      distribution = distribution.sort((a, b) => b - a);
+      const minGap = lessonInfo?.minGapDays ?? 1;
       const sesGrade = classGrade[ses.className] || ses.students?.[0]?.grade || "";
       const isGym = sesGrade.includes("Γυμν");
 
-      // Επιλογή καθηγητών: πρώτα όσοι έχουν ΛΙΓΟΤΕΡΕΣ ώρες (χαμηλότερο score) -> ισορροπία
+      // ⭐ PATCHED: ψάχνει σε subjects[] (νέο schema) Ή subject string (legacy)
       const candidates = teachers.filter((t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName).sort((a, b) => {
           const nameA = `${a.lastName || ""} ${a.firstName || ""}`.trim();
           const nameB = `${b.lastName || ""} ${b.firstName || ""}`.trim();
@@ -151,19 +148,16 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
 
         for (const blockHours of distribution) {
           let placedBlock = false;
-          const shuffledDays = shuffleArray(DAYS_MAP); // τυχαία σειρά ημερών (όχι από Δευτέρα)
+          const shuffledDays = shuffleArray(DAYS_MAP);
           for (const day of shuffledDays) {
             const dayIdx = DAYS_MAP.indexOf(day);
-            // ⛔ διαφορετική μέρα ανά μπλοκ ίδιου μαθήματος
             if (usedDayIndices.some(uIdx => Math.abs(uIdx - dayIdx) < minGap)) continue;
             const availableHours = genDayHours(day);
-            // ⛔ Όριο 4 ωρών/μέρα ανά μαθητή (συνολικά σε όλα τα μαθήματα)
             const exceedsDaily = ses.students.some((st: any) => {
               const cur = availableHours.filter((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh)))).length;
               return cur + blockHours > 4;
             });
             if (exceedsDaily) continue;
-            // Γυμνάσιο: νωρίτερες ώρες πρώτα. Λύκειο/άλλο: αργότερες ώρες πρώτα.
             const orderedHours = [...availableHours].sort((a, b) => (isGym ? a - b : b - a));
             for (const h of orderedHours) {
               const isWithinBounds = (h + blockHours - 1) <= Math.max(...availableHours);
@@ -185,11 +179,10 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
                 }
               }
               if (possible) {
-                // Προτίμησε τη σταθερή αίθουσα του τμήματος (αν είναι ελεύθερη), αλλιώς την πρώτη ελεύθερη
                 const roomFree = (rn: string) => !timeSlots.some((ts) => roomBusy.has(makeKey(rn, day, ts)));
                 const preferred = classRoom[ses.className];
                 let room: string | undefined = preferred && roomFree(preferred) ? preferred : roomNames.find(roomFree);
-                if (room && !classRoom[ses.className]) classRoom[ses.className] = room; // «κλείδωσε» την αίθουσα στο τμήμα
+                if (room && !classRoom[ses.className]) classRoom[ses.className] = room;
                 timeSlots.forEach(ts => {
                   const tKey = makeKey(tName, day, ts);
                   const gKey = makeKey(ses.className, day, ts);
@@ -226,7 +219,7 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
         }
       }
       if (!placedSession) {
-        unplaced.push({ ...ses, reason: candidates.length === 0 ? "Δεν υπάρχει καθηγητής" : "Αδυναμία τοποθέτησης με διαθέσιμους καθηγητές" });
+        unplaced.push({ ...ses, reason: candidates.length === 0 ? "Δεν υπάρχει καθηγητής για το μάθημα" : "Αδυναμία τοποθέτησης με διαθέσιμους καθηγητές" });
       }
     }
 
@@ -242,7 +235,6 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
   return bestResult;
 }
 
-// Δείκτες ποιότητας προγράμματος
 function computeQuality(schedule: any[], students: any[]) {
   const parseT = (t: string) => { const [a, b] = String(t).split("-"); const s = parseInt(a); const e = b ? parseInt(b) : s + 1; return { s, e: isNaN(e) ? s + 1 : e }; };
   const gapsFor = (sessions: any[]) => {
@@ -268,7 +260,6 @@ function computeQuality(schedule: any[], students: any[]) {
   return { studentGaps, teacherGaps, balanced, perDay };
 }
 
-// Κάλυψη ωρών: σύγκριση δηλωμένων ωρών μαθήματος (weeklyHours) με τις προγραμματισμένες
 function computeCoverage(schedule: any[], students: any[], lessons: any[]) {
   const lessonHours: Record<string, number> = {};
   lessons.forEach((l: any) => { const name = typeof l === "string" ? l : l?.name; if (name) lessonHours[name] = typeof l === "object" ? (l.weeklyHours || 0) : 0; });
@@ -312,7 +303,7 @@ export default function SchedulePage() {
         students: JSON.parse(localStorage.getItem("eduflow_students") || localStorage.getItem("eduflow_students_data") || "[]"),
         teachers: JSON.parse(localStorage.getItem("eduflow_teachers") || localStorage.getItem("eduflow_teachers_data") || "[]"),
         rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || localStorage.getItem("eduflow_rooms_data") || "[]"),
-        lessons: JSON.parse(localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_lessons_data") || "[]"),
+        lessons: JSON.parse(localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_lessons_data") || localStorage.getItem("eduflow_courses") || "[]"),
       });
     } catch (err) { console.error(err); }
   };
@@ -320,12 +311,36 @@ export default function SchedulePage() {
 
   const handleAutoGenerate = () => {
     if (data.schedule.length > 0 && !confirm("Να αντικατασταθεί το υπάρχον πρόγραμμα;")) return;
+
+    // Διαγνωστικά πριν τρέξει
+    const studentsWithEnrollments = data.students.filter((s: any) => s.enrollments?.some((e: any) => e.className));
+    if (studentsWithEnrollments.length === 0) {
+      alert("⚠ Δεν υπάρχουν μαθητές με τμήμα.\n\nΠήγαινε στη σελίδα «Μαθητές» και δήλωσε μάθημα + τμήμα για κάθε μαθητή.");
+      return;
+    }
+    if (data.teachers.length === 0) {
+      alert("⚠ Δεν υπάρχουν καθηγητές. Δημιούργησε στη σελίδα «Καθηγητές».");
+      return;
+    }
+    if (data.lessons.length === 0) {
+      alert("⚠ Δεν υπάρχουν μαθήματα. Δημιούργησε στη σελίδα «Μαθήματα».");
+      return;
+    }
+
     const result = generateSchedule(data);
-    if (result.schedule.length === 0) { alert("Δεν ήταν δυνατή η δημιουργία προγράμματος. Ελέγξτε καθηγητές, μαθήματα και εγγραφές."); return; }
+    if (result.schedule.length === 0) {
+      const reasons = result.unplaced.slice(0, 5).map((u: any) => `• ${u.lessonName} (${u.className}): ${u.reason}`).join("\n");
+      alert(`Δεν τοποθετήθηκε τίποτα.\n\nΑιτίες:\n${reasons || "—"}\n\nΕλεγξε ότι κάθε μάθημα έχει καθηγητή που το διδάσκει.`);
+      return;
+    }
     localStorage.setItem("eduflow_schedule", JSON.stringify(result.schedule));
     loadData();
     setActiveTab("grid");
+    if (result.unplaced.length > 0) {
+      console.warn(`⚠ ${result.unplaced.length} τοποθετήσεις δεν έγιναν:`, result.unplaced);
+    }
   };
+
   const handleClearSchedule = () => {
     if (confirm("Καθαρισμός προγράμματος;")) {
       localStorage.setItem("eduflow_schedule", "[]");
@@ -369,7 +384,6 @@ export default function SchedulePage() {
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-slate-500 mt-3">Συνήθεις αιτίες: περιορισμένη διαθεσιμότητα μαθητών/καθηγητή, όριο 4 ωρών/μέρα, ή λίγες ελεύθερες αίθουσες. Δοκίμασε ξανά «Αυτόματη Δημιουργία» ή χαλάρωσε περιορισμούς.</p>
           </div>
         )
       )}
