@@ -1,592 +1,472 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo } from "react";
-import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { AvailabilityMatrix } from "../../components/AvailabilityMatrix";
-import { Trash2, Edit2, UserPlus, Plus, X, GraduationCap, AlertTriangle, BookOpen, Layers, Search, Download, Upload, FileSpreadsheet, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from 'react';
+import { AvailabilityMatrix } from '@/components/AvailabilityMatrix';
+import * as XLSX from 'xlsx';
 
-interface AvailabilitySlot { day: string; start: string; end: string; }
-interface StudentEnrollment { lessonName: string; className: string; }
-
-interface Student {
+type Student = {
   id: string;
-  createdAt?: string;
   firstName: string;
   lastName: string;
-  grade: string;
-  phone: string;
-  parentFirstName: string;
-  parentLastName: string;
-  parentName: string;            // computed: parentFirstName + " " + parentLastName (backward compat)
-  parentPhone: string;
-  parentEmail: string;
-  enrollments: StudentEnrollment[];
-  isLockedHours: boolean;
-  lockedSlots: AvailabilitySlot[];
-  availability: AvailabilitySlot[];
-}
+  parentFirstName?: string;
+  parentLastName?: string;
+  parentName?: string; // computed για backward compat με messages
+  parentPhone?: string;
+  parentEmail?: string;
+  studentPhone?: string;
+  category: string;       // π.χ. "Α Γυμνασίου"
+  subjects?: string[];
+  notes?: string;
+  attendsSummer?: boolean; // ΝΕΟ: μόνο για Γ Λυκείου
+  availability: { [day: string]: { from: string; to: string }[] };
+  summerAvailability?: { [day: string]: { from: string; to: string }[] };
+};
 
-interface ClassItem { id?: string; name: string; maxStudents: number; grade: string; }
+const DAYS = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο'];
 
-const GRADES = ["Α Γυμνασίου", "Β Γυμνασίου", "Γ Γυμνασίου", "Α Λυκείου", "Β Λυκείου", "Γ Λυκείου"];
-
-declare global { interface Window { XLSX: any; } }
+const CATEGORIES = [
+  'Α Γυμνασίου', 'Β Γυμνασίου', 'Γ Γυμνασίου',
+  'Α Λυκείου', 'Β Λυκείου', 'Γ Λυκείου',
+];
 
 export default function StudentsPage() {
-  const [isMounted, setIsMounted] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
-  const [classesList, setClassesList] = useState<ClassItem[]>([]);
-  const [lessonsList, setLessonsList] = useState<string[]>([]);
-  const [toast, setToast] = useState<string>("");
-
-  // States Φόρμας
+  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [grade, setGrade] = useState("");
-  const [phone, setPhone] = useState("");
-  const [parentFirstName, setParentFirstName] = useState("");
-  const [parentLastName, setParentLastName] = useState("");
-  const [parentPhone, setParentPhone] = useState("");
-  const [parentEmail, setParentEmail] = useState("");
-  const [formEnrollments, setFormEnrollments] = useState<StudentEnrollment[]>([]);
-  const [isLockedHours, setIsLockedHours] = useState(false);
-  const [lockedSlots, setLockedSlots] = useState<AvailabilitySlot[]>([]);
-  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
-
-  // States Λίστας
-  const [listSearch, setListSearch] = useState("");
-  const [gradeFilter, setGradeFilter] = useState("");
-
-  // States Import/Export
-  const [importOpen, setImportOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [showImport, setShowImport] = useState(false);
   const [importPreview, setImportPreview] = useState<any[]>([]);
-  const [importFileName, setImportFileName] = useState("");
-  const [xlsxReady, setXlsxReady] = useState(false);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
-  const flashToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(""), 2000); };
+  const [form, setForm] = useState<Partial<Student>>({
+    firstName: '', lastName: '',
+    parentFirstName: '', parentLastName: '',
+    parentPhone: '', parentEmail: '', studentPhone: '',
+    category: 'Α Γυμνασίου',
+    subjects: [],
+    notes: '',
+    attendsSummer: false,
+    availability: {},
+    summerAvailability: {},
+  });
 
-  const getAvailableTimes = (day: string) => {
-    if (day === "Σάββατο") return ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
-    return ["14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
-  };
-
-  const [newSlot, setNewSlot] = useState<AvailabilitySlot>({ day: "Δευτέρα", start: "14:00", end: "15:00" });
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
+  const [toastMsg, setToastMsg] = useState('');
 
   useEffect(() => {
-    setIsMounted(true); loadData();
-    // Load SheetJS
-    if (!(window as any).XLSX) {
-      const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
-      s.onload = () => setXlsxReady(true);
-      document.head.appendChild(s);
-    } else setXlsxReady(true);
+    const stored = localStorage.getItem('eduflow_students');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Migration: αν υπάρχει παλιό parentName, διαχωρισμός
+      const migrated = parsed.map((s: Student) => {
+        if (s.parentName && !s.parentFirstName && !s.parentLastName) {
+          const parts = s.parentName.trim().split(/\s+/);
+          return {
+            ...s,
+            parentLastName: parts[0] || '',
+            parentFirstName: parts.slice(1).join(' ') || '',
+          };
+        }
+        return s;
+      });
+      setStudents(migrated);
+    }
   }, []);
 
-  const loadData = () => {
-    if (typeof window === "undefined") return;
-    const rawStudents = JSON.parse(localStorage.getItem("eduflow_students") || "[]");
-    const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]");
-    const rawLessonsData = JSON.parse(localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_courses") || "[]");
-
-    const rawLessons: string[] = (rawLessonsData as any[])
-      .map((l) => (typeof l === "string" ? l : (l?.name || l?.title || l?.subject || "")))
-      .filter(Boolean);
-
-    const normalizedClasses = rawClasses.map((c: any) => ({
-      id: c.id || `class-${Date.now()}-${Math.random()}`,
-      name: c.name || c.className || "",
-      grade: c.grade || "",
-      maxStudents: Number(c.maxStudents) || Number(c.maxCapacity) || Number(c.capacity) || 20
-    })).filter((c: ClassItem) => c.name !== "");
-
-    // Migration: split parentName -> parentFirstName + parentLastName
-    const migratedStudents = rawStudents.map((s: any) => {
-      const pfn = s.parentFirstName ?? "";
-      const pln = s.parentLastName ?? "";
-      // αν δεν υπάρχουν τα νέα πεδία αλλά υπάρχει το παλιό parentName, βάλε όλο στο parentLastName
-      const computed = (!pfn && !pln && s.parentName) ? { pfn: "", pln: s.parentName } : { pfn, pln };
-      return {
-        ...s,
-        parentFirstName: computed.pfn,
-        parentLastName: computed.pln,
-        parentName: `${computed.pfn} ${computed.pln}`.trim() || s.parentName || "",
-        enrollments: s.enrollments || []
-      };
-    });
-
-    setStudents(migratedStudents);
-    setClassesList(normalizedClasses);
-    setLessonsList(rawLessons);
+  const persist = (list: Student[]) => {
+    // Compute parentName for backward compat
+    const withParentName = list.map(s => ({
+      ...s,
+      parentName: [s.parentLastName, s.parentFirstName].filter(Boolean).join(' '),
+    }));
+    setStudents(withParentName);
+    localStorage.setItem('eduflow_students', JSON.stringify(withParentName));
   };
 
-  const filteredSections = useMemo(() => {
-    if (!grade) return [];
-    return classesList.filter(sec => sec.grade === grade);
-  }, [classesList, grade]);
-
-  const sectionCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    students.forEach(s => {
-      if (s.id === editingId) return;
-      s.enrollments?.forEach(e => {
-        const key = `${e.lessonName}_${e.className}`;
-        counts[key] = (counts[key] || 0) + 1;
-      });
-    });
-    return counts;
-  }, [students, editingId]);
-
-  const addSlot = () => {
-    if (parseInt(newSlot.end) <= parseInt(newSlot.start)) { alert("Η ώρα λήξης πρέπει να είναι μετά την ώρα έναρξης."); return; }
-    setLockedSlots([...lockedSlots, newSlot]);
-    setNewSlot({ day: newSlot.day, start: getAvailableTimes(newSlot.day)[0], end: getAvailableTimes(newSlot.day)[1] || "15:00" });
-  };
-
-  const handleFormEnrollmentChange = (lessonName: string, className: string) => {
-    const filtered = formEnrollments.filter(e => e.lessonName !== lessonName);
-    if (className === "") setFormEnrollments(filtered);
-    else { setFormEnrollments([...filtered, { lessonName, className }]); flashToast(`✓ Καταχωρήθηκε: ${lessonName} → ${className}`); }
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingId && students.some(s =>
-      s.firstName.trim().toLowerCase() === firstName.trim().toLowerCase() &&
-      s.lastName.trim().toLowerCase() === lastName.trim().toLowerCase())) {
-      if (!confirm("Υπάρχει ήδη μαθητής με το ίδιο ονοματεπώνυμο. Συνέχεια;")) return;
-    }
-    if (formEnrollments.length === 0 && !confirm("Ο μαθητής δεν έχει καμία εγγραφή σε μάθημα. Αποθήκευση;")) return;
-
-    const existing = editingId ? students.find(s => s.id === editingId) : null;
-    const pfn = parentFirstName.trim();
-    const pln = parentLastName.trim();
-    const studentData: Student = {
-      id: editingId || `s-${Date.now()}`,
-      createdAt: existing?.createdAt || new Date().toISOString(),
-      firstName: firstName.trim(), lastName: lastName.trim(), grade,
-      phone: phone.trim(),
-      parentFirstName: pfn, parentLastName: pln,
-      parentName: `${pfn} ${pln}`.trim(),
-      parentPhone: parentPhone.trim(), parentEmail: parentEmail.trim(),
-      enrollments: formEnrollments, isLockedHours,
-      lockedSlots: isLockedHours ? lockedSlots : [], availability
-    };
-
-    const updated = editingId ? students.map(s => s.id === editingId ? studentData : s) : [...students, studentData];
-    setStudents(updated);
-    localStorage.setItem("eduflow_students", JSON.stringify(updated));
-    flashToast(editingId ? "✓ Ενημερώθηκε" : "✓ Καταχωρήθηκε");
-    resetForm();
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 2500);
   };
 
   const resetForm = () => {
-    setEditingId(null); setFirstName(""); setLastName(""); setGrade(""); setPhone("");
-    setParentFirstName(""); setParentLastName(""); setParentPhone(""); setParentEmail("");
-    setFormEnrollments([]); setIsLockedHours(false); setLockedSlots([]); setAvailability([]);
+    setForm({
+      firstName: '', lastName: '',
+      parentFirstName: '', parentLastName: '',
+      parentPhone: '', parentEmail: '', studentPhone: '',
+      category: 'Α Γυμνασίου',
+      subjects: [], notes: '',
+      attendsSummer: false,
+      availability: {}, summerAvailability: {},
+    });
+    setErrors({});
+    setEditingId(null);
   };
 
-  const startEdit = (s: Student) => {
-    setEditingId(s.id);
-    setFirstName(s.firstName || ""); setLastName(s.lastName || ""); setGrade(s.grade || "");
-    setPhone(s.phone || "");
-    setParentFirstName(s.parentFirstName || ""); setParentLastName(s.parentLastName || (s.parentName || ""));
-    setParentPhone(s.parentPhone || ""); setParentEmail(s.parentEmail || "");
-    setFormEnrollments(s.enrollments || []);
-    setIsLockedHours(s.isLockedHours || false); setLockedSlots(s.lockedSlots || []); setAvailability(s.availability || []);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+  const validate = (): boolean => {
+    const e: { [k: string]: string } = {};
+    if (!form.firstName?.trim()) e.firstName = 'Υποχρεωτικό';
+    if (!form.lastName?.trim()) e.lastName = 'Υποχρεωτικό';
+    if (!form.category) e.category = 'Υποχρεωτική τάξη';
+    if (form.attendsSummer && form.category !== 'Γ Λυκείου') {
+      e.attendsSummer = 'Καλοκαιρινό μόνο για Γ Λυκείου';
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  const deleteStudent = (s: Student) => {
-    if (!confirm(`Οριστική διαγραφή του μαθητή ${s.lastName} ${s.firstName};`)) return;
-    const updated = students.filter(x => x.id !== s.id);
-    setStudents(updated);
-    localStorage.setItem("eduflow_students", JSON.stringify(updated));
-    if (editingId === s.id) resetForm();
-    flashToast("✓ Διαγράφηκε");
-  };
-
-  // ========= IMPORT EXCEL =========
-  const downloadTemplate = () => {
-    if (!window.XLSX) return;
-    const XLSX = window.XLSX;
-    const wb = XLSX.utils.book_new();
-    const headers = ["Επώνυμο Μαθητή*", "Όνομα Μαθητή*", "Τάξη*", "Τηλέφωνο Μαθητή", "Όνομα Γονέα", "Επώνυμο Γονέα", "Τηλέφωνο Γονέα", "Email Γονέα", "Μαθήματα", "Τμήματα"];
-    const examples = [
-      ["Παπαδόπουλος", "Γιάννης", "Α Γυμνασίου", "", "Νίκος", "Παπαδόπουλος", "6900000001", "nikos@example.com", "Μαθηματικά, Φυσική", "Α1, Α1"],
-      ["Δημητρίου", "Μαρία", "Β Λυκείου", "6940000002", "Ελένη", "Δημητρίου", "6900000002", "eleni@example.com", "Μαθηματικά", "Β2"],
-      ["Γεωργίου", "Πέτρος", "Γ Λυκείου", "", "", "", "", "", "", ""],
-    ];
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
-    ws["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 24 }, { wch: 25 }, { wch: 15 }];
-    XLSX.utils.book_append_sheet(wb, ws, "Μαθητές");
-
-    const instr = [
-      ["EduFlow — Πρότυπο εισαγωγής μαθητών"], [""],
-      ["ΟΔΗΓΙΕΣ:"],
-      ["1. ΥΠΟΧΡΕΩΤΙΚΑ: Επώνυμο Μαθητή, Όνομα Μαθητή, Τάξη."],
-      ["2. ΑΠΟΔΕΚΤΕΣ ΤΑΞΕΙΣ (ακριβώς όπως φαίνεται):"],
-      ["   - Α Γυμνασίου / Β Γυμνασίου / Γ Γυμνασίου"],
-      ["   - Α Λυκείου / Β Λυκείου / Γ Λυκείου"],
-      ["3. Όνομα Γονέα & Επώνυμο Γονέα: χωριστά πεδία."],
-      ["4. Μαθήματα & Τμήματα: χωρίστε με κόμμα και με την ίδια σειρά."],
-      ["   π.χ. «Μαθηματικά, Φυσική» / «Α1, Α2» = Μαθηματικά→Α1, Φυσική→Α2"],
-      ["5. Σβήστε τις 3 παραδείγματος γραμμές πριν το ανέβασμα!"],
-      ["6. Διπλοεγγραφές (ίδιο όνομα+επώνυμο+τάξη) θα παραλειφθούν."],
-    ];
-    const wsI = XLSX.utils.aoa_to_sheet(instr);
-    wsI["!cols"] = [{ wch: 70 }];
-    XLSX.utils.book_append_sheet(wb, wsI, "Οδηγίες");
-
-    XLSX.writeFile(wb, "EduFlow_Template_Μαθητές.xlsx");
-    flashToast("✓ Template κατέβηκε");
-  };
-
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; if (!file || !window.XLSX) return;
-    setImportFileName(file.name);
-    const r = new FileReader();
-    r.onload = (ev) => {
-      const data = new Uint8Array(ev.target!.result as ArrayBuffer);
-      const wb = window.XLSX.read(data, { type: "array" });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const raw = window.XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" }) as any[][];
-      if (raw.length < 2) { alert("Κενό αρχείο."); return; }
-
-      const parsed: any[] = [];
-      for (let i = 1; i < raw.length; i++) {
-        const r = raw[i]; if (!r || r.every((c) => !c)) continue;
-        const [lastName, firstName, grade, phone, parentFirstName, parentLastName, parentPhone, parentEmail, lessons, sections] = r.map((x) => String(x || "").trim());
-        const errors: string[] = [];
-        if (!lastName) errors.push("Λείπει Επώνυμο Μαθητή");
-        if (!firstName) errors.push("Λείπει Όνομα Μαθητή");
-        if (!grade) errors.push("Λείπει Τάξη");
-        else if (!GRADES.includes(grade)) errors.push(`Άκυρη τάξη «${grade}»`);
-        const dup = students.find((s) => s.lastName === lastName && s.firstName === firstName && s.grade === grade);
-        if (dup) errors.push("Διπλοεγγραφή");
-        const lessonList = lessons ? lessons.split(",").map((x) => x.trim()).filter(Boolean) : [];
-        const sectionList = sections ? sections.split(",").map((x) => x.trim()).filter(Boolean) : [];
-        if (lessonList.length !== sectionList.length && (lessonList.length > 0 || sectionList.length > 0)) errors.push(`Μαθήματα/Τμήματα δεν συμφωνούν`);
-        const enrollments = lessonList.map((ln, idx) => ({ lessonName: ln, className: sectionList[idx] || "" }));
-        parsed.push({ rowNum: i + 1, lastName, firstName, grade, phone, parentFirstName, parentLastName, parentPhone, parentEmail, enrollments, errors });
-      }
-      setImportPreview(parsed);
+  const handleSave = () => {
+    if (!validate()) return;
+    const student: Student = {
+      id: editingId || Date.now().toString(),
+      firstName: form.firstName!, lastName: form.lastName!,
+      parentFirstName: form.parentFirstName,
+      parentLastName: form.parentLastName,
+      parentPhone: form.parentPhone,
+      parentEmail: form.parentEmail,
+      studentPhone: form.studentPhone,
+      category: form.category!,
+      subjects: form.subjects || [],
+      notes: form.notes || '',
+      attendsSummer: form.attendsSummer || false,
+      availability: form.availability || {},
+      summerAvailability: form.attendsSummer ? form.summerAvailability : {},
     };
-    r.readAsArrayBuffer(file);
+    const updated = editingId
+      ? students.map(s => (s.id === editingId ? student : s))
+      : [...students, student];
+    persist(updated);
+    showToast(editingId ? '✓ Ενημερώθηκε' : '✓ Καταχωρήθηκε');
+    resetForm();
+    setShowForm(false);
   };
 
-  const importValid = () => {
-    const valid = importPreview.filter((r) => r.errors.length === 0);
-    if (valid.length === 0) { alert("Δεν υπάρχουν έγκυροι."); return; }
-    if (!confirm(`Εισαγωγή ${valid.length} μαθητών;`)) return;
-    const newOnes: Student[] = valid.map((r) => ({
-      id: "s-" + Date.now() + "-" + Math.random().toString(36).slice(2, 6),
-      createdAt: new Date().toISOString(),
-      lastName: r.lastName, firstName: r.firstName, grade: r.grade,
-      phone: r.phone || "",
-      parentFirstName: r.parentFirstName || "", parentLastName: r.parentLastName || "",
-      parentName: `${r.parentFirstName || ""} ${r.parentLastName || ""}`.trim(),
-      parentPhone: r.parentPhone || "", parentEmail: r.parentEmail || "",
-      enrollments: r.enrollments || [],
-      isLockedHours: false, lockedSlots: [], availability: [],
-    }));
-    const merged = [...students, ...newOnes];
-    setStudents(merged);
-    localStorage.setItem("eduflow_students", JSON.stringify(merged));
-    setImportPreview([]); setImportFileName("");
-    flashToast(`✓ Προστέθηκαν ${newOnes.length} μαθητές`);
+  const handleEdit = (s: Student) => {
+    setForm(s); setEditingId(s.id); setShowForm(true);
   };
 
-  // ========= EXPORT EXCEL =========
-  const exportExcel = () => {
-    if (!window.XLSX) { alert("Περίμενε φόρτωση..."); return; }
-    if (students.length === 0) { alert("Δεν υπάρχουν μαθητές."); return; }
-    const XLSX = window.XLSX;
-    const headers = ["Επώνυμο", "Όνομα", "Τάξη", "Τηλέφωνο", "Όνομα Γονέα", "Επώνυμο Γονέα", "Τηλέφωνο Γονέα", "Email Γονέα", "Μαθήματα", "Τμήματα", "Ημ/νία Εγγραφής"];
-    const rows = students.map((s) => [
-      s.lastName, s.firstName, s.grade, s.phone || "",
-      s.parentFirstName || "", s.parentLastName || "",
-      s.parentPhone || "", s.parentEmail || "",
-      (s.enrollments || []).map((e) => e.lessonName).join(", "),
-      (s.enrollments || []).map((e) => e.className).join(", "),
-      s.createdAt ? new Date(s.createdAt).toLocaleDateString("el-GR") : "",
+  const handleDelete = (id: string) => {
+    if (!confirm('Διαγραφή μαθητή;')) return;
+    persist(students.filter(s => s.id !== id));
+    showToast('🗑 Διαγράφηκε');
+  };
+
+  const quickFillSummer = () => {
+    const sa: { [k: string]: { from: string; to: string }[] } = {};
+    ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή'].forEach(day => {
+      sa[day] = [{ from: '09:00', to: '14:00' }];
+    });
+    setForm({ ...form, summerAvailability: sa });
+  };
+
+  // Filter για search
+  const filtered = students.filter(s => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      s.firstName.toLowerCase().includes(q) ||
+      s.lastName.toLowerCase().includes(q) ||
+      (s.parentName || '').toLowerCase().includes(q) ||
+      (s.category || '').toLowerCase().includes(q) ||
+      (s.studentPhone || '').includes(q) ||
+      (s.parentPhone || '').includes(q)
+    );
+  });
+
+  // Excel Import
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Επώνυμο*', 'Όνομα*', 'Τάξη*', 'Επώνυμο Γονέα', 'Όνομα Γονέα', 'Τηλ. Γονέα', 'Email Γονέα', 'Τηλ. Μαθητή', 'Καλοκαιρινό (Y/N)', 'Σημειώσεις'],
+      ['Παπαδόπουλος', 'Γιώργος', 'Γ Λυκείου', 'Παπαδόπουλος', 'Νίκος', '6970000000', 'nick@example.com', '6980000000', 'Y', 'Καλό παιδί'],
     ]);
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws["!cols"] = headers.map((_, i) => ({ wch: i === 7 ? 26 : i === 8 ? 28 : 16 }));
-    XLSX.utils.book_append_sheet(wb, ws, "Μαθητές");
-    XLSX.writeFile(wb, `EduFlow_Μαθητές_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    flashToast("✓ Excel κατέβηκε");
+    XLSX.utils.book_append_sheet(wb, ws, 'Μαθητές');
+    XLSX.writeFile(wb, 'eduflow_students_template.xlsx');
   };
 
-  const gradeCounts = useMemo(() => {
-    const m: Record<string, number> = {};
-    students.forEach(s => { m[s.grade] = (m[s.grade] || 0) + 1; });
-    return m;
-  }, [students]);
-
-  const visibleStudents = useMemo(() => {
-    const q = listSearch.toLowerCase().trim();
-    return [...students]
-      .sort((a, b) => (a.lastName || "").localeCompare(b.lastName || "", "el"))
-      .filter(s => {
-        if (gradeFilter && s.grade !== gradeFilter) return false;
-        if (!q) return true;
-        return `${s.lastName} ${s.firstName}`.toLowerCase().includes(q) ||
-          (s.parentName || "").toLowerCase().includes(q) ||
-          (s.phone || "").includes(q) ||
-          (s.parentPhone || "").includes(q);
+  const handleImportFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = e.target?.result;
+      const wb = XLSX.read(data, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      const dataRows = rows.slice(1).filter((r: any) => r[0] && r[1]);
+      const errs: string[] = [];
+      const preview = dataRows.map((row: any, idx: number) => {
+        const lastName = String(row[0] || '').trim();
+        const firstName = String(row[1] || '').trim();
+        const category = String(row[2] || '').trim();
+        if (!CATEGORIES.includes(category)) {
+          errs.push(`Γραμμή ${idx + 2}: άγνωστη τάξη "${category}"`);
+        }
+        return {
+          lastName, firstName, category,
+          parentLastName: String(row[3] || '').trim(),
+          parentFirstName: String(row[4] || '').trim(),
+          parentPhone: String(row[5] || '').trim(),
+          parentEmail: String(row[6] || '').trim(),
+          studentPhone: String(row[7] || '').trim(),
+          attendsSummer: String(row[8] || '').toUpperCase().startsWith('Y'),
+          notes: String(row[9] || '').trim(),
+        };
       });
-  }, [students, listSearch, gradeFilter]);
+      setImportPreview(preview);
+      setImportErrors(errs);
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
-  if (!isMounted) return null;
+  const confirmImport = () => {
+    const newStudents: Student[] = importPreview.map((r, i) => ({
+      id: Date.now().toString() + i,
+      firstName: r.firstName,
+      lastName: r.lastName,
+      category: r.category,
+      parentFirstName: r.parentFirstName,
+      parentLastName: r.parentLastName,
+      parentPhone: r.parentPhone,
+      parentEmail: r.parentEmail,
+      studentPhone: r.studentPhone,
+      attendsSummer: r.attendsSummer,
+      notes: r.notes,
+      availability: {},
+      summerAvailability: {},
+    }));
+    persist([...students, ...newStudents]);
+    showToast(`✓ Εισήχθησαν ${newStudents.length} μαθητές`);
+    setImportPreview([]);
+    setImportErrors([]);
+    setShowImport(false);
+  };
 
-  const validImport = importPreview.filter((r) => r.errors.length === 0).length;
-  const errImport = importPreview.filter((r) => r.errors.length > 0).length;
+  const exportExcel = () => {
+    const rows = students.map(s => ({
+      'Επώνυμο': s.lastName,
+      'Όνομα': s.firstName,
+      'Τάξη': s.category,
+      'Επώνυμο Γονέα': s.parentLastName || '',
+      'Όνομα Γονέα': s.parentFirstName || '',
+      'Τηλ. Γονέα': s.parentPhone || '',
+      'Email Γονέα': s.parentEmail || '',
+      'Τηλ. Μαθητή': s.studentPhone || '',
+      'Καλοκαιρινό': s.attendsSummer ? 'Y' : 'N',
+      'Σημειώσεις': s.notes || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Μαθητές');
+    XLSX.writeFile(wb, `eduflow_students_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast('📥 Εξήχθη Excel');
+  };
 
   return (
-    <WorkspaceShell title="Διαχείριση Μαθητών" description="Εγγραφές ανά μάθημα, εισαγωγή από Excel, εξαγωγή.">
-
-      {/* IMPORT/EXPORT BAR */}
-      <div className="bg-[#1e2330] border border-slate-800 rounded-2xl p-3 mb-4 flex flex-wrap items-center gap-2">
-        <button onClick={() => setImportOpen(v => !v)} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-          <FileSpreadsheet size={14} /> Εισαγωγή από Excel {importOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-        </button>
-        <button onClick={exportExcel} disabled={!xlsxReady || students.length === 0} className="bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-          <Download size={14} /> Εξαγωγή σε Excel ({students.length})
-        </button>
-      </div>
-
-      {/* COLLAPSIBLE IMPORT */}
-      {importOpen && (
-        <div className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-            <button onClick={downloadTemplate} disabled={!xlsxReady} className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
-              <Download size={14} /> 1️⃣ Κατέβασμα Template (.xlsx)
-            </button>
-            <label className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer">
-              <Upload size={14} /> 2️⃣ Ανέβασμα γεμάτου Excel
-              <input type="file" accept=".xlsx,.xls" onChange={handleImportFile} className="hidden" />
-            </label>
-          </div>
-          {importFileName && <p className="text-[11px] text-slate-400 mb-3">📂 {importFileName}</p>}
-
-          {importPreview.length > 0 && (
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Μαθητές</h1>
+          <p className="text-zinc-400 text-sm mt-1">
+            Στοιχεία μαθητή και γονέα, τάξη, σημειώσεις και διαθεσιμότητα.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {!showForm && (
             <>
-              <div className="flex gap-2 mb-3 flex-wrap">
-                <div className="bg-emerald-950/40 border border-emerald-900/40 rounded-lg px-3 py-1.5"><span className="text-emerald-400 font-black text-base">{validImport}</span> <span className="text-[10px] text-slate-400 uppercase">έγκυροι</span></div>
-                <div className="bg-rose-950/40 border border-rose-900/40 rounded-lg px-3 py-1.5"><span className="text-rose-400 font-black text-base">{errImport}</span> <span className="text-[10px] text-slate-400 uppercase">με σφάλματα</span></div>
-                <button onClick={importValid} disabled={validImport === 0} className="ml-auto bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 text-white px-4 py-1.5 rounded-lg text-xs font-bold">→ Εισαγωγή {validImport} έγκυρων</button>
-              </div>
-
-              {errImport > 0 && (
-                <div className="bg-rose-950/20 border border-rose-900/40 rounded-lg p-3 mb-3 max-h-48 overflow-y-auto">
-                  <p className="text-rose-300 font-bold text-xs mb-2">⚠ Σφάλματα:</p>
-                  {importPreview.filter(r => r.errors.length > 0).map((r) => (
-                    <div key={r.rowNum} className="text-[11px] text-slate-300 mb-1">
-                      <span className="text-white font-bold">Γρ. {r.rowNum}:</span> {r.lastName} {r.firstName} — <span className="text-rose-400">{r.errors.join(", ")}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {validImport > 0 && (
-                <div className="max-h-60 overflow-y-auto bg-[#0b0e14] rounded-lg border border-slate-800 p-2">
-                  <p className="text-emerald-300 text-xs font-bold mb-2">✓ Έγκυροι ({validImport}):</p>
-                  {importPreview.filter(r => r.errors.length === 0).map((r) => (
-                    <div key={r.rowNum} className="text-[11px] text-slate-300 mb-1">
-                      <span className="text-white font-bold">{r.lastName} {r.firstName}</span> · {r.grade} · {r.parentLastName} {r.parentFirstName}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <button onClick={() => setShowImport(!showImport)}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-2 rounded-lg text-sm">
+                📥 Excel Import
+              </button>
+              <button onClick={exportExcel}
+                className="bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-2 rounded-lg text-sm">
+                📤 Excel Export
+              </button>
+              <button onClick={() => setShowForm(true)}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold">
+                + Νέος Μαθητής
+              </button>
             </>
           )}
         </div>
-      )}
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* 📝 ΦΟΡΜΑ ΕΓΓΡΑΦΗΣ */}
-        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl h-fit shadow-xl lg:sticky lg:top-28">
-          <form onSubmit={handleSave} className="space-y-4">
-            <h4 className="text-indigo-400 font-bold text-xs uppercase flex items-center gap-2 border-b border-slate-800 pb-3 tracking-wider">
-              <UserPlus size={14} /> {editingId ? "Επεξεργασία Μαθητή" : "Νέα Εγγραφή"}
-            </h4>
-
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <input required type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Επώνυμο Μαθητή *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
-                <input required type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Όνομα Μαθητή *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+      {/* Excel Import section */}
+      {showImport && !showForm && (
+        <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-indigo-400">📥 Εισαγωγή από Excel</h3>
+            <button onClick={() => { setShowImport(false); setImportPreview([]); setImportErrors([]); }}
+              className="text-zinc-400 hover:text-white text-sm">✕</button>
+          </div>
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <button onClick={downloadTemplate}
+              className="bg-emerald-600/20 border border-emerald-600/40 text-emerald-400 px-3 py-1.5 rounded-lg text-sm">
+              ⬇️ Λήψη Template
+            </button>
+            <input type="file" accept=".xlsx,.xls,.csv"
+              onChange={e => e.target.files && handleImportFile(e.target.files[0])}
+              className="text-sm text-zinc-400" />
+          </div>
+          {importPreview.length > 0 && (
+            <div className="mt-3">
+              <div className="text-sm text-zinc-400 mb-2">
+                Προεπισκόπηση: <b className="text-white">{importPreview.length}</b> εγγραφές
+                {importErrors.length > 0 && <span className="text-rose-400 ml-2">⚠ {importErrors.length} σφάλματα</span>}
               </div>
-
-              <select required value={grade} onChange={e => { setGrade(e.target.value); setFormEnrollments([]); if (e.target.value) flashToast(`✓ Επιλέχθηκε: ${e.target.value}`); }} className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white focus:border-indigo-500 outline-none transition-all cursor-pointer">
-                <option value="">Επιλέξτε Τάξη *</option>
-                {GRADES.map((g, i) => <option key={i} value={g}>{g}</option>)}
-              </select>
-
-              <input required type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Τηλέφωνο Μαθητή *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
-
-              <div className="border-t border-slate-800/60 pt-2 space-y-2">
-                <p className="text-[10px] uppercase text-indigo-400 font-bold tracking-wider">Στοιχεία Γονέα</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <input required type="text" value={parentLastName} onChange={e => setParentLastName(e.target.value)} placeholder="Επώνυμο Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
-                  <input required type="text" value={parentFirstName} onChange={e => setParentFirstName(e.target.value)} placeholder="Όνομα Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
+              {importErrors.length > 0 && (
+                <div className="bg-rose-500/10 border border-rose-500/40 rounded-lg p-3 mb-3 text-xs text-rose-300">
+                  {importErrors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
+                  {importErrors.length > 5 && <div>+ {importErrors.length - 5} περισσότερα</div>}
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input required type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="Τηλ. Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
-                  <input required type="email" value={parentEmail} onChange={e => setParentEmail(e.target.value)} placeholder="Email Γονέα *" className="w-full bg-[#0b0e14] border border-slate-800 p-3 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none transition-all" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#0b0e14] border border-slate-800 rounded-xl p-4 space-y-3">
-              <p className="text-[10px] uppercase tracking-wider text-indigo-400 font-bold border-b border-slate-900 pb-1 flex items-center gap-1">
-                <Layers size={12} /> Εγγραφές σε Τμήματα ({grade || "επίλεξε τάξη"})
-              </p>
-
-              <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                {!grade ? (
-                  <p className="text-slate-500 text-[11px] italic text-center py-4">Επιλέξτε πρώτα Τάξη.</p>
-                ) : lessonsList.length === 0 ? (
-                  <p className="text-amber-500/80 text-[11px] text-center py-4 flex items-center justify-center gap-1"><AlertTriangle size={12} /> Δεν υπάρχουν μαθήματα.</p>
-                ) : (
-                  lessonsList.map((lesson, idx) => {
-                    const currentSelection = formEnrollments.find(e => e.lessonName === lesson)?.className || "";
-                    return (
-                      <div key={idx} className="p-2.5 bg-[#1e2330]/40 border border-slate-800/70 rounded-xl space-y-1.5">
-                        <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5"><BookOpen size={12} className="text-indigo-500" /> {lesson}</span>
-                        <select value={currentSelection} onChange={e => handleFormEnrollmentChange(lesson, e.target.value)} className="w-full bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none focus:border-indigo-500 cursor-pointer">
-                          <option value="">-- Χωρίς εγγραφή --</option>
-                          {filteredSections.length === 0 ? (
-                            <option value="" disabled>⚠️ Κανένα τμήμα στην {grade}</option>
-                          ) : filteredSections.map((sec, sIdx) => {
-                            const maxCap = sec.maxStudents || 20;
-                            const currentStudents = sectionCounts[`${lesson}_${sec.name}`] || 0;
-                            const isFull = currentStudents >= maxCap && currentSelection !== sec.name;
-                            return <option key={sIdx} value={sec.name} disabled={isFull}>{sec.name} — ({currentStudents}/{maxCap}) {isFull ? "🔒" : ""}</option>;
-                          })}
-                        </select>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <AvailabilityMatrix availability={availability} onChange={setAvailability} />
-
-            <div className="pt-2">
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
-                <input type="checkbox" checked={isLockedHours} onChange={e => setIsLockedHours(e.target.checked)} className="accent-rose-500" /> Κλείδωμα ωρών διαθεσιμότητας
-              </label>
-            </div>
-
-            {isLockedHours && (
-              <div className="bg-[#0b0e14] p-4 rounded-xl border border-rose-500/20 space-y-3">
-                <div className="grid grid-cols-4 gap-1">
-                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded col-span-2 border border-slate-800" value={newSlot.day} onChange={e => { const d = e.target.value; setNewSlot({ day: d, start: getAvailableTimes(d)[0], end: getAvailableTimes(d)[1] || "15:00" }); }}>
-                    {["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"].map(d => <option key={d}>{d}</option>)}
-                  </select>
-                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded border border-slate-800" value={newSlot.start} onChange={e => setNewSlot({ ...newSlot, start: e.target.value })}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
-                  <select className="bg-[#1e2330] p-1.5 text-[10px] text-white rounded border border-slate-800" value={newSlot.end} onChange={e => setNewSlot({ ...newSlot, end: e.target.value })}>{getAvailableTimes(newSlot.day).map(t => <option key={t}>{t}</option>)}</select>
-                </div>
-                <button type="button" onClick={addSlot} className="w-full bg-rose-600/90 hover:bg-rose-600 py-1.5 rounded text-white text-[11px] font-semibold flex justify-center items-center gap-1"><Plus size={12} /> Προσθήκη</button>
-                <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
-                  {lockedSlots.map((s, i) => (
-                    <div key={i} className="text-[10px] text-slate-300 bg-[#1e2330] p-2 rounded flex justify-between items-center border border-slate-800">
-                      <span>{s.day.substring(0, 3)}: {s.start} έως {s.end}</span>
-                      <X size={12} className="cursor-pointer text-rose-500 hover:text-rose-400" onClick={() => setLockedSlots(lockedSlots.filter((_, idx) => idx !== i))} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex gap-2 pt-2">
-              {editingId && <button type="button" onClick={resetForm} className="w-1/3 p-3 rounded-xl bg-slate-800 text-slate-300 font-bold text-xs hover:bg-slate-700">Ακύρωση</button>}
-              <button type="submit" className={`p-3 rounded-xl text-white font-bold text-xs transition-colors shadow-lg ${editingId ? 'w-2/3 bg-emerald-600 hover:bg-emerald-500' : 'w-full bg-indigo-600 hover:bg-indigo-500'}`}>
-                {editingId ? "Ενημέρωση" : "Αποθήκευση Μαθητή"}
+              )}
+              <button onClick={confirmImport} disabled={importErrors.length > 0}
+                className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                ✓ Επιβεβαίωση Εισαγωγής
               </button>
-            </div>
-          </form>
-        </div>
-
-        {/* 🔍 ΛΙΣΤΑ */}
-        <div className="bg-[#1e2330] border border-slate-800 p-6 rounded-3xl shadow-xl h-fit">
-          <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider mb-4 border-b border-slate-800 pb-2 flex justify-between items-center">
-            <span>Μαθητολόγιο</span>
-            <span className="bg-[#0b0e14] px-2 py-0.5 rounded-full text-indigo-400 font-extrabold">{students.length}</span>
-          </h3>
-
-          <div className="relative mb-3">
-            <Search size={14} className="absolute left-3 top-3 text-slate-500" />
-            <input value={listSearch} onChange={e => setListSearch(e.target.value)} placeholder="Αναζήτηση..." className="w-full bg-[#0b0e14] border border-slate-800 p-2.5 pl-9 rounded-xl text-xs text-white placeholder-slate-500 focus:border-indigo-500 outline-none" />
-          </div>
-
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            <button onClick={() => setGradeFilter("")} className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition ${gradeFilter === "" ? "bg-indigo-600 text-white border-indigo-500" : "bg-[#0b0e14] text-slate-400 border-slate-800 hover:text-white"}`}>Όλες ({students.length})</button>
-            {GRADES.filter(g => gradeCounts[g]).map(g => (
-              <button key={g} onClick={() => setGradeFilter(g)} className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition ${gradeFilter === g ? "bg-indigo-600 text-white border-indigo-500" : "bg-[#0b0e14] text-slate-400 border-slate-800 hover:text-white"}`}>{g} ({gradeCounts[g]})</button>
-            ))}
-          </div>
-
-          {visibleStudents.length === 0 ? (
-            <div className="text-center py-16 text-slate-600 text-xs border border-dashed border-slate-800 rounded-2xl flex flex-col items-center justify-center gap-2">
-              <AlertTriangle size={22} className="text-slate-700" />
-              <span>{students.length === 0 ? "Δεν υπάρχουν μαθητές." : "Κανένα αποτέλεσμα."}</span>
-            </div>
-          ) : (
-            <div className="space-y-2.5 max-h-[70vh] overflow-y-auto custom-scrollbar pr-1">
-              {visibleStudents.map(s => (
-                <div key={s.id} className="bg-[#0b0e14] p-4 rounded-xl border border-slate-800/80 border-l-4 border-l-indigo-500 flex flex-col gap-2 hover:border-slate-700 transition-all">
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <p className="text-white text-xs font-bold uppercase tracking-wide">{s.lastName} {s.firstName}</p>
-                      <div className="flex flex-wrap gap-2 text-[10px] mt-1.5 items-center">
-                        <span className="text-indigo-400 font-bold bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-900/30 flex items-center gap-1"><GraduationCap size={10} /> {s.grade}</span>
-                        <span className="text-sky-400 font-medium bg-sky-950/30 px-1.5 py-0.5 rounded border border-sky-500/10">📚 {s.enrollments?.length || 0} εγγραφές</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <button onClick={() => startEdit(s)} className="text-slate-500 hover:text-indigo-400 p-1.5 rounded-lg hover:bg-slate-900"><Edit2 size={12} /></button>
-                      <button onClick={() => deleteStudent(s)} className="text-slate-600 hover:text-rose-500 p-1.5 rounded-lg hover:bg-slate-900"><Trash2 size={12} /></button>
-                    </div>
-                  </div>
-
-                  {s.enrollments && s.enrollments.length > 0 && (
-                    <div className="py-2 px-3 bg-[#1e2330]/50 border border-slate-800/60 rounded-xl space-y-1 mt-1">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                        {s.enrollments.map((enroll, eIdx) => (
-                          <div key={eIdx} className="text-[11px] text-slate-300 flex items-center gap-1 bg-[#0b0e14]/60 p-1.5 rounded border border-slate-800/40">
-                            <span className="text-slate-400 font-medium truncate">{enroll.lessonName}</span>
-                            <span className="text-indigo-400 font-bold">→</span>
-                            <span className="text-indigo-400 font-extrabold bg-indigo-950/50 px-1.5 rounded">{enroll.className}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-900/60 text-slate-400 text-[10px] space-y-0.5">
-                    <p>📞 {s.phone || "-"}</p>
-                    <p>👨‍👩‍👦 {s.parentLastName || ""} {s.parentFirstName || ""} <span className="font-mono">({s.parentPhone || "-"})</span></p>
-                    <p className="truncate">📧 {s.parentEmail || "-"}</p>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* TOAST */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-2xl text-sm font-bold flex items-center gap-2 z-50">
-          <CheckCircle2 size={16} /> {toast}
+      {showForm && (
+        <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-indigo-400">
+              {editingId ? '✏️ Επεξεργασία' : '+ Νέος Μαθητής'}
+            </h2>
+            <button onClick={() => { resetForm(); setShowForm(false); }}
+              className="text-zinc-400 hover:text-white text-sm">✕ Κλείσιμο</button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <input type="text" placeholder="Επώνυμο *" value={form.lastName || ''}
+                onChange={e => setForm({ ...form, lastName: e.target.value })}
+                className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.lastName ? 'border-rose-500' : 'border-zinc-700'}`} />
+              {errors.lastName && <p className="text-xs text-rose-400 mt-1">{errors.lastName}</p>}
+            </div>
+            <div>
+              <input type="text" placeholder="Όνομα *" value={form.firstName || ''}
+                onChange={e => setForm({ ...form, firstName: e.target.value })}
+                className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.firstName ? 'border-rose-500' : 'border-zinc-700'}`} />
+              {errors.firstName && <p className="text-xs text-rose-400 mt-1">{errors.firstName}</p>}
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-1 block">Τάξη *</label>
+              <select value={form.category}
+                onChange={e => setForm({ ...form, category: e.target.value, attendsSummer: e.target.value === 'Γ Λυκείου' ? form.attendsSummer : false })}
+                className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.category ? 'border-rose-500' : 'border-zinc-700'}`}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <input type="tel" placeholder="Τηλ. Μαθητή" value={form.studentPhone || ''}
+              onChange={e => setForm({ ...form, studentPhone: e.target.value })}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white" />
+
+            <div className="md:col-span-2 mt-2">
+              <h4 className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-2">Στοιχεία Γονέα</h4>
+            </div>
+            <input type="text" placeholder="Επώνυμο Γονέα" value={form.parentLastName || ''}
+              onChange={e => setForm({ ...form, parentLastName: e.target.value })}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white" />
+            <input type="text" placeholder="Όνομα Γονέα" value={form.parentFirstName || ''}
+              onChange={e => setForm({ ...form, parentFirstName: e.target.value })}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white" />
+            <input type="tel" placeholder="Τηλ. Γονέα" value={form.parentPhone || ''}
+              onChange={e => setForm({ ...form, parentPhone: e.target.value })}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white" />
+            <input type="email" placeholder="Email Γονέα" value={form.parentEmail || ''}
+              onChange={e => setForm({ ...form, parentEmail: e.target.value })}
+              className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white" />
+
+            <textarea placeholder="Σημειώσεις" value={form.notes || ''}
+              onChange={e => setForm({ ...form, notes: e.target.value })}
+              className="md:col-span-2 w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white"
+              rows={2} />
+          </div>
+
+          {/* Summer flag — μόνο για Γ Λυκείου */}
+          {form.category === 'Γ Λυκείου' && (
+            <div className="mt-5 pt-5 border-t border-zinc-700">
+              <label className="flex items-center gap-2 cursor-pointer p-3 bg-amber-500/10 border border-amber-500/40 rounded-lg">
+                <input type="checkbox" checked={form.attendsSummer || false}
+                  onChange={e => setForm({ ...form, attendsSummer: e.target.checked })}
+                  className="accent-amber-500 w-4 h-4" />
+                <span className="text-sm font-bold text-amber-400">☀️ Παρακολουθεί καλοκαιρινό πρόγραμμα</span>
+                <span className="text-xs text-zinc-400">(Ιούν-Ιουλ-Αυγ, Δευ-Παρ 09:00-14:00)</span>
+              </label>
+              {errors.attendsSummer && <p className="text-xs text-rose-400 mt-1">{errors.attendsSummer}</p>}
+
+              {form.attendsSummer && (
+                <div className="mt-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <button type="button" onClick={quickFillSummer}
+                      className="text-xs bg-amber-500/20 border border-amber-500/40 text-amber-300 px-3 py-1 rounded-lg hover:bg-amber-500/30">
+                      ⚡ Auto-fill: Δευ-Παρ 09:00-14:00
+                    </button>
+                  </div>
+                  <AvailabilityMatrix days={['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']}
+                    availability={form.summerAvailability || {}}
+                    onChange={(av) => setForm({ ...form, summerAvailability: av })} />
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-5 pt-5 border-t border-zinc-700">
+            <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wide mb-3">⏰ Διαθεσιμότητα Ωρών</h3>
+            <AvailabilityMatrix days={DAYS} availability={form.availability || {}}
+              onChange={(av) => setForm({ ...form, availability: av })} />
+          </div>
+
+          <div className="mt-5 pt-5 border-t border-zinc-700 flex items-center justify-end gap-2">
+            <button type="button" onClick={() => { resetForm(); setShowForm(false); }}
+              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg text-sm">Άκυρο</button>
+            <button type="button" onClick={handleSave}
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold text-sm shadow-lg shadow-emerald-500/20">
+              💾 {editingId ? 'Ενημέρωση' : 'Αποθήκευση'}
+            </button>
+          </div>
         </div>
       )}
-    </WorkspaceShell>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input type="text" placeholder="🔍 Αναζήτηση (όνομα, επώνυμο, τάξη, τηλέφωνο)..."
+          value={search} onChange={e => setSearch(e.target.value)}
+          className="w-full px-4 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white" />
+      </div>
+
+      <div className="grid gap-2">
+        {filtered.length === 0 ? (
+          <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-xl p-8 text-center text-zinc-500">
+            {search ? 'Δεν βρέθηκαν αποτελέσματα.' : 'Δεν υπάρχουν μαθητές ακόμα.'}
+          </div>
+        ) : filtered.map(s => (
+          <div key={s.id} className="bg-zinc-900 border border-zinc-700 rounded-xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm">
+              {(s.lastName?.[0] || '') + (s.firstName?.[0] || '')}
+            </div>
+            <div className="flex-1">
+              <div className="font-bold text-white text-sm">{s.lastName} {s.firstName}</div>
+              <div className="text-xs text-zinc-400">
+                🎓 {s.category} · 📞 {s.studentPhone || '—'}
+                {s.parentName && <span> · 👨‍👩 {s.parentName} ({s.parentPhone || '—'})</span>}
+              </div>
+              {s.attendsSummer && (
+                <div className="text-xs text-amber-400 mt-1">☀️ Καλοκαιρινό πρόγραμμα</div>
+              )}
+            </div>
+            <button onClick={() => handleEdit(s)} className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-xs">✏️ Edit</button>
+            <button onClick={() => handleDelete(s.id)} className="px-3 py-1.5 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 rounded text-xs">🗑</button>
+          </div>
+        ))}
+      </div>
+
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg font-semibold text-sm">
+          {toastMsg}
+        </div>
+      )}
+    </div>
   );
 }

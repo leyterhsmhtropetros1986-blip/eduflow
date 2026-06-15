@@ -1,244 +1,318 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo } from "react";
-import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { BookOpen, Plus, Trash2, Edit3, X, AlertTriangle, Check, Clock } from "lucide-react";
+import { useEffect, useState } from 'react';
 
-interface Lesson {
+type Course = {
   id: string;
   name: string;
-  weeklyHours: number;            // ώρες/εβδομάδα
-  distribution: number[];          // π.χ. [2,1] = 2ωρο + μονόωρο
-  minGapDays?: number;             // ελάχιστο διάστημα μεταξύ ωρών
-  maxHoursPerDay?: number;
-  classesByGrade: Record<string, string[]>;  // ΝΕΟ: { "Α Γυμνασίου": ["clsId1","clsId2"], "Γ Λυκείου": [...] }
-}
-interface ClassItem { id: string; name: string; grade: string; }
+  category: string;       // π.χ. "Α Γυμνασίου"
+  hoursPerWeek: number;   // συνολικές ώρες/εβδομάδα
+  distribution: number[]; // π.χ. [2,1] = 2ωρο + 1ωρο
+  minGapDays: number;     // ΝΕΟ: ελάχιστο gap σε ημέρες μεταξύ μαθημάτων
+  isSummerCourse?: boolean; // μόνο για Γ Λυκείου
+};
 
-const GRADES = ["Α Γυμνασίου","Β Γυμνασίου","Γ Γυμνασίου","Α Λυκείου","Β Λυκείου","Γ Λυκείου"];
-const EMPTY: Lesson = { id: "", name: "", weeklyHours: 2, distribution: [2], minGapDays: 1, maxHoursPerDay: 2, classesByGrade: {} };
+const CATEGORIES = [
+  'Α Γυμνασίου', 'Β Γυμνασίου', 'Γ Γυμνασίου',
+  'Α Λυκείου', 'Β Λυκείου', 'Γ Λυκείου',
+];
+
+// Όλοι οι συνδυασμοί ωρών έως 7/εβδομάδα με max 2 ώρες/σλοτ
+const DISTRIBUTION_PRESETS: { label: string; value: number[] }[] = [
+  { label: '1 ώρα', value: [1] },
+  { label: '2 ώρες (1 σλοτ)', value: [2] },
+  { label: '2 ώρες (1+1)', value: [1, 1] },
+  { label: '3 ώρες (2+1)', value: [2, 1] },
+  { label: '3 ώρες (1+1+1)', value: [1, 1, 1] },
+  { label: '4 ώρες (2+2)', value: [2, 2] },
+  { label: '4 ώρες (2+1+1)', value: [2, 1, 1] },
+  { label: '4 ώρες (1+1+1+1)', value: [1, 1, 1, 1] },
+  { label: '5 ώρες (2+2+1)', value: [2, 2, 1] },
+  { label: '5 ώρες (2+1+1+1)', value: [2, 1, 1, 1] },
+  { label: '5 ώρες (1+1+1+1+1)', value: [1, 1, 1, 1, 1] },
+  { label: '6 ώρες (2+2+2)', value: [2, 2, 2] },
+  { label: '6 ώρες (2+2+1+1)', value: [2, 2, 1, 1] },
+  { label: '6 ώρες (2+1+1+1+1)', value: [2, 1, 1, 1, 1] },
+  { label: '7 ώρες (2+2+2+1)', value: [2, 2, 2, 1] },
+  { label: '7 ώρες (2+2+1+1+1)', value: [2, 2, 1, 1, 1] },
+  { label: '7 ώρες (2+1+1+1+1+1)', value: [2, 1, 1, 1, 1, 1] },
+];
+
+// Min gap options
+const MIN_GAP_OPTIONS = [
+  { label: 'Καμία απαίτηση', value: 0 },
+  { label: '1 ημέρα', value: 1 },
+  { label: '2 ημέρες', value: 2 },
+  { label: '3 ημέρες', value: 3 },
+];
 
 export default function CoursesPage() {
-  const [isMounted, setIsMounted] = useState(false);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [classes, setClasses] = useState<ClassItem[]>([]);
-  const [editing, setEditing] = useState<Lesson | null>(null);
-  const [form, setForm] = useState<Lesson>(EMPTY);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [form, setForm] = useState<Partial<Course>>({
+    name: '',
+    category: 'Α Γυμνασίου',
+    distribution: [1],
+    minGapDays: 1, // default 1 ημέρα
+    isSummerCourse: false,
+  });
+
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
+  const [toastMsg, setToastMsg] = useState('');
 
   useEffect(() => {
-    setIsMounted(true);
-    const stored = JSON.parse(localStorage.getItem("eduflow_lessons") || localStorage.getItem("eduflow_courses") || "[]");
-    // Migration: παλιά μαθήματα ως strings ή χωρίς classesByGrade
-    const migrated: Lesson[] = stored.map((l: any) => {
-      if (typeof l === "string") return { ...EMPTY, id: "l-" + l, name: l };
-      return { ...EMPTY, ...l, classesByGrade: l.classesByGrade || {} };
-    });
-    setLessons(migrated);
-
-    const rawClasses = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
-    setClasses(rawClasses.map((c: any) => typeof c === "string" ? { id: "id-" + c, name: c, grade: "" } : { id: c.id, name: c.name || "", grade: c.grade || "" }));
+    const stored = localStorage.getItem('eduflow_courses');
+    if (stored) setCourses(JSON.parse(stored));
   }, []);
 
-  const save = (next: Lesson[]) => { setLessons(next); localStorage.setItem("eduflow_lessons", JSON.stringify(next)); };
-  const reset = () => { setForm(EMPTY); setEditing(null); };
-
-  const submit = () => {
-    if (!form.name.trim()) { alert("Συμπλήρωσε όνομα μαθήματος."); return; }
-    const total = Object.values(form.classesByGrade).reduce((acc, arr) => acc + arr.length, 0);
-    if (total === 0) { alert("Επίλεξε τουλάχιστον ένα τμήμα από οποιαδήποτε τάξη (υποχρεωτικό)."); return; }
-    if (form.weeklyHours <= 0) { alert("Οι ώρες/εβδομάδα πρέπει να είναι >0."); return; }
-    if (!form.distribution.length || form.distribution.reduce((a, b) => a + b, 0) !== form.weeklyHours) {
-      alert(`Η διανομή πρέπει να αθροίζει στις ${form.weeklyHours} ώρες.`); return;
-    }
-    if (editing) save(lessons.map((l) => l.id === editing.id ? { ...form, id: editing.id } : l));
-    else save([...lessons, { ...form, id: "l-" + Date.now() }]);
-    reset();
+  const persist = (list: Course[]) => {
+    setCourses(list);
+    localStorage.setItem('eduflow_courses', JSON.stringify(list));
   };
 
-  const remove = (id: string) => { if (confirm("Διαγραφή μαθήματος;")) save(lessons.filter((l) => l.id !== id)); };
-  const startEdit = (l: Lesson) => { setEditing(l); setForm({ ...EMPTY, ...l, classesByGrade: l.classesByGrade || {} }); window.scrollTo({ top: 0, behavior: "smooth" }); };
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 2500);
+  };
 
-  // Toggle επιλογής τμήματος
-  const toggleClass = (grade: string, cid: string) => {
-    setForm((f) => {
-      const cur = f.classesByGrade[grade] || [];
-      const next = cur.includes(cid) ? cur.filter((x) => x !== cid) : [...cur, cid];
-      const updated = { ...f.classesByGrade };
-      if (next.length === 0) delete updated[grade];
-      else updated[grade] = next;
-      return { ...f, classesByGrade: updated };
+  const resetForm = () => {
+    setForm({
+      name: '', category: 'Α Γυμνασίου',
+      distribution: [1], minGapDays: 1, isSummerCourse: false,
     });
+    setErrors({});
+    setEditingId(null);
   };
 
-  // "Επιλογή όλων" σε μια τάξη
-  const selectAllInGrade = (grade: string) => {
-    const all = classes.filter((c) => c.grade === grade).map((c) => c.id);
-    setForm((f) => ({ ...f, classesByGrade: { ...f.classesByGrade, [grade]: all } }));
+  const validate = (): boolean => {
+    const e: { [k: string]: string } = {};
+    if (!form.name?.trim()) e.name = 'Υποχρεωτικό όνομα';
+    if (!form.category) e.category = 'Υποχρεωτική κατηγορία';
+    if (!form.distribution || form.distribution.length === 0) e.distribution = 'Υποχρεωτική κατανομή';
+    if (form.minGapDays === undefined || form.minGapDays === null) e.minGapDays = 'Επίλεξε min gap';
+
+    // Αν είναι summer course, πρέπει να είναι Γ Λυκείου
+    if (form.isSummerCourse && form.category !== 'Γ Λυκείου') {
+      e.isSummerCourse = 'Καλοκαιρινό μάθημα μόνο για Γ Λυκείου';
+    }
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
-  const clearGrade = (grade: string) => {
-    setForm((f) => { const upd = { ...f.classesByGrade }; delete upd[grade]; return { ...f, classesByGrade: upd }; });
+
+  const handleSave = () => {
+    if (!validate()) return;
+
+    const hoursPerWeek = (form.distribution || []).reduce((s, x) => s + x, 0);
+    const course: Course = {
+      id: editingId || Date.now().toString(),
+      name: form.name!,
+      category: form.category!,
+      hoursPerWeek,
+      distribution: form.distribution!,
+      minGapDays: form.minGapDays!,
+      isSummerCourse: form.isSummerCourse || false,
+    };
+
+    const updated = editingId
+      ? courses.map(c => (c.id === editingId ? course : c))
+      : [...courses, course];
+
+    persist(updated);
+    showToast(editingId ? '✓ Ενημερώθηκε' : '✓ Καταχωρήθηκε');
+    resetForm();
+    setShowForm(false);
   };
 
-  // Διανομή ωρών — γρήγορες επιλογές
-  const setDistribution = (parts: number[]) => setForm({ ...form, distribution: parts, weeklyHours: parts.reduce((a, b) => a + b, 0) });
-  // Διανομές: όλες οι συνδυασμοί μέχρι 7 ώρες/εβδ με max 2 ώρες/μάθημα
-  const distributionPresets = [
-    // 1 ώρα
-    { label: "1ω", parts: [1] },
-    // 2 ώρες
-    { label: "2ω", parts: [2] },
-    { label: "1+1", parts: [1, 1] },
-    // 3 ώρες
-    { label: "2+1", parts: [2, 1] },
-    { label: "1+1+1", parts: [1, 1, 1] },
-    // 4 ώρες
-    { label: "2+2", parts: [2, 2] },
-    { label: "2+1+1", parts: [2, 1, 1] },
-    { label: "1+1+1+1", parts: [1, 1, 1, 1] },
-    // 5 ώρες
-    { label: "2+2+1", parts: [2, 2, 1] },
-    { label: "2+1+1+1", parts: [2, 1, 1, 1] },
-    { label: "1+1+1+1+1", parts: [1, 1, 1, 1, 1] },
-    // 6 ώρες
-    { label: "2+2+2", parts: [2, 2, 2] },
-    { label: "2+2+1+1", parts: [2, 2, 1, 1] },
-    { label: "2+1+1+1+1", parts: [2, 1, 1, 1, 1] },
-    // 7 ώρες
-    { label: "2+2+2+1", parts: [2, 2, 2, 1] },
-    { label: "2+2+1+1+1", parts: [2, 2, 1, 1, 1] },
-    { label: "2+1+1+1+1+1", parts: [2, 1, 1, 1, 1, 1] },
-  ];
+  const handleEdit = (c: Course) => {
+    setForm(c);
+    setEditingId(c.id);
+    setShowForm(true);
+  };
 
-  const classesByGradeMap = useMemo(() => {
-    const g: Record<string, ClassItem[]> = {};
-    GRADES.forEach((grade) => { g[grade] = classes.filter((c) => c.grade === grade); });
-    return g;
-  }, [classes]);
+  const handleDelete = (id: string) => {
+    if (!confirm('Διαγραφή μαθήματος;')) return;
+    persist(courses.filter(c => c.id !== id));
+    showToast('🗑 Διαγράφηκε');
+  };
 
-  const labelOf = (cid: string) => { const c = classes.find((x) => x.id === cid); return c ? c.name : "?"; };
-
-  const orphan = classes.filter((c) => !c.grade);
-
-  if (!isMounted) return null;
+  // Group by category for display
+  const grouped = courses.reduce<{ [k: string]: Course[] }>((acc, c) => {
+    if (!acc[c.category]) acc[c.category] = [];
+    acc[c.category].push(c);
+    return acc;
+  }, {});
 
   return (
-    <WorkspaceShell title="Μαθήματα" description="Όρισε ώρες, διανομή, και τα τμήματα όπου διδάσκεται κάθε μάθημα.">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Μαθήματα</h1>
+          <p className="text-zinc-400 text-sm mt-1">
+            Ορισμός μαθημάτων ανά τάξη, κατανομή ωρών και ελάχιστο κενό μεταξύ συναντήσεων.
+          </p>
+        </div>
+        {!showForm && (
+          <button onClick={() => setShowForm(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-semibold">
+            + Νέο Μάθημα
+          </button>
+        )}
+      </div>
 
-      {orphan.length > 0 && (
-        <div className="mb-4 p-3 rounded-xl bg-amber-950/30 border border-amber-900/50 text-xs text-amber-300">
-          ⚠ {orphan.length} τμήμα{orphan.length > 1 ? "τα" : ""} χωρίς τάξη: <b>{orphan.map((c) => c.name).join(", ")}</b>. Πρώτα διόρθωσέ τα στη σελίδα <a href="/classes" className="underline">Τμήματα</a> για να μπουν στις σωστές κατηγορίες εδώ.
+      {showForm && (
+        <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-indigo-400">
+              {editingId ? '✏️ Επεξεργασία' : '+ Νέο Μάθημα'}
+            </h2>
+            <button onClick={() => { resetForm(); setShowForm(false); }}
+              className="text-zinc-400 hover:text-white text-sm">✕ Κλείσιμο</button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-1 block">
+                Όνομα μαθήματος *
+              </label>
+              <input type="text" placeholder="π.χ. Μαθηματικά, Φυσική..." value={form.name || ''}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+                className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.name ? 'border-rose-500' : 'border-zinc-700'}`} />
+              {errors.name && <p className="text-xs text-rose-400 mt-1">{errors.name}</p>}
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-1 block">
+                Τάξη *
+              </label>
+              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.category ? 'border-rose-500' : 'border-zinc-700'}`}>
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {errors.category && <p className="text-xs text-rose-400 mt-1">{errors.category}</p>}
+            </div>
+
+            <div>
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-1 block">
+                Κατανομή ωρών/εβδομάδα *
+              </label>
+              <select
+                value={JSON.stringify(form.distribution)}
+                onChange={e => setForm({ ...form, distribution: JSON.parse(e.target.value) })}
+                className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.distribution ? 'border-rose-500' : 'border-zinc-700'}`}>
+                {DISTRIBUTION_PRESETS.map(p => (
+                  <option key={p.label} value={JSON.stringify(p.value)}>{p.label}</option>
+                ))}
+              </select>
+              {errors.distribution && <p className="text-xs text-rose-400 mt-1">{errors.distribution}</p>}
+            </div>
+
+            {/* ΝΕΟ: Min Gap dropdown */}
+            <div>
+              <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-1 block">
+                Ελάχιστο κενό μεταξύ συναντήσεων *
+              </label>
+              <select
+                value={form.minGapDays}
+                onChange={e => setForm({ ...form, minGapDays: parseInt(e.target.value) })}
+                className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.minGapDays ? 'border-rose-500' : 'border-zinc-700'}`}>
+                {MIN_GAP_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-zinc-500 mt-1">
+                💡 π.χ. αν επιλέξεις «2 ημέρες», ο auto-scheduler δεν θα βάλει 2 συναντήσεις την Τρίτη & Τετάρτη.
+              </p>
+              {errors.minGapDays && <p className="text-xs text-rose-400 mt-1">{errors.minGapDays}</p>}
+            </div>
+
+            {/* Summer course flag (μόνο για Γ Λυκείου) */}
+            {form.category === 'Γ Λυκείου' && (
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-2 cursor-pointer p-3 bg-amber-500/10 border border-amber-500/40 rounded-lg">
+                  <input type="checkbox"
+                    checked={form.isSummerCourse || false}
+                    onChange={e => setForm({ ...form, isSummerCourse: e.target.checked })}
+                    className="accent-amber-500 w-4 h-4" />
+                  <span className="text-sm font-bold text-amber-400">☀️ Καλοκαιρινό μάθημα</span>
+                  <span className="text-xs text-zinc-400">
+                    (Ιούν-Ιουλ-Αυγ, Δευ-Παρ 09:00-14:00)
+                  </span>
+                </label>
+                {errors.isSummerCourse && <p className="text-xs text-rose-400 mt-1">{errors.isSummerCourse}</p>}
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-5 pt-5 border-t border-zinc-700 flex items-center justify-end gap-2">
+            <button type="button" onClick={() => { resetForm(); setShowForm(false); }}
+              className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg text-sm">Άκυρο</button>
+            <button type="button" onClick={handleSave}
+              className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-semibold text-sm shadow-lg shadow-emerald-500/20">
+              💾 {editingId ? 'Ενημέρωση' : 'Αποθήκευση'}
+            </button>
+          </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-
-        {/* ΦΟΡΜΑ */}
-        <div className="lg:col-span-3 bg-[#1e2330] border border-slate-800 p-5 rounded-3xl space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <h3 className="text-indigo-400 font-bold text-xs uppercase flex items-center gap-2 tracking-wider"><Plus size={14} /> {editing ? "Επεξεργασία" : "Νέο Μάθημα"}</h3>
-            {editing && <button onClick={reset} className="text-slate-500 hover:text-rose-400"><X size={14} /></button>}
+      {/* List grouped by category */}
+      <div className="grid gap-6">
+        {Object.keys(grouped).length === 0 ? (
+          <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-xl p-8 text-center text-zinc-500">
+            Δεν υπάρχουν μαθήματα ακόμα.
           </div>
-
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1">Όνομα Μαθήματος *</label>
-            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="π.χ. Μαθηματικά" className="w-full bg-[#0b0e14] border border-slate-800 p-2.5 rounded-xl text-sm text-white outline-none focus:border-indigo-500" />
-          </div>
-
-          {/* ΩΡΕΣ + ΔΙΑΝΟΜΗ */}
-          <div className="bg-[#0b0e14] rounded-xl p-3 border border-slate-800">
-            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-2 flex items-center gap-1"><Clock size={11} /> Ώρες & Διανομή *</label>
-            <div className="grid grid-cols-3 gap-2 mb-2">
-              {distributionPresets.map((p) => {
-                const active = JSON.stringify(form.distribution) === JSON.stringify(p.parts);
-                return <button key={p.label} type="button" onClick={() => setDistribution(p.parts)} className={`text-[10px] py-1.5 px-2 rounded-lg font-bold ${active ? "bg-indigo-600 text-white" : "bg-[#1e2330] text-slate-400 hover:bg-slate-800"}`}>{p.label}</button>;
-              })}
-            </div>
-            <p className="text-[10px] text-slate-500">Τρέχουσα: <span className="text-white font-bold">{form.weeklyHours} ώρες/εβδομάδα</span> ({form.distribution.join("+")})</p>
-          </div>
-
-          {/* ΤΜΗΜΑΤΑ ΑΝΑ ΤΑΞΗ */}
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-2">Σε ποια τμήματα διδάσκεται; * (διάλεξε από κάθε τάξη)</label>
-            <div className="space-y-2">
-              {GRADES.map((grade) => {
-                const list = classesByGradeMap[grade];
-                const selected = form.classesByGrade[grade] || [];
-                if (list.length === 0) return null;
-                const allSelected = list.length > 0 && selected.length === list.length;
-                return (
-                  <div key={grade} className="bg-[#0b0e14] border border-slate-800 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-bold text-indigo-400">{grade}</p>
+        ) : (
+          CATEGORIES.filter(cat => grouped[cat]).map(cat => (
+            <div key={cat}>
+              <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-wide mb-2">
+                {cat} <span className="text-zinc-500">({grouped[cat].length})</span>
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {grouped[cat].map(c => (
+                  <div key={c.id} className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="font-bold text-white text-sm">{c.name}</div>
                       <div className="flex gap-1">
-                        <button type="button" onClick={() => allSelected ? clearGrade(grade) : selectAllInGrade(grade)} className="text-[9px] text-slate-400 hover:text-white px-2 py-0.5 rounded bg-slate-800/40">
-                          {allSelected ? "Καθαρισμός" : "Όλα"}
-                        </button>
+                        <button onClick={() => handleEdit(c)}
+                          className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 rounded text-xs">✏️</button>
+                        <button onClick={() => handleDelete(c.id)}
+                          className="px-2 py-1 bg-rose-600/20 hover:bg-rose-600/40 text-rose-400 rounded text-xs">🗑</button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
-                      {list.map((c) => {
-                        const on = selected.includes(c.id);
-                        return (
-                          <button key={c.id} type="button" onClick={() => toggleClass(grade, c.id)}
-                            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-bold border transition ${on ? "bg-indigo-600 text-white border-indigo-500" : "bg-[#1e2330] text-slate-300 border-slate-700 hover:border-slate-500"}`}>
-                            <div className={`w-3 h-3 rounded border flex items-center justify-center shrink-0 ${on ? "bg-white border-white" : "border-slate-500"}`}>
-                              {on && <Check size={9} className="text-indigo-600" />}
-                            </div>
-                            {c.name}
-                          </button>
-                        );
-                      })}
+                    <div className="flex flex-wrap gap-1.5 text-xs">
+                      <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded">
+                        ⏱ {c.hoursPerWeek} ώρες/εβδ.
+                      </span>
+                      <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-mono">
+                        {c.distribution.join('+')}
+                      </span>
+                      {c.minGapDays > 0 ? (
+                        <span className="bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded">
+                          🔄 gap {c.minGapDays}d
+                        </span>
+                      ) : (
+                        <span className="bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded">no gap</span>
+                      )}
+                      {c.isSummerCourse && (
+                        <span className="bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded">☀️</span>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-              {GRADES.every((g) => classesByGradeMap[g].length === 0) && (
-                <p className="text-xs text-slate-500 text-center py-6">Δεν υπάρχουν τμήματα σε καμία τάξη. Πήγαινε στη σελίδα <a href="/classes" className="text-indigo-400 underline">Τμήματα</a> για να δημιουργήσεις.</p>
-              )}
-            </div>
-          </div>
-
-          <button onClick={submit} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-xl text-xs font-bold">{editing ? "Αποθήκευση" : "+ Προσθήκη"}</button>
-        </div>
-
-        {/* ΛΙΣΤΑ */}
-        <div className="lg:col-span-2 space-y-3">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">Μαθήματα ({lessons.length})</h3>
-          {lessons.length === 0 ? (
-            <div className="text-center py-16 text-slate-600 text-xs border border-dashed border-slate-800 rounded-2xl">Δεν υπάρχουν μαθήματα.</div>
-          ) : lessons.map((l) => {
-            const total = Object.values(l.classesByGrade || {}).reduce((acc, arr) => acc + arr.length, 0);
-            return (
-              <div key={l.id} className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 bg-indigo-950/50 border border-indigo-900/40 rounded-xl flex items-center justify-center shrink-0">
-                    <BookOpen size={14} className="text-indigo-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-bold text-sm">{l.name}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">⏰ {l.weeklyHours}ω/εβδ ({l.distribution.join("+")}) · {total} τμή{total > 1 ? "ματα" : "μα"}</p>
-                    {l.classesByGrade && Object.keys(l.classesByGrade).length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {Object.entries(l.classesByGrade).map(([grade, ids]) => (
-                          <div key={grade} className="text-[10px]">
-                            <span className="text-indigo-400 font-bold">{grade}:</span>{" "}
-                            <span className="text-slate-300">{ids.map(labelOf).join(", ")}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {total === 0 && <p className="text-[10px] text-amber-400 mt-1">⚠ Χωρίς τμήματα</p>}
-                  </div>
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <button onClick={() => startEdit(l)} className="text-slate-500 hover:text-indigo-400 p-1"><Edit3 size={12} /></button>
-                    <button onClick={() => remove(l.id)} className="text-slate-500 hover:text-rose-400 p-1"><Trash2 size={12} /></button>
-                  </div>
-                </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
+            </div>
+          ))
+        )}
       </div>
-    </WorkspaceShell>
+
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg font-semibold text-sm">
+          {toastMsg}
+        </div>
+      )}
+    </div>
   );
 }

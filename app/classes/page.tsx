@@ -1,196 +1,174 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useMemo } from "react";
-import { WorkspaceShell } from "../../components/WorkspaceShell";
-import { BookOpen, Plus, Trash2, Edit3, X, AlertTriangle, Wand2, Search } from "lucide-react";
+import { useEffect, useState } from 'react';
 
-interface ClassItem { id: string; name: string; grade: string; maxStudents?: number; }
-
-const GRADES = ["Α Γυμνασίου","Β Γυμνασίου","Γ Γυμνασίου","Α Λυκείου","Β Λυκείου","Γ Λυκείου"];
-
-// Σύντομη ετικέτα τάξης (για auto-suggest ονόματος)
-const SHORT: Record<string, string> = {
-  "Α Γυμνασίου": "Α",
-  "Β Γυμνασίου": "Β",
-  "Γ Γυμνασίου": "Γ",
-  "Α Λυκείου": "Α",
-  "Β Λυκείου": "Β",
-  "Γ Λυκείου": "Γ",
+type ClassUnit = {
+  id: string;
+  category: string;       // π.χ. "Α Γυμνασίου"
+  name: string;           // π.χ. "Α1"
+  capacity?: number;
 };
 
+const CATEGORIES = [
+  'Α Γυμνασίου', 'Β Γυμνασίου', 'Γ Γυμνασίου',
+  'Α Λυκείου', 'Β Λυκείου', 'Γ Λυκείου',
+];
+
 export default function ClassesPage() {
-  const [isMounted, setIsMounted] = useState(false);
-  const [classes, setClasses] = useState<ClassItem[]>([]);
-  const [search, setSearch] = useState("");
-  const [filterGrade, setFilterGrade] = useState("");
-  const [editing, setEditing] = useState<ClassItem | null>(null);
-  const [form, setForm] = useState<ClassItem>({ id: "", name: "", grade: "", maxStudents: undefined });
+  const [classes, setClasses] = useState<ClassUnit[]>([]);
+  const [bulkCategory, setBulkCategory] = useState<string>('');
+  const [bulkCount, setBulkCount] = useState<number>(3);
+  const [errors, setErrors] = useState<{ [k: string]: string }>({});
+  const [toastMsg, setToastMsg] = useState('');
 
   useEffect(() => {
-    setIsMounted(true);
-    const stored = JSON.parse(localStorage.getItem("eduflow_classes") || "[]");
-    // Παλιά τμήματα μπορεί να είναι strings (π.χ. ["Α1", "Β2"]) — τα μετατρέπουμε
-    const normalized: ClassItem[] = stored.map((c: any) => {
-      if (typeof c === "string") return { id: "id-" + c + "-" + Math.random(), name: c, grade: "" };
-      return { id: c.id || ("id-" + Date.now() + Math.random()), name: c.name || "", grade: c.grade || "", maxStudents: c.maxStudents };
-    });
-    setClasses(normalized);
+    const stored = localStorage.getItem('eduflow_classes');
+    if (stored) setClasses(JSON.parse(stored));
   }, []);
 
-  const save = (next: ClassItem[]) => { setClasses(next); localStorage.setItem("eduflow_classes", JSON.stringify(next)); };
-  const reset = () => { setForm({ id: "", name: "", grade: "", maxStudents: undefined }); setEditing(null); };
-
-  // Auto-suggest επόμενο όνομα τμήματος (π.χ. αν έχεις Α1, Α2 → πρότεινε Α3)
-  const nextNameFor = (grade: string): string => {
-    if (!grade) return "";
-    const short = SHORT[grade] || "X";
-    const sameGrade = classes.filter((c) => c.grade === grade);
-    const used = sameGrade.map((c) => c.name).filter((n) => n.startsWith(short));
-    let i = 1;
-    while (used.includes(`${short}${i}`)) i++;
-    return `${short}${i}`;
+  const persist = (list: ClassUnit[]) => {
+    setClasses(list);
+    localStorage.setItem('eduflow_classes', JSON.stringify(list));
   };
 
-  const handleGradeChange = (grade: string) => {
-    // Όταν αλλάζει τάξη, αυτόματα προτείνει νέο όνομα (αν είναι κενό ή ίδιο με προηγούμενο suggestion)
-    const suggested = nextNameFor(grade);
-    setForm((f) => ({
-      ...f,
-      grade,
-      name: (!f.name || /^[ΑΒΓ]\d+$/.test(f.name)) ? suggested : f.name,
-    }));
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 2500);
   };
 
-  const submit = () => {
-    if (!form.name.trim()) { alert("Συμπλήρωσε όνομα τμήματος."); return; }
-    if (!form.grade) { alert("Επίλεξε τάξη (υποχρεωτικό)."); return; }
-    // Duplicate guard
-    const dup = classes.find((c) => c.id !== editing?.id && c.grade === form.grade && c.name.toLowerCase() === form.name.toLowerCase().trim());
-    if (dup) { alert(`Υπάρχει ήδη τμήμα «${form.name}» στην τάξη ${form.grade}.`); return; }
-    const cleanName = form.name.trim();
-    if (editing) save(classes.map((c) => c.id === editing.id ? { ...form, id: editing.id, name: cleanName } : c));
-    else save([...classes, { ...form, id: "cls-" + Date.now(), name: cleanName }]);
-    reset();
-  };
+  // Bulk save (πρώην Bulk Create — μετονομάστηκε σε «Αποθήκευση»)
+  const handleBulkSave = () => {
+    const e: { [k: string]: string } = {};
+    if (!bulkCategory) e.bulkCategory = 'Επίλεξε τάξη';
+    if (!bulkCount || bulkCount < 1) e.bulkCount = 'Μη έγκυρος αριθμός';
+    if (bulkCount > 20) e.bulkCount = 'Πολύ μεγάλος αριθμός (max 20)';
 
-  const remove = (id: string) => { if (confirm("Διαγραφή τμήματος;")) save(classes.filter((c) => c.id !== id)); };
-  const startEdit = (c: ClassItem) => { setEditing(c); setForm(c); window.scrollTo({ top: 0, behavior: "smooth" }); };
-
-  // QUICK ADD: Δημιουργία πολλαπλών τμημάτων μαζί (π.χ. Α1-Α6 σε Α Γυμνασίου με ένα κλικ)
-  const [bulkGrade, setBulkGrade] = useState("");
-  const [bulkCount, setBulkCount] = useState(3);
-  const bulkAdd = () => {
-    if (!bulkGrade) { alert("Επίλεξε τάξη."); return; }
-    const short = SHORT[bulkGrade];
-    const existing = new Set(classes.filter((c) => c.grade === bulkGrade).map((c) => c.name));
-    const newOnes: ClassItem[] = [];
-    let i = 1, added = 0;
-    while (added < bulkCount && i < 100) {
-      const name = `${short}${i}`;
-      if (!existing.has(name)) { newOnes.push({ id: "cls-" + Date.now() + i, name, grade: bulkGrade }); added++; }
-      i++;
+    if (Object.keys(e).length) {
+      setErrors(e);
+      return;
     }
-    if (newOnes.length === 0) { alert("Δεν υπάρχουν διαθέσιμα ονόματα."); return; }
-    save([...classes, ...newOnes]);
-    alert(`Δημιουργήθηκαν: ${newOnes.map((n) => n.name).join(", ")} στην ${bulkGrade}`);
+    setErrors({});
+
+    // Δημιουργία ή αναπροσαρμογή
+    // Αφαιρώ τυχόν υπάρχοντα και ξαναφτιάχνω
+    const prefix = bulkCategory.split(' ')[0].charAt(0); // π.χ. "Α"
+    const newOnes: ClassUnit[] = [];
+    for (let i = 1; i <= bulkCount; i++) {
+      newOnes.push({
+        id: `${bulkCategory}-${prefix}${i}-${Date.now()}-${i}`,
+        category: bulkCategory,
+        name: `${prefix}${i}`,
+      });
+    }
+
+    // Διαγραφή υπαρχόντων ίδιας κατηγορίας και αντικατάσταση
+    const filtered = classes.filter(c => c.category !== bulkCategory);
+    const updated = [...filtered, ...newOnes];
+    persist(updated);
+    showToast(`✓ Αποθηκεύτηκαν ${newOnes.length} τμήματα για ${bulkCategory}`);
   };
 
-  // Παλιά τμήματα χωρίς τάξη (warning)
-  const orphans = useMemo(() => classes.filter((c) => !c.grade), [classes]);
+  const handleDelete = (id: string) => {
+    if (!confirm('Διαγραφή τμήματος;')) return;
+    persist(classes.filter(c => c.id !== id));
+    showToast('🗑 Διαγράφηκε');
+  };
 
-  const visible = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    return classes.filter((c) => {
-      if (filterGrade && c.grade !== filterGrade) return false;
-      if (!q) return true;
-      return (c.name + " " + c.grade).toLowerCase().includes(q);
-    }).sort((a, b) => (a.grade || "ω").localeCompare(b.grade || "ω", "el") || a.name.localeCompare(b.name, "el"));
-  }, [classes, search, filterGrade]);
-
-  // Group by grade για εμφάνιση
-  const byGrade = useMemo(() => {
-    const groups: Record<string, ClassItem[]> = {};
-    visible.forEach((c) => { const g = c.grade || "— Χωρίς τάξη —"; if (!groups[g]) groups[g] = []; groups[g].push(c); });
-    return groups;
-  }, [visible]);
-
-  if (!isMounted) return null;
+  // Group by category
+  const grouped = classes.reduce<{ [k: string]: ClassUnit[] }>((acc, c) => {
+    if (!acc[c.category]) acc[c.category] = [];
+    acc[c.category].push(c);
+    return acc;
+  }, {});
 
   return (
-    <WorkspaceShell title="Τμήματα" description="Όρισε μία φορά τα τμήματά σου εδώ. Παντού αλλού θα επιλέγονται από dropdown — όχι πια typos.">
+    <div className="p-6 max-w-7xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold">Τμήματα</h1>
+        <p className="text-zinc-400 text-sm mt-1">
+          Όρισε μία φορά τα τμήματά σου εδώ. Παντού αλλού θα επιλέγονται από dropdown — όχι πια typos.
+        </p>
+      </div>
 
-      {/* WARNING για παλιά τμήματα */}
-      {orphans.length > 0 && (
-        <div className="mb-6 p-4 rounded-2xl bg-amber-950/30 border border-amber-900/50 flex items-start gap-3">
-          <AlertTriangle size={24} className="text-amber-400 shrink-0 mt-1" />
-          <div className="flex-1">
-            <h3 className="text-amber-300 font-bold text-sm">⚠ {orphans.length} τμήμα{orphans.length > 1 ? "τα" : ""} χωρίς τάξη</h3>
-            <p className="text-xs text-amber-400/80 mt-1">Για να δουλέψουν σωστά με μαθητές/καθηγητές, πάτα ✏️ και όρισε τάξη: <span className="font-bold">{orphans.map((o) => o.name).join(", ")}</span></p>
+      {/* Bulk Quick-Save */}
+      <div className="bg-indigo-500/5 border border-indigo-500/30 rounded-xl p-5 mb-6">
+        <h3 className="text-sm font-bold text-indigo-400 mb-3 uppercase tracking-wide">
+          🚀 Γρήγορη Δημιουργία
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          <div>
+            <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-1 block">
+              Τάξη *
+            </label>
+            <select value={bulkCategory}
+              onChange={e => setBulkCategory(e.target.value)}
+              className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.bulkCategory ? 'border-rose-500' : 'border-zinc-700'}`}>
+              <option value="">— Επίλεξε τάξη —</option>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {errors.bulkCategory && <p className="text-xs text-rose-400 mt-1">{errors.bulkCategory}</p>}
           </div>
+          <div>
+            <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wide mb-1 block">
+              Αριθμός τμημάτων *
+            </label>
+            <input type="number" min={1} max={20} value={bulkCount}
+              onChange={e => setBulkCount(parseInt(e.target.value) || 0)}
+              className={`w-full px-3 py-2 bg-zinc-800 border rounded-lg text-white ${errors.bulkCount ? 'border-rose-500' : 'border-zinc-700'}`} />
+            {errors.bulkCount && <p className="text-xs text-rose-400 mt-1">{errors.bulkCount}</p>}
+          </div>
+          <button onClick={handleBulkSave}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 rounded-lg font-semibold shadow-lg shadow-emerald-500/20">
+            💾 Αποθήκευση
+            {bulkCategory && bulkCount > 0 && (
+              <span className="text-xs ml-2 opacity-80">
+                ({Array.from({ length: Math.min(bulkCount, 6) }, (_, i) => {
+                  const p = bulkCategory.split(' ')[0].charAt(0);
+                  return `${p}${i + 1}`;
+                }).join(', ')}{bulkCount > 6 ? '...' : ''})
+              </span>
+            )}
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500 mt-2">
+          💡 π.χ. «Α Γυμνασίου» + «6» → δημιουργεί Α1, Α2, Α3, Α4, Α5, Α6.
+          Αν υπάρχουν ήδη τμήματα στην τάξη, θα αντικατασταθούν.
+        </p>
+      </div>
+
+      {/* List */}
+      <div className="grid gap-4">
+        {Object.keys(grouped).length === 0 ? (
+          <div className="bg-zinc-900 border border-dashed border-zinc-700 rounded-xl p-8 text-center text-zinc-500">
+            Δεν υπάρχουν τμήματα. Χρησιμοποίησε τη «Γρήγορη Δημιουργία» πάνω.
+          </div>
+        ) : (
+          CATEGORIES.filter(cat => grouped[cat]).map(cat => (
+            <div key={cat} className="bg-zinc-900 border border-zinc-700 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-indigo-400 uppercase tracking-wide">
+                  {cat} <span className="text-zinc-500">({grouped[cat].length})</span>
+                </h3>
+              </div>
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                {grouped[cat].map(c => (
+                  <div key={c.id} className="bg-zinc-800 border border-zinc-700 rounded-lg p-2 flex items-center justify-between">
+                    <span className="font-bold text-white">{c.name}</span>
+                    <button onClick={() => handleDelete(c.id)}
+                      className="text-rose-400 hover:text-rose-300 text-xs">🗑</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 bg-emerald-600 text-white px-4 py-2 rounded-lg shadow-lg font-semibold text-sm">
+          {toastMsg}
         </div>
       )}
-
-      {/* QUICK BULK ADD */}
-      <div className="mb-6 bg-indigo-950/20 border border-indigo-900/40 rounded-2xl p-4">
-        <h3 className="text-indigo-300 font-bold text-xs uppercase mb-3 flex items-center gap-2 tracking-wider"><Wand2 size={14} /> Γρήγορη δημιουργία</h3>
-        <div className="flex gap-2 items-end flex-wrap">
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Τάξη</label>
-            <select value={bulkGrade} onChange={(e) => setBulkGrade(e.target.value)} className="bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none">
-              <option value="">—</option>
-              {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-[10px] text-slate-400 uppercase font-bold mb-1">Αριθμός τμημάτων</label>
-            <input type="number" min={1} max={20} value={bulkCount} onChange={(e) => setBulkCount(+e.target.value || 1)} className="bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none w-24" />
-          </div>
-          <button onClick={bulkAdd} className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-xs font-bold">+ Δημιουργία ({bulkGrade && `${SHORT[bulkGrade]}1...${SHORT[bulkGrade]}${bulkCount}`})</button>
-        </div>
-        <p className="text-[10px] text-slate-500 mt-2">π.χ. «Α Γυμνασίου» + 6 → δημιουργεί Α1, Α2, Α3, Α4, Α5, Α6</p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6">
-
-        {/* ΛΙΣΤΑ — full width */}
-        <div className="space-y-4">
-          <div className="bg-[#1e2330] border border-slate-800 rounded-2xl p-3 flex gap-2">
-            <div className="relative flex-1">
-              <Search size={14} className="absolute left-3 top-2.5 text-slate-500" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Αναζήτηση..." className="w-full bg-[#0b0e14] border border-slate-800 p-2 pl-9 rounded-lg text-xs text-white outline-none focus:border-indigo-500" />
-            </div>
-            <select value={filterGrade} onChange={(e) => setFilterGrade(e.target.value)} className="bg-[#0b0e14] border border-slate-800 p-2 rounded-lg text-xs text-white outline-none">
-              <option value="">Όλες οι τάξεις</option>
-              {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-            </select>
-          </div>
-
-          {visible.length === 0 ? (
-            <div className="text-center py-16 text-slate-600 text-xs border border-dashed border-slate-800 rounded-2xl">{classes.length === 0 ? "Δεν υπάρχουν τμήματα. Χρησιμοποίησε τη Γρήγορη Δημιουργία πάνω." : "Καμία αντιστοιχία."}</div>
-          ) : (
-            Object.entries(byGrade).map(([grade, list]) => (
-              <div key={grade} className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4">
-                <h3 className={`text-xs font-bold uppercase tracking-wider mb-3 pb-2 border-b border-slate-800 ${grade.includes("Χωρίς") ? "text-amber-400" : "text-indigo-400"}`}>{grade} <span className="text-slate-500 text-[10px] font-normal">· {list.length} τμή{list.length > 1 ? "ματα" : "μα"}</span></h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                  {list.map((c) => (
-                    <div key={c.id} className="bg-[#0b0e14] border border-slate-800 rounded-xl p-3 flex items-center gap-2">
-                      <BookOpen size={14} className="text-indigo-400 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-bold text-sm">{c.name}</p>
-                        {c.maxStudents && <p className="text-[10px] text-slate-500">max {c.maxStudents}</p>}
-                      </div>
-                      <div className="flex gap-0.5 shrink-0">
-                        <button onClick={() => startEdit(c)} className="text-slate-500 hover:text-indigo-400 p-1"><Edit3 size={12} /></button>
-                        <button onClick={() => remove(c.id)} className="text-slate-500 hover:text-rose-400 p-1"><Trash2 size={12} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </WorkspaceShell>
+    </div>
   );
 }
