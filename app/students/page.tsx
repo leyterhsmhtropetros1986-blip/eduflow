@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AvailabilityMatrix } from '@/components/AvailabilityMatrix';
+import { AvailabilityMatrix } from '../../components/AvailabilityMatrix';
 import * as XLSX from 'xlsx';
 
 type Slot = { day: string; start: string; end: string };
