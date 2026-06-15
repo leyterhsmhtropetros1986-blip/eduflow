@@ -14,7 +14,8 @@ const navGroups = [
   {
     id: "main",
     label: "Αρχική",
-    items: [{ href: "/", label: "Dashboard", icon: <LayoutDashboard size={18} /> }],
+    items: [{ href: "/", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
+      { href: "/workflow", label: "🗺 Workflow", icon: <ClipboardList size={18} /> }],
   },
   {
     id: "data",
