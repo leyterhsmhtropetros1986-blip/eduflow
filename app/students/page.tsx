@@ -4,25 +4,24 @@ import { useEffect, useState } from 'react';
 import { AvailabilityMatrix } from '@/components/AvailabilityMatrix';
 import * as XLSX from 'xlsx';
 
+type Slot = { day: string; start: string; end: string };
+
 type Student = {
   id: string;
   firstName: string;
   lastName: string;
   parentFirstName?: string;
   parentLastName?: string;
-  parentName?: string; // computed για backward compat με messages
+  parentName?: string; // computed για backward compat
   parentPhone?: string;
   parentEmail?: string;
   studentPhone?: string;
-  category: string;       // π.χ. "Α Γυμνασίου"
+  category: string;
   subjects?: string[];
   notes?: string;
-  attendsSummer?: boolean; // ΝΕΟ: μόνο για Γ Λυκείου
-  availability: { [day: string]: { from: string; to: string }[] };
-  summerAvailability?: { [day: string]: { from: string; to: string }[] };
+  attendsSummer?: boolean; // μόνο για Γ Λυκείου — το ωράριο 09:00-14:00 είναι hardcoded
+  availability: Slot[];
 };
-
-const DAYS = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο'];
 
 const CATEGORIES = [
   'Α Γυμνασίου', 'Β Γυμνασίου', 'Γ Γυμνασίου',
@@ -46,8 +45,7 @@ export default function StudentsPage() {
     subjects: [],
     notes: '',
     attendsSummer: false,
-    availability: {},
-    summerAvailability: {},
+    availability: [],
   });
 
   const [errors, setErrors] = useState<{ [k: string]: string }>({});
@@ -74,7 +72,6 @@ export default function StudentsPage() {
   }, []);
 
   const persist = (list: Student[]) => {
-    // Compute parentName for backward compat
     const withParentName = list.map(s => ({
       ...s,
       parentName: [s.parentLastName, s.parentFirstName].filter(Boolean).join(' '),
@@ -96,7 +93,7 @@ export default function StudentsPage() {
       category: 'Α Γυμνασίου',
       subjects: [], notes: '',
       attendsSummer: false,
-      availability: {}, summerAvailability: {},
+      availability: [],
     });
     setErrors({});
     setEditingId(null);
@@ -128,8 +125,7 @@ export default function StudentsPage() {
       subjects: form.subjects || [],
       notes: form.notes || '',
       attendsSummer: form.attendsSummer || false,
-      availability: form.availability || {},
-      summerAvailability: form.attendsSummer ? form.summerAvailability : {},
+      availability: form.availability || [],
     };
     const updated = editingId
       ? students.map(s => (s.id === editingId ? student : s))
@@ -141,7 +137,12 @@ export default function StudentsPage() {
   };
 
   const handleEdit = (s: Student) => {
-    setForm(s); setEditingId(s.id); setShowForm(true);
+    setForm({
+      ...s,
+      availability: s.availability || [],
+    });
+    setEditingId(s.id);
+    setShowForm(true);
   };
 
   const handleDelete = (id: string) => {
@@ -150,15 +151,6 @@ export default function StudentsPage() {
     showToast('🗑 Διαγράφηκε');
   };
 
-  const quickFillSummer = () => {
-    const sa: { [k: string]: { from: string; to: string }[] } = {};
-    ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή'].forEach(day => {
-      sa[day] = [{ from: '09:00', to: '14:00' }];
-    });
-    setForm({ ...form, summerAvailability: sa });
-  };
-
-  // Filter για search
   const filtered = students.filter(s => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -172,7 +164,6 @@ export default function StudentsPage() {
     );
   });
 
-  // Excel Import
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['Επώνυμο*', 'Όνομα*', 'Τάξη*', 'Επώνυμο Γονέα', 'Όνομα Γονέα', 'Τηλ. Γονέα', 'Email Γονέα', 'Τηλ. Μαθητή', 'Καλοκαιρινό (Y/N)', 'Σημειώσεις'],
@@ -229,8 +220,7 @@ export default function StudentsPage() {
       studentPhone: r.studentPhone,
       attendsSummer: r.attendsSummer,
       notes: r.notes,
-      availability: {},
-      summerAvailability: {},
+      availability: [],
     }));
     persist([...students, ...newStudents]);
     showToast(`✓ Εισήχθησαν ${newStudents.length} μαθητές`);
@@ -288,7 +278,6 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* Excel Import section */}
       {showImport && !showForm && (
         <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 mb-6">
           <div className="flex items-center justify-between mb-3">
@@ -384,38 +373,30 @@ export default function StudentsPage() {
               rows={2} />
           </div>
 
-          {/* Summer flag — μόνο για Γ Λυκείου */}
+          {/* Καλοκαιρινό flag — μόνο για Γ Λυκείου, hardcoded 09:00-14:00 Δευ-Παρ */}
           {form.category === 'Γ Λυκείου' && (
             <div className="mt-5 pt-5 border-t border-zinc-700">
               <label className="flex items-center gap-2 cursor-pointer p-3 bg-amber-500/10 border border-amber-500/40 rounded-lg">
                 <input type="checkbox" checked={form.attendsSummer || false}
                   onChange={e => setForm({ ...form, attendsSummer: e.target.checked })}
                   className="accent-amber-500 w-4 h-4" />
-                <span className="text-sm font-bold text-amber-400">☀️ Παρακολουθεί καλοκαιρινό πρόγραμμα</span>
-                <span className="text-xs text-zinc-400">(Ιούν-Ιουλ-Αυγ, Δευ-Παρ 09:00-14:00)</span>
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-amber-400">☀️ Παρακολουθεί καλοκαιρινό πρόγραμμα</div>
+                  <div className="text-xs text-zinc-400 mt-0.5">
+                    Ιούν-Ιουλ-Αυγ · Δευ-Παρ 09:00-14:00 (το ωράριο χρησιμοποιείται αυτόματα από τον auto-scheduler)
+                  </div>
+                </div>
               </label>
               {errors.attendsSummer && <p className="text-xs text-rose-400 mt-1">{errors.attendsSummer}</p>}
-
-              {form.attendsSummer && (
-                <div className="mt-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <button type="button" onClick={quickFillSummer}
-                      className="text-xs bg-amber-500/20 border border-amber-500/40 text-amber-300 px-3 py-1 rounded-lg hover:bg-amber-500/30">
-                      ⚡ Auto-fill: Δευ-Παρ 09:00-14:00
-                    </button>
-                  </div>
-                  <AvailabilityMatrix days={['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή']}
-                    availability={form.summerAvailability || {}}
-                    onChange={(av) => setForm({ ...form, summerAvailability: av })} />
-                </div>
-              )}
             </div>
           )}
 
           <div className="mt-5 pt-5 border-t border-zinc-700">
             <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-wide mb-3">⏰ Διαθεσιμότητα Ωρών</h3>
-            <AvailabilityMatrix days={DAYS} availability={form.availability || {}}
-              onChange={(av) => setForm({ ...form, availability: av })} />
+            <AvailabilityMatrix
+              availability={form.availability || []}
+              onChange={(slots) => setForm({ ...form, availability: slots })}
+            />
           </div>
 
           <div className="mt-5 pt-5 border-t border-zinc-700 flex items-center justify-end gap-2">
@@ -429,7 +410,6 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {/* Search */}
       <div className="mb-4">
         <input type="text" placeholder="🔍 Αναζήτηση (όνομα, επώνυμο, τάξη, τηλέφωνο)..."
           value={search} onChange={e => setSearch(e.target.value)}
