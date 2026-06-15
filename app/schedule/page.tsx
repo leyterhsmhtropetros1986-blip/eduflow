@@ -135,7 +135,7 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
       const isGym = sesGrade.includes("Γυμν");
 
       // Επιλογή καθηγητών: πρώτα όσοι έχουν ΛΙΓΟΤΕΡΕΣ ώρες (χαμηλότερο score) -> ισορροπία
-      const candidates = teachers.filter((t) => t.subject === ses.lessonName).sort((a, b) => {
+      const candidates = teachers.filter((t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName).sort((a, b) => {
           const nameA = `${a.lastName || ""} ${a.firstName || ""}`.trim();
           const nameB = `${b.lastName || ""} ${b.firstName || ""}`.trim();
           return (teacherLoad[nameA] || 0) - (teacherLoad[nameB] || 0);
