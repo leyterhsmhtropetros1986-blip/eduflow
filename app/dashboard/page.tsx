@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Calendar, CheckCircle2, ClipboardList, Briefcase, AlertTriangle, GraduationCap, Users, BookOpen, TrendingUp, CalendarOff, Plus, ChevronRight, Activity } from "lucide-react";
+import { runMigration } from "../../lib/schema";
 
 const DAY_NAMES = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
@@ -18,6 +19,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setIsMounted(true);
+
+    // Auto-migration: τρέχει μόνο πρώτη φορά, προσθέτει IDs όπου λείπουν
+    try {
+      const result = runMigration();
+      if (result.studentsUpdated > 0 || result.teachersUpdated > 0 || result.classesUpdated > 0 || result.enrollmentsUpdated > 0) {
+        console.log("📦 EduFlow Migration:", result.message);
+      }
+    } catch (e) { console.error("Migration error:", e); }
+
     setData({
       students: parse("eduflow_students"),
       teachers: parse("eduflow_teachers"),
