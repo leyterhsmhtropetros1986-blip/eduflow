@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen,
   Building, Library, Calendar, CheckCircle2, Briefcase,
-  UserCircle, FileText, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight, Palette, Target, Move, Upload
+  UserCircle, FileText, School, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight, Palette, Target, Move, Upload
 } from "lucide-react";
 
 // Helper: hex → rgba με alpha
@@ -48,6 +48,7 @@ const navGroups = [
     items: [
       { href: "/schedule", label: "AI Scheduler", icon: <Bot size={18} /> },
       { href: "/timetable", label: "Εκτυπώσιμο", icon: <Printer size={18} /> },
+      { href: "/timetable-by-grade", label: "📋 Ανά Τάξη", icon: <School size={18} /> },
       { href: "/calendar", label: "Ημερολόγιο & Αλλαγές", icon: <Calendar size={18} /> },
       { href: "/availability", label: "Διαθεσιμότητα", icon: <Clock size={18} /> },
       { href: "/teacher-hours", label: "Ώρες Καθηγητών", icon: <Timer size={18} /> },
