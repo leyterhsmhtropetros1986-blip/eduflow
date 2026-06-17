@@ -23,7 +23,7 @@ export type Enrollment = {
   id: string;
   lessonName: string;          // π.χ. "Φυσική Γ' Λυκείου"
   className: string;            // π.χ. "Γα1"
-  sectionId?: string;           // → ClassUnit.id (robust linking)
+  sectionId: string;           // → ClassUnit.id (robust linking)
   teacherId?: string;
   pickSection?: boolean;
 };

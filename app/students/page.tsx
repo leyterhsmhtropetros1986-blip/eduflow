@@ -13,7 +13,7 @@ import {
 } from "../../lib/schema";
 
 type Slot = { day: string; start: string; end: string };
-type Enrollment = { id?: string; lessonName: string; className: string; sectionId?: string; pickSection?: boolean };
+type Enrollment = { id?: string; lessonName: string; className: string; sectionId: string; pickSection?: boolean };
 type Course = { name: string; grade: string };
 type Parent = { id: string; firstName: string; lastName: string; phone: string; email?: string; studentIds: string[] };
 
@@ -249,7 +249,7 @@ export default function StudentsPage() {
     } else {
       setForm({
         ...form,
-        enrollments: [...current, { id: generateId("enr"), lessonName, className: "" }],
+        enrollments: [...current, { id: generateId("enr"), lessonName, className: "", sectionId: "" }],
       });
     }
   };
@@ -261,7 +261,7 @@ export default function StudentsPage() {
       ...form,
       enrollments: current.map((e) =>
         e.lessonName === lessonName
-          ? { ...e, className: section?.name || "", sectionId: section?.id || undefined }
+          ? { ...e, className: section?.name || "", sectionId: section?.id || "" }
           : e
       ),
     });
@@ -277,7 +277,7 @@ export default function StudentsPage() {
               ...e,
               pickSection: !useRandom,
               className: useRandom ? "" : e.className,
-              sectionId: useRandom ? undefined : e.sectionId,
+              sectionId: useRandom ? "" : e.sectionId,
             }
           : e
       ),
@@ -405,7 +405,7 @@ export default function StudentsPage() {
         parentEmail: r.parentEmail,
         studentPhone: r.studentPhone,
         attendsSummer: r.attendsSummer,
-        enrollments: r.subjects.map((s: string) => ({ id: generateId("enr"), lessonName: s, className: "" })),
+        enrollments: r.subjects.map((s: string) => ({ id: generateId("enr"), lessonName: s, className: "", sectionId: "" })),
         notes: r.notes,
         availability: [],
       };
