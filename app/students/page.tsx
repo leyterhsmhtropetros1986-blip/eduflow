@@ -13,7 +13,7 @@ import {
 } from "../../lib/schema";
 
 type Slot = { day: string; start: string; end: string };
-type Enrollment = { id?: string; lessonName: string; className: string; sectionId?: string };
+type Enrollment = { id?: string; lessonName: string; className: string; sectionId?: string; pickSection?: boolean };
 type Course = { name: string; grade: string };
 type Parent = { id: string; firstName: string; lastName: string; phone: string; email?: string; studentIds: string[] };
 
@@ -187,6 +187,7 @@ export default function StudentsPage() {
       lessonName: en.lessonName,
       className: en.className,
       sectionId: en.sectionId,
+      pickSection: en.pickSection,
     }));
 
     const existingCodes = students.map((s) => s.studentCode).filter(Boolean) as string[];
@@ -253,14 +254,14 @@ export default function StudentsPage() {
     }
   };
 
-  const setClassForLesson = (lessonName: string, className: string) => {
+  const setSectionForLesson = (lessonName: string, sectionId: string) => {
     const current = form.enrollments || [];
-    const section = classes.find((c) => c.name === className && c.subject === lessonName);
+    const section = classes.find((c) => c.id === sectionId);
     setForm({
       ...form,
       enrollments: current.map((e) =>
         e.lessonName === lessonName
-          ? { ...e, className, sectionId: section?.id }
+          ? { ...e, className: section?.name || "", sectionId: section?.id || undefined }
           : e
       ),
     });
@@ -272,7 +273,12 @@ export default function StudentsPage() {
       ...form,
       enrollments: current.map((e) =>
         e.lessonName === lessonName
-          ? { ...e, className: useRandom ? "" : e.className, sectionId: useRandom ? undefined : e.sectionId }
+          ? {
+              ...e,
+              pickSection: !useRandom,
+              className: useRandom ? "" : e.className,
+              sectionId: useRandom ? undefined : e.sectionId,
+            }
           : e
       ),
     });
@@ -612,7 +618,9 @@ export default function StudentsPage() {
                   const enr = form.enrollments?.find((e) => e.lessonName === c.name);
                   const isChecked = !!enr;
                   const sectionsForThisLesson = availableSectionsForLesson(c.name);
-                  const useRandom = isChecked && !enr.className;
+                  // pickSection: ρητό flag. Αν δεν υπάρχει, το συμπεραίνουμε από το αν έχει ήδη τμήμα.
+                  const pickSection = enr ? (enr.pickSection !== undefined ? enr.pickSection : !!enr.sectionId) : false;
+                  const useRandom = isChecked && !pickSection;
 
                   return (
                     <div key={c.name} className={`p-3 rounded-lg border ${isChecked ? "bg-indigo-500/5 border-indigo-500/40" : "bg-zinc-800 border-zinc-700"}`}>
@@ -628,7 +636,7 @@ export default function StudentsPage() {
                           <>
                             <div className="flex items-center gap-2 ml-auto">
                               <label className="flex items-center gap-1.5 cursor-pointer">
-                                <input type="checkbox" checked={!useRandom}
+                                <input type="checkbox" checked={pickSection}
                                   onChange={(ev) => toggleRandomDistribution(c.name, !ev.target.checked)}
                                   className="accent-emerald-500 w-3.5 h-3.5" />
                                 <span className="text-xs text-zinc-300">Επιλογή τμήματος</span>
@@ -644,19 +652,19 @@ export default function StudentsPage() {
                                 ) : (
                                   <div className="flex items-center gap-2">
                                     <label className="text-xs text-zinc-400">Τμήμα:</label>
-                                    <select value={enr.className || ""}
-                                      onChange={(e) => setClassForLesson(c.name, e.target.value)}
-                                      className={`flex-1 px-2 py-1.5 bg-zinc-900 border rounded text-sm text-white ${!enr.className ? "border-rose-500/50" : "border-zinc-700"}`}>
+                                    <select value={enr.sectionId || ""}
+                                      onChange={(e) => setSectionForLesson(c.name, e.target.value)}
+                                      className={`flex-1 px-2 py-1.5 bg-zinc-900 border rounded text-sm text-white ${!enr.sectionId ? "border-rose-500/50" : "border-zinc-700"}`}>
                                       <option value="">— Επίλεξε —</option>
                                       {sectionsForThisLesson.map((cls) => {
                                         const otherStudents = students.filter((s) => s.id !== editingId);
                                         const load = getSectionLoad(cls.name, c.name, otherStudents, cls.maxStudents);
-                                        const isAlreadySelected = enr.className === cls.name;
+                                        const isAlreadySelected = enr.sectionId === cls.id;
                                         const displayCurrent = isAlreadySelected ? load.current + 1 : load.current;
                                         const displayFull = !isAlreadySelected && load.isFull;
                                         return (
-                                          <option key={cls.id} value={cls.name} disabled={displayFull}>
-                                            {cls.name} ({displayCurrent}/{cls.maxStudents || "∞"})
+                                          <option key={cls.id} value={cls.id} disabled={displayFull}>
+                                            {cls.name} - {cls.subject} ({displayCurrent}/{cls.maxStudents || "∞"})
                                             {displayFull ? " ❌ ΓΕΜΑΤΟ" : ""}
                                           </option>
                                         );
