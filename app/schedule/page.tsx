@@ -271,8 +271,8 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
             }
 
             const penalty =
-              studentGapPenalty * 1000 +
-              teacherGapAdded * 100 +
+              studentGapPenalty * 5000 + // Increased weighting for student gaps
+              teacherGapAdded * 500 + // Increased weighting for teacher gaps
               alreadyHasDayBonus +
               timePref * 2 +
               dayIdx * 1;
@@ -395,6 +395,36 @@ function computeCoverage(schedule: any[], students: any[], lessons: any[]) {
   return { shortfalls };
 }
 
+function calculateGlobalScore(schedule: any[], students: any[], teachers: any[], lessons: any[]): { score: number; details: any } {
+  const { studentGaps, teacherGaps, balanced, perDay } = computeQuality(schedule, students);
+  const { shortfalls } = computeCoverage(schedule, students, lessons);
+
+  let globalScore = 0;
+  let detailScores: any = {};
+
+  // Penalize student and teacher gaps (higher penalty for more gaps)
+  globalScore -= studentGaps * 10; // Adjust weight as needed
+  detailScores.studentGapPenalty = studentGaps * 10;
+  globalScore -= teacherGaps * 5; // Adjust weight as needed
+  detailScores.teacherGapPenalty = teacherGaps * 5;
+
+  // Penalize unbalanced daily schedules
+  if (!balanced) {
+    globalScore -= 100; // Significant penalty for unbalanced schedules
+    detailScores.balancePenalty = 100;
+  }
+
+  // Penalize unfulfilled lesson hours
+  const missingHours = shortfalls.reduce((sum, s) => sum + s.missing, 0);
+  globalScore -= missingHours * 20; // High penalty for missing hours
+  detailScores.missingHoursPenalty = missingHours * 20;
+
+  // Reward good coverage (can be inverted if we want to minimize penalties)
+  // For now, we focus on penalties. A higher score is better.
+
+  return { score: globalScore, details: detailScores };
+}
+
 type TabType = "classes" | "grid" | "teachers" | "rooms" | "students";
 const tabs: { id: TabType; label: string }[] = [
   { id: "classes", label: "🏫 Ανά Τάξη" },
@@ -458,6 +488,11 @@ export default function SchedulePage() {
     }
     localStorage.setItem("eduflow_schedule", JSON.stringify(result.schedule));
     loadData();
+
+    const globalScoreReport = calculateGlobalScore(result.schedule, data.students, data.teachers, data.lessons);
+    console.log("Global Timetable Score:", globalScoreReport);
+    // You might want to store or display this score in the UI
+
     setActiveTab("grid");
   };
 

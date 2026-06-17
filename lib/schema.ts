@@ -25,6 +25,7 @@ export type Enrollment = {
   className: string;            // π.χ. "Γα1"
   sectionId?: string;           // → ClassUnit.id (robust linking)
   teacherId?: string;
+  pickSection?: boolean;
 };
 
 export type Student = {
