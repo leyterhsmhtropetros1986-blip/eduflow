@@ -5,7 +5,7 @@ import { ClassesView } from "./ClassesView";
 import { GridView } from "./GridView";
 import { TeachersView } from "./TeachersView";
 import { RoomsView } from "./RoomsView";
-import { Zap, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Zap, Trash2, CheckCircle2, AlertTriangle, ShieldCheck } from "lucide-react";
 
 const DAYS_MAP = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
@@ -42,61 +42,121 @@ function genIsAvailable(availability: any[], lockedSlots: any[], day: string, ti
   return true;
 }
 
-// ============================================================
-// DETERMINISTIC CONSTRAINT-BASED SCHEDULER (no random, gap-min)
-// ============================================================
-
-// Υπολογίζει εσωτερικά κενά για σύνολο ωρών σε μία μέρα
-function internalGaps(hours: number[]): number {
+// ⭐ ISSUE #3: ΤΕΤΡΑΓΩΝΙΚΟ gap penalty (κενό 2ω = 4× όχι 2×)
+function internalGapsSquared(hours: number[]): number {
   if (hours.length < 2) return 0;
   const sorted = [...new Set(hours)].sort((a, b) => a - b);
-  let gaps = 0;
+  let penalty = 0;
   for (let i = 0; i < sorted.length - 1; i++) {
-    gaps += sorted[i + 1] - sorted[i] - 1;
+    const gap = sorted[i + 1] - sorted[i] - 1;
+    if (gap > 0) penalty += gap * gap; // τετραγωνικό
   }
-  return gaps;
+  return penalty;
 }
 
+// ============================================================
+// ISSUE #5: VALIDATION REPORT πριν το generate
+// ============================================================
+function validateData(data: any) {
+  const { students = [], teachers = [], classes = [], lessons = [] } = data;
+  const issues: { type: string; severity: "error" | "warning"; message: string }[] = [];
+
+  // Sections που χρησιμοποιούνται
+  const usedSections: Record<string, { lessonName: string; className: string; count: number }> = {};
+  students.forEach((s: any) => {
+    (s.enrollments || []).forEach((e: any) => {
+      if (!e.lessonName || !e.className) return;
+      const k = `${e.className}#${e.lessonName}`;
+      if (!usedSections[k]) usedSections[k] = { lessonName: e.lessonName, className: e.className, count: 0 };
+      usedSections[k].count++;
+    });
+  });
+
+  // 1) Μάθημα χωρίς καθηγητή
+  const lessonsNeeded = new Set(Object.values(usedSections).map((s) => s.lessonName));
+  lessonsNeeded.forEach((lesson) => {
+    const hasTeacher = teachers.some((t: any) => (t.subjects && t.subjects.includes(lesson)) || t.subject === lesson);
+    if (!hasTeacher) {
+      issues.push({ type: "teacher", severity: "error", message: `Κανένας καθηγητής δεν διδάσκει «${lesson}»` });
+    }
+  });
+
+  // 2) Υπέρβαση χωρητικότητας τμήματος
+  Object.values(usedSections).forEach((sec) => {
+    const cls = classes.find((c: any) => c.name === sec.className && (c.subject === sec.lessonName || !c.subject));
+    if (cls?.maxStudents && sec.count > cls.maxStudents) {
+      issues.push({ type: "class", severity: "error", message: `Τμήμα «${sec.className} - ${sec.lessonName}»: ${sec.count} μαθητές > χωρητικότητα ${cls.maxStudents}` });
+    }
+  });
+
+  // 3) Μαθητές χωρίς διαθεσιμότητα (warning)
+  const noAvail = students.filter((s: any) => (s.enrollments || []).some((e: any) => e.className) && (!s.availability || s.availability.length === 0));
+  if (noAvail.length > 0) {
+    issues.push({ type: "student", severity: "warning", message: `${noAvail.length} μαθητές χωρίς δηλωμένη διαθεσιμότητα (θα θεωρηθούν διαθέσιμοι πάντα)` });
+  }
+
+  // 4) Καθηγητές χωρίς διαθεσιμότητα (warning)
+  const teacherNoAvail = teachers.filter((t: any) => !t.availability || t.availability.length === 0);
+  if (teacherNoAvail.length > 0) {
+    issues.push({ type: "teacher", severity: "warning", message: `${teacherNoAvail.length} καθηγητές χωρίς διαθεσιμότητα` });
+  }
+
+  // 5) Μαθήματα χωρίς ώρες
+  const lessonsNoHours = Array.from(lessonsNeeded).filter((ln) => {
+    const li = lessons.find((l: any) => (l?.name || l) === ln);
+    const hrs = Number(li?.weeklyHours ?? li?.hoursPerWeek ?? 0);
+    return typeof li === "object" && (!hrs || hrs <= 0);
+  });
+  if (lessonsNoHours.length > 0) {
+    issues.push({ type: "class", severity: "warning", message: `Μαθήματα χωρίς δηλωμένες ώρες: ${lessonsNoHours.slice(0, 5).join(", ")}` });
+  }
+
+  return issues;
+}
+
+// ============================================================
+// DETERMINISTIC CONSTRAINT-BASED SCHEDULER
+// ============================================================
 function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; lessons: any[] }): { schedule: any[], unplaced: any[], placed: number, teacherScore: Record<string, number> } {
   const { students = [], teachers = [], classes = [], rooms = [], lessons = [] } = data;
 
   const classGrade: Record<string, string> = {};
+  const classIdMap: Record<string, string> = {};
   classes.forEach((c: any) => {
     const nm = c.name || c.className;
-    if (nm) classGrade[nm] = c.grade || c.category || "";
+    if (nm) {
+      classGrade[nm] = c.grade || c.category || "";
+      if (c.subject) classIdMap[`${nm}#${c.subject}`] = c.id;
+    }
   });
 
   const teacherBusy = new Set<string>();
   const roomBusy = new Set<string>();
   const classRoom: Record<string, string> = {};
-  const groupBusy = new Set<string>();   // key = sectionKey|day|time (className+lesson)
+  const groupBusy = new Set<string>();
   const studentBusy = new Set<string>();
   const teacherLoad: Record<string, number> = {};
   const schedule: any[] = [];
   const unplaced: any[] = [];
   const roomNames = (rooms || []).map((r: any) => r.name || r.title || r).filter(Boolean);
 
-  // Section key = lessonName + className (subject-specific!)
+  // ⭐ ISSUE #1: section key = className + lessonName (subject-specific)
   const sectionKey = (className: string, lessonName: string) => `${className}#${lessonName}`;
 
-  // Build sessions keyed by (lessonName, className)
   const pairs: Record<string, any> = {};
   students.forEach((s) => {
     if (!s.enrollments) return;
     s.enrollments.forEach((e: any) => {
       if (!e.lessonName || !e.className) return;
       const key = `${e.lessonName}|||${e.className}`;
-      if (!pairs[key]) pairs[key] = { lessonName: e.lessonName, className: e.className, students: [] };
+      if (!pairs[key]) pairs[key] = { lessonName: e.lessonName, className: e.className, students: [], sectionId: e.sectionId };
       pairs[key].students.push(s);
     });
   });
 
-  // ⭐ DETERMINISTIC ORDERING (MRV): λιγότεροι καθηγητές πρώτα,
-  // μετά μεγαλύτερα γκρουπ, μετά αλφαβητικά (σταθερό tie-break)
+  // MRV ordering
   const sessions = Object.values(pairs).map((ses: any) => {
-    const candidateCount = teachers.filter(
-      (t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName
-    ).length;
+    const candidateCount = teachers.filter((t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName).length;
     return { ...ses, candidateCount };
   }).sort((a: any, b: any) => {
     if (a.candidateCount !== b.candidateCount) return a.candidateCount - b.candidateCount;
@@ -120,8 +180,8 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
     const sesGrade = classGrade[ses.className] || ses.students?.[0]?.grade || "";
     const isGym = sesGrade.includes("Γυμν");
     const secKey = sectionKey(ses.className, ses.lessonName);
+    const secId = ses.sectionId || classIdMap[secKey] || secKey;
 
-    // Candidates sorted DETERMINISTICALLY: least load first, then name
     const candidates = teachers
       .filter((t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName)
       .sort((a, b) => {
@@ -142,18 +202,15 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
       const usedDayIndices: number[] = [];
 
       for (const blockHours of distribution) {
-        // ⭐ Συλλέγουμε ΟΛΑ τα έγκυρα slots και τα βαθμολογούμε (gap-aware)
         type Cand = { day: string; dayIdx: number; h: number; penalty: number; room?: string };
         const validCands: Cand[] = [];
 
         for (const day of DAYS_MAP) {
           const dayIdx = DAYS_MAP.indexOf(day);
-          // minGap: όχι 2 μπλοκ ίδιου μαθήματος σε κοντινές μέρες
           if (usedDayIndices.some((uIdx) => Math.abs(uIdx - dayIdx) < minGap)) continue;
 
           const availableHours = genDayHours(day);
 
-          // Daily cap 4 ώρες/μαθητή
           const exceedsDaily = ses.students.some((st: any) => {
             const cur = availableHours.filter((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh)))).length;
             return cur + blockHours > 4;
@@ -167,13 +224,14 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
             const timeSlots: string[] = [];
             for (let i = 0; i < blockHours; i++) timeSlots.push(genHH(h + i));
 
-            // HARD CONSTRAINTS
+            // HARD CONSTRAINTS (teacher + group + STUDENT + room)
             let possible = true;
             for (const ts of timeSlots) {
               const tKey = makeKey(tName, day, ts);
               const gKey = makeKey(secKey, day, ts);
               if (teacherBusy.has(tKey) || groupBusy.has(gKey)) { possible = false; break; }
               if (!genIsAvailable(teacher.availability, teacher.lockedSlots, day, ts)) { possible = false; break; }
+              // ⭐ ISSUE #2: student conflict + availability
               for (const st of ses.students) {
                 const sKey = makeKey(st.id, day, ts);
                 if (studentBusy.has(sKey) || !genIsAvailable(st.availability, st.lockedSlots, day, ts)) { possible = false; break; }
@@ -185,44 +243,39 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
             }
             if (!possible) continue;
 
-            // Room selection (deterministic: preferred → πρώτη ελεύθερη)
             const roomFree = (rn: string) => !timeSlots.some((ts) => roomBusy.has(makeKey(rn, day, ts)));
             const preferred = classRoom[ses.className];
             const room: string | undefined = preferred && roomFree(preferred) ? preferred : roomNames.find(roomFree);
 
-            // ⭐ SCORING — penalty (χαμηλότερο = καλύτερο)
             const blockHoursArr: number[] = [];
             for (let i = 0; i < blockHours; i++) blockHoursArr.push(h + i);
 
-            // 1) Κενά μαθητών (ΥΨΗΛΟ βάρος)
+            // ⭐ ISSUE #3: τετραγωνικό gap penalty μαθητών
             let studentGapPenalty = 0;
             for (const st of ses.students) {
               const occupied = availableHours.filter((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh))));
-              const before = internalGaps(occupied);
-              const after = internalGaps([...occupied, ...blockHoursArr]);
+              const before = internalGapsSquared(occupied);
+              const after = internalGapsSquared([...occupied, ...blockHoursArr]);
               studentGapPenalty += (after - before);
             }
 
-            // 2) Κενά καθηγητή (μεσαίο βάρος)
             const teacherOccupied = availableHours.filter((hh) => teacherBusy.has(makeKey(tName, day, genHH(hh))));
-            const teacherGapAdded = internalGaps([...teacherOccupied, ...blockHoursArr]) - internalGaps(teacherOccupied);
+            const teacherGapAdded = internalGapsSquared([...teacherOccupied, ...blockHoursArr]) - internalGapsSquared(teacherOccupied);
 
-            // 3) Προτίμηση ώρας ανά τάξη (Γυμνάσιο νωρίς, Λύκειο αργά)
             const timePref = isGym ? h : (24 - h);
 
-            // 4) Compactness: προτίμησε μέρες που ο μαθητής έχει ήδη μάθημα
             let alreadyHasDayBonus = 0;
             for (const st of ses.students) {
               const hasDay = availableHours.some((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh))));
-              if (hasDay) alreadyHasDayBonus -= 5; // bonus (μειώνει penalty)
+              if (hasDay) alreadyHasDayBonus -= 5;
             }
 
             const penalty =
-              studentGapPenalty * 1000 +      // κενά μαθητών = κορυφαία προτεραιότητα
-              teacherGapAdded * 100 +          // κενά καθηγητή
-              alreadyHasDayBonus +             // συμπαγές πρόγραμμα
-              timePref * 2 +                   // προτίμηση ώρας
-              dayIdx * 1;                      // σταθερό tie-break
+              studentGapPenalty * 1000 +
+              teacherGapAdded * 100 +
+              alreadyHasDayBonus +
+              timePref * 2 +
+              dayIdx * 1;
 
             validCands.push({ day, dayIdx, h, penalty, room });
           }
@@ -230,7 +283,6 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
 
         if (validCands.length === 0) { placedAllBlocks = false; break; }
 
-        // ⭐ Διάλεξε το slot με ΧΑΜΗΛΟΤΕΡΟ penalty (deterministic tie-break)
         validCands.sort((a, b) => {
           if (a.penalty !== b.penalty) return a.penalty - b.penalty;
           if (a.dayIdx !== b.dayIdx) return a.dayIdx - b.dayIdx;
@@ -238,7 +290,6 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
         });
         const chosen = validCands[0];
 
-        // Commit το επιλεγμένο block
         const timeSlots: string[] = [];
         for (let i = 0; i < blockHours; i++) timeSlots.push(genHH(chosen.h + i));
         const room = chosen.room;
@@ -259,6 +310,7 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
 
         tempSchedule.push({
           id: `${ses.className}-${ses.lessonName}-${chosen.day}-${chosen.h}`,
+          sectionId: secId,
           groupName: ses.className,
           grade: sesGrade,
           teacher: tName,
@@ -277,7 +329,6 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
         placedSession = true;
         break;
       } else {
-        // Rollback
         tempBusy.teacher.forEach((k) => teacherBusy.delete(k));
         tempBusy.group.forEach((k) => groupBusy.delete(k));
         tempBusy.student.forEach((k) => studentBusy.delete(k));
@@ -288,18 +339,12 @@ function generateSchedule(data: { students: any[]; teachers: any[]; classes: any
     if (!placedSession) {
       unplaced.push({
         ...ses,
-        reason: candidates.length === 0
-          ? "Δεν υπάρχει καθηγητής για το μάθημα"
-          : "Αδυναμία τοποθέτησης (συγκρούσεις/διαθεσιμότητα)",
+        reason: candidates.length === 0 ? "Δεν υπάρχει καθηγητής για το μάθημα" : "Αδυναμία τοποθέτησης (συγκρούσεις/διαθεσιμότητα)",
       });
     }
   }
 
-  console.log("Scheduling Report (deterministic):", {
-    students: students.length, teachers: teachers.length, lessons: lessons.length,
-    rooms: rooms.length, sessions: sessionCount, schedule: schedule.length, unplaced: unplaced.length,
-  });
-  console.log("Ώρες ανά καθηγητή:", teacherLoad);
+  console.log("Scheduling Report (deterministic):", { students: students.length, teachers: teachers.length, lessons: lessons.length, rooms: rooms.length, sessions: sessionCount, schedule: schedule.length, unplaced: unplaced.length });
   if (unplaced.length > 0) console.table(unplaced.map((u) => ({ lesson: u.lessonName, class: u.className, reason: u.reason })));
 
   return { schedule, unplaced, placed: schedule.length, teacherScore: teacherLoad };
@@ -364,6 +409,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState({ schedule: [], classes: [], students: [], teachers: [], rooms: [], lessons: [] });
   const [search, setSearch] = useState("");
+  const [validationIssues, setValidationIssues] = useState<any[] | null>(null);
 
   const loadData = () => {
     try {
@@ -379,35 +425,40 @@ export default function SchedulePage() {
   };
   useEffect(() => { loadData(); setLoading(false); }, []);
 
+  const handleValidate = () => {
+    const issues = validateData(data);
+    setValidationIssues(issues);
+    return issues;
+  };
+
   const handleAutoGenerate = () => {
     if (data.schedule.length > 0 && !confirm("Να αντικατασταθεί το υπάρχον πρόγραμμα;")) return;
 
     const studentsWithEnrollments = data.students.filter((s: any) => s.enrollments?.some((e: any) => e.className));
     if (studentsWithEnrollments.length === 0) {
-      alert("⚠ Δεν υπάρχουν μαθητές με τμήμα.\n\nΠήγαινε στη σελίδα «Μαθητές» και δήλωσε μάθημα + τμήμα για κάθε μαθητή.");
+      alert("⚠ Δεν υπάρχουν μαθητές με τμήμα.\n\nΠήγαινε στη σελίδα «Μαθητές» και δήλωσε μάθημα + τμήμα.");
       return;
     }
-    if (data.teachers.length === 0) {
-      alert("⚠ Δεν υπάρχουν καθηγητές. Δημιούργησε στη σελίδα «Καθηγητές».");
-      return;
-    }
-    if (data.lessons.length === 0) {
-      alert("⚠ Δεν υπάρχουν μαθήματα. Δημιούργησε στη σελίδα «Μαθήματα».");
-      return;
+    if (data.teachers.length === 0) { alert("⚠ Δεν υπάρχουν καθηγητές."); return; }
+    if (data.lessons.length === 0) { alert("⚠ Δεν υπάρχουν μαθήματα."); return; }
+
+    // ⭐ ISSUE #5: validation πριν
+    const issues = handleValidate();
+    const errors = issues.filter((i) => i.severity === "error");
+    if (errors.length > 0) {
+      const msg = errors.map((e) => `• ${e.message}`).join("\n");
+      if (!confirm(`⚠ Βρέθηκαν ${errors.length} σοβαρά προβλήματα:\n\n${msg}\n\nΣυνέχεια ούτως ή άλλως;`)) return;
     }
 
     const result = generateSchedule(data);
     if (result.schedule.length === 0) {
       const reasons = result.unplaced.slice(0, 5).map((u: any) => `• ${u.lessonName} (${u.className}): ${u.reason}`).join("\n");
-      alert(`Δεν τοποθετήθηκε τίποτα.\n\nΑιτίες:\n${reasons || "—"}\n\nΕλεγξε ότι κάθε μάθημα έχει καθηγητή που το διδάσκει.`);
+      alert(`Δεν τοποθετήθηκε τίποτα.\n\nΑιτίες:\n${reasons || "—"}`);
       return;
     }
     localStorage.setItem("eduflow_schedule", JSON.stringify(result.schedule));
     loadData();
     setActiveTab("grid");
-    if (result.unplaced.length > 0) {
-      console.warn(`⚠ ${result.unplaced.length} τοποθετήσεις δεν έγιναν:`, result.unplaced);
-    }
   };
 
   const handleClearSchedule = () => {
@@ -424,11 +475,34 @@ export default function SchedulePage() {
 
   return (
     <WorkspaceShell title="Master Scheduler" description="Πλήρης διαχείριση προγράμματος (deterministic)">
-      <div className="flex gap-3 mb-6">
-        <input placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm w-80" />
+      <div className="flex gap-3 mb-6 flex-wrap">
+        <input placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm w-64" />
+        <button onClick={handleValidate} className="bg-[#1e2330] text-cyan-400 border border-cyan-500/30 px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><ShieldCheck size={16} /> Έλεγχος</button>
         <button onClick={handleAutoGenerate} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><Zap size={16} /> Αυτόματη Δημιουργία</button>
         <button onClick={handleClearSchedule} className="bg-[#1e2330] text-rose-400 border border-rose-500/30 px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><Trash2 size={16} /> Καθαρισμός</button>
       </div>
+
+      {/* ⭐ ISSUE #5: Validation Report panel */}
+      {validationIssues !== null && (
+        <div className="mb-6 p-4 rounded-2xl border bg-[#0b0e14] border-slate-800">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-black uppercase tracking-wider text-cyan-400">🛡 Έλεγχος Δεδομένων</p>
+            <button onClick={() => setValidationIssues(null)} className="text-slate-500 hover:text-white text-xs">✕</button>
+          </div>
+          {validationIssues.length === 0 ? (
+            <div className="flex items-center gap-2 text-emerald-400 text-sm font-bold"><CheckCircle2 size={16} /> Κανένα πρόβλημα! Έτοιμο για δημιουργία προγράμματος.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {validationIssues.map((issue, i) => (
+                <div key={i} className={`text-[11px] px-3 py-2 rounded-xl border ${issue.severity === "error" ? "bg-rose-950/20 border-rose-900/40 text-rose-300" : "bg-amber-950/20 border-amber-900/40 text-amber-300"}`}>
+                  {issue.severity === "error" ? "❌" : "⚠"} {issue.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {data.schedule.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8">
           <QualityRow ok={quality.balanced} label="Ισοκατανομή εβδομάδας" detail={`Ανά μέρα: ${quality.perDay.filter((n) => n > 0).join(" · ") || "—"}`} />
@@ -456,7 +530,7 @@ export default function SchedulePage() {
           </div>
         )
       )}
-      <div className="flex gap-2 mb-8">
+      <div className="flex gap-2 mb-8 flex-wrap">
         {tabs.map((tab) => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-5 py-2 rounded-xl text-sm font-bold ${activeTab === tab.id ? "bg-indigo-600 text-white" : "bg-[#1e2330] text-slate-400"}`}>
             {tab.label}
