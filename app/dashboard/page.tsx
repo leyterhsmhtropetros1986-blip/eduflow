@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { WorkspaceShell } from "../../components/WorkspaceShell";
 import { Calendar, CheckCircle2, ClipboardList, Briefcase, AlertTriangle, GraduationCap, Users, BookOpen, TrendingUp, CalendarOff, Plus, ChevronRight, Activity } from "lucide-react";
-import { runMigration } from "../../lib/schema";
+import { runMigration, runMigrationV2 } from "../../lib/schema";
 
 const DAY_NAMES = ["Κυριακή", "Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
@@ -20,13 +20,21 @@ export default function DashboardPage() {
   useEffect(() => {
     setIsMounted(true);
 
-    // Auto-migration: τρέχει μόνο πρώτη φορά, προσθέτει IDs όπου λείπουν
+    // Auto-migration v1: προσθέτει IDs όπου λείπουν
     try {
       const result = runMigration();
       if (result.studentsUpdated > 0 || result.teachersUpdated > 0 || result.classesUpdated > 0 || result.enrollmentsUpdated > 0) {
-        console.log("📦 EduFlow Migration:", result.message);
+        console.log("📦 EduFlow Migration v1:", result.message);
       }
-    } catch (e) { console.error("Migration error:", e); }
+    } catch (e) { console.error("Migration v1 error:", e); }
+
+    // Auto-migration v2: σπάει παλιά τμήματα ανά μάθημα
+    try {
+      const resultV2 = runMigrationV2();
+      if (resultV2.classesExpanded > 0) {
+        console.log("📦 EduFlow Migration v2:", resultV2.message);
+      }
+    } catch (e) { console.error("Migration v2 error:", e); }
 
     setData({
       students: parse("eduflow_students"),
@@ -49,7 +57,6 @@ export default function DashboardPage() {
     const cancelledIds = new Set(data.changes.filter((c: any) => c.type === "cancel" && c.date === todayISO).map((c: any) => c.scheduleId));
     const makeups = data.changes.filter((c: any) => (c.type === "makeup" || c.type === "swap") && c.newDate === todayISO);
     const regular = data.schedule.filter((s: any) => s.day === todayName && !cancelledIds.has(s.id));
-    // Προσθέτω και τις αναπληρώσεις/μεταθέσεις που πέφτουν σήμερα
     const extras = makeups.map((c: any) => {
       const orig = data.schedule.find((s: any) => s.id === c.scheduleId);
       if (!orig) return null;
@@ -58,7 +65,7 @@ export default function DashboardPage() {
     return [...regular, ...extras].sort((a: any, b: any) => String(a.time).localeCompare(String(b.time)));
   }, [data, todayName, todayISO]);
 
-  // Παρουσίες σήμερα — ποιοι έχουν περαστεί
+  // Παρουσίες σήμερα
   const attendanceDone = useMemo(() => {
     const recs = data.attendance.filter((a: any) => a.date === todayISO);
     return new Set(recs.map((a: any) => `${a.studentId || a.studentName}-${a.lessonName || a.subject}`));
@@ -100,7 +107,6 @@ export default function DashboardPage() {
   const pendingAttendance = useMemo(() => {
     let pending = 0;
     todayLessons.forEach((l: any) => {
-      // Πόσοι μαθητές αυτού του τμήματος δεν έχουν περαστεί
       const studentsInClass = data.students.filter((s: any) => (s.enrollments || []).some((e: any) => e.className === l.groupName && e.lessonName === l.subject));
       studentsInClass.forEach((s: any) => {
         const key = `${s.id}-${l.subject}`;
