@@ -9,15 +9,6 @@ import { Zap, Trash2, CheckCircle2, AlertTriangle } from "lucide-react";
 
 const DAYS_MAP = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
-function shuffleArray(array: any[]) {
-  const arr = [...array];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 const makeKey = (id: string, day: string, time: string) => `${id}|${day}|${time}`;
 
 function genDayHours(day: string): number[] {
@@ -51,188 +42,267 @@ function genIsAvailable(availability: any[], lockedSlots: any[], day: string, ti
   return true;
 }
 
-function calculateScore(schedule: any[], students: any[]): number {
-    let score = schedule.length * 1000;
-    const gradeByClass: Record<string, string> = {};
-    students.forEach((s: any) => (s.enrollments || []).forEach((e: any) => {
-        if (e.className && !gradeByClass[e.className]) gradeByClass[e.className] = s.grade || "";
-    }));
-    schedule.forEach(item => {
-        const startHour = parseInt(item.time.split('-')[0].split(':')[0]);
-        const g = gradeByClass[item.groupName] || "";
-        if (g.includes("Γυμν")) score -= startHour * 8;
-        else if (g.includes("Λυκείου")) score += startHour * 8;
-        else if (startHour >= 20) score -= 50;
-    });
-    students.forEach(s => {
-        const cls = s.class || s.className;
-        DAYS_MAP.forEach(day => {
-            const studentDayItems = schedule.filter(i => i.groupName === cls && i.day === day)
-                                            .sort((a,b) => parseInt(a.time.split('-')[0].split(':')[0]) - parseInt(b.time.split('-')[0].split(':')[0]));
-            for (let i = 0; i < studentDayItems.length - 1; i++) {
-                const endCurrent = parseInt(studentDayItems[i].time.split('-')[1].split(':')[0]);
-                const startNext = parseInt(studentDayItems[i+1].time.split('-')[0].split(':')[0]);
-                const gap = startNext - endCurrent;
-                if (gap > 0) score -= (gap * 120);
-            }
-        });
-    });
-    return score;
+// ============================================================
+// DETERMINISTIC CONSTRAINT-BASED SCHEDULER (no random, gap-min)
+// ============================================================
+
+// Υπολογίζει εσωτερικά κενά για σύνολο ωρών σε μία μέρα
+function internalGaps(hours: number[]): number {
+  if (hours.length < 2) return 0;
+  const sorted = [...new Set(hours)].sort((a, b) => a - b);
+  let gaps = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    gaps += sorted[i + 1] - sorted[i] - 1;
+  }
+  return gaps;
 }
 
 function generateSchedule(data: { students: any[]; teachers: any[]; classes: any[]; rooms: any[]; lessons: any[] }): { schedule: any[], unplaced: any[], placed: number, teacherScore: Record<string, number> } {
   const { students = [], teachers = [], classes = [], rooms = [], lessons = [] } = data;
 
-  // Διαβάζει και grade (νέο schema) και category (legacy)
   const classGrade: Record<string, string> = {};
   classes.forEach((c: any) => {
     const nm = c.name || c.className;
     if (nm) classGrade[nm] = c.grade || c.category || "";
   });
 
-  let bestResult: any = { schedule: [], unplaced: [], placed: -1, score: -Infinity, teacherScore: {} };
-  let sessionCount = 0;
+  const teacherBusy = new Set<string>();
+  const roomBusy = new Set<string>();
+  const classRoom: Record<string, string> = {};
+  const groupBusy = new Set<string>();   // key = sectionKey|day|time (className+lesson)
+  const studentBusy = new Set<string>();
+  const teacherLoad: Record<string, number> = {};
+  const schedule: any[] = [];
+  const unplaced: any[] = [];
+  const roomNames = (rooms || []).map((r: any) => r.name || r.title || r).filter(Boolean);
 
-  for (let attempt = 0; attempt < 50; attempt++) {
-    const teacherBusy = new Set<string>();
-    const roomBusy = new Set<string>();
-    const classRoom: Record<string, string> = {};
-    const groupBusy = new Set<string>();
-    const studentBusy = new Set<string>();
-    const teacherLoad: Record<string, number> = {};
-    const schedule: any[] = [];
-    const unplaced: any[] = [];
-    const roomNames = (rooms || []).map((r: any) => r.name || r.title || r).filter(Boolean);
+  // Section key = lessonName + className (subject-specific!)
+  const sectionKey = (className: string, lessonName: string) => `${className}#${lessonName}`;
 
-    const pairs: Record<string, any> = {};
-    students.forEach((s) => {
-      if (!s.enrollments) return;
-      s.enrollments.forEach((e: any) => {
-        if (!e.lessonName || !e.className) return;
-        const key = `${e.lessonName}|||${e.className}`;
-        if (!pairs[key]) pairs[key] = { lessonName: e.lessonName, className: e.className, students: [] };
-        pairs[key].students.push(s);
-      });
+  // Build sessions keyed by (lessonName, className)
+  const pairs: Record<string, any> = {};
+  students.forEach((s) => {
+    if (!s.enrollments) return;
+    s.enrollments.forEach((e: any) => {
+      if (!e.lessonName || !e.className) return;
+      const key = `${e.lessonName}|||${e.className}`;
+      if (!pairs[key]) pairs[key] = { lessonName: e.lessonName, className: e.className, students: [] };
+      pairs[key].students.push(s);
     });
-    sessionCount = Object.values(pairs).length;
-    const sessions = shuffleArray(Object.values(pairs));
+  });
 
-    for (const ses of sessions) {
-      const lessonInfo = lessons.find((l: any) => (l?.name || l) === ses.lessonName);
-      let distribution: number[];
-      if (Array.isArray(lessonInfo?.distribution) && lessonInfo.distribution.length > 0) {
-        distribution = lessonInfo.distribution.flatMap((b: number) => (b > 2 ? splitBlocks(b) : [b]));
-      } else {
-        const totalHours = Number(lessonInfo?.weeklyHours ?? lessonInfo?.hoursPerWeek ?? 2) || 2;
-        distribution = splitBlocks(totalHours);
-      }
-      distribution = distribution.sort((a, b) => b - a);
-      const minGap = lessonInfo?.minGapDays ?? 1;
-      const sesGrade = classGrade[ses.className] || ses.students?.[0]?.grade || "";
-      const isGym = sesGrade.includes("Γυμν");
+  // ⭐ DETERMINISTIC ORDERING (MRV): λιγότεροι καθηγητές πρώτα,
+  // μετά μεγαλύτερα γκρουπ, μετά αλφαβητικά (σταθερό tie-break)
+  const sessions = Object.values(pairs).map((ses: any) => {
+    const candidateCount = teachers.filter(
+      (t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName
+    ).length;
+    return { ...ses, candidateCount };
+  }).sort((a: any, b: any) => {
+    if (a.candidateCount !== b.candidateCount) return a.candidateCount - b.candidateCount;
+    if (b.students.length !== a.students.length) return b.students.length - a.students.length;
+    return `${a.lessonName}|${a.className}`.localeCompare(`${b.lessonName}|${b.className}`, "el");
+  });
 
-      // ⭐ PATCHED: ψάχνει σε subjects[] (νέο schema) Ή subject string (legacy)
-      const candidates = teachers.filter((t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName).sort((a, b) => {
-          const nameA = `${a.lastName || ""} ${a.firstName || ""}`.trim();
-          const nameB = `${b.lastName || ""} ${b.firstName || ""}`.trim();
-          return (teacherLoad[nameA] || 0) - (teacherLoad[nameB] || 0);
+  const sessionCount = sessions.length;
+
+  for (const ses of sessions) {
+    const lessonInfo = lessons.find((l: any) => (l?.name || l) === ses.lessonName);
+    let distribution: number[];
+    if (Array.isArray(lessonInfo?.distribution) && lessonInfo.distribution.length > 0) {
+      distribution = lessonInfo.distribution.flatMap((b: number) => (b > 2 ? splitBlocks(b) : [b]));
+    } else {
+      const totalHours = Number(lessonInfo?.weeklyHours ?? lessonInfo?.hoursPerWeek ?? 2) || 2;
+      distribution = splitBlocks(totalHours);
+    }
+    distribution = distribution.sort((a, b) => b - a);
+    const minGap = lessonInfo?.minGapDays ?? 1;
+    const sesGrade = classGrade[ses.className] || ses.students?.[0]?.grade || "";
+    const isGym = sesGrade.includes("Γυμν");
+    const secKey = sectionKey(ses.className, ses.lessonName);
+
+    // Candidates sorted DETERMINISTICALLY: least load first, then name
+    const candidates = teachers
+      .filter((t) => (t.subjects && t.subjects.includes(ses.lessonName)) || t.subject === ses.lessonName)
+      .sort((a, b) => {
+        const nameA = `${a.lastName || ""} ${a.firstName || ""}`.trim();
+        const nameB = `${b.lastName || ""} ${b.firstName || ""}`.trim();
+        const loadDiff = (teacherLoad[nameA] || 0) - (teacherLoad[nameB] || 0);
+        if (loadDiff !== 0) return loadDiff;
+        return nameA.localeCompare(nameB, "el");
       });
 
-      let placedSession = false;
-      for (const teacher of candidates) {
-        const tName = `${teacher.lastName || ""} ${teacher.firstName || ""}`.trim();
-        const tempSchedule: any[] = [];
-        const tempBusy = { teacher: [] as string[], group: [] as string[], student: [] as string[], room: [] as string[] };
-        let placedAllBlocks = true;
-        let usedDayIndices: number[] = [];
+    let placedSession = false;
 
-        for (const blockHours of distribution) {
-          let placedBlock = false;
-          const shuffledDays = shuffleArray(DAYS_MAP);
-          for (const day of shuffledDays) {
-            const dayIdx = DAYS_MAP.indexOf(day);
-            if (usedDayIndices.some(uIdx => Math.abs(uIdx - dayIdx) < minGap)) continue;
-            const availableHours = genDayHours(day);
-            const exceedsDaily = ses.students.some((st: any) => {
-              const cur = availableHours.filter((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh)))).length;
-              return cur + blockHours > 4;
-            });
-            if (exceedsDaily) continue;
-            const orderedHours = [...availableHours].sort((a, b) => (isGym ? a - b : b - a));
-            for (const h of orderedHours) {
-              const isWithinBounds = (h + blockHours - 1) <= Math.max(...availableHours);
-              if (!isWithinBounds) continue;
-              const timeSlots = [];
-              for (let i = 0; i < blockHours; i++) timeSlots.push(genHH(h + i));
-              let possible = true;
-              for (const ts of timeSlots) {
-                const tKey = makeKey(tName, day, ts);
-                const gKey = makeKey(ses.className, day, ts);
-                if (teacherBusy.has(tKey) || groupBusy.has(gKey)) { possible = false; break; }
-                if (!genIsAvailable(teacher.availability, teacher.lockedSlots, day, ts)) { possible = false; break; }
-                for (const st of ses.students) {
-                  const sKey = makeKey(st.id, day, ts);
-                  if (studentBusy.has(sKey) || !genIsAvailable(st.availability, st.lockedSlots, day, ts)) { possible = false; break; }
-                }
-                if (roomNames.length > 0) {
-                   if (roomNames.every((rn: string) => roomBusy.has(makeKey(rn, day, ts)))) { possible = false; break; }
-                }
+    for (const teacher of candidates) {
+      const tName = `${teacher.lastName || ""} ${teacher.firstName || ""}`.trim();
+      const tempSchedule: any[] = [];
+      const tempBusy = { teacher: [] as string[], group: [] as string[], student: [] as string[], room: [] as string[] };
+      let placedAllBlocks = true;
+      const usedDayIndices: number[] = [];
+
+      for (const blockHours of distribution) {
+        // ⭐ Συλλέγουμε ΟΛΑ τα έγκυρα slots και τα βαθμολογούμε (gap-aware)
+        type Cand = { day: string; dayIdx: number; h: number; penalty: number; room?: string };
+        const validCands: Cand[] = [];
+
+        for (const day of DAYS_MAP) {
+          const dayIdx = DAYS_MAP.indexOf(day);
+          // minGap: όχι 2 μπλοκ ίδιου μαθήματος σε κοντινές μέρες
+          if (usedDayIndices.some((uIdx) => Math.abs(uIdx - dayIdx) < minGap)) continue;
+
+          const availableHours = genDayHours(day);
+
+          // Daily cap 4 ώρες/μαθητή
+          const exceedsDaily = ses.students.some((st: any) => {
+            const cur = availableHours.filter((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh)))).length;
+            return cur + blockHours > 4;
+          });
+          if (exceedsDaily) continue;
+
+          for (const h of availableHours) {
+            const isWithinBounds = (h + blockHours - 1) <= Math.max(...availableHours);
+            if (!isWithinBounds) continue;
+
+            const timeSlots: string[] = [];
+            for (let i = 0; i < blockHours; i++) timeSlots.push(genHH(h + i));
+
+            // HARD CONSTRAINTS
+            let possible = true;
+            for (const ts of timeSlots) {
+              const tKey = makeKey(tName, day, ts);
+              const gKey = makeKey(secKey, day, ts);
+              if (teacherBusy.has(tKey) || groupBusy.has(gKey)) { possible = false; break; }
+              if (!genIsAvailable(teacher.availability, teacher.lockedSlots, day, ts)) { possible = false; break; }
+              for (const st of ses.students) {
+                const sKey = makeKey(st.id, day, ts);
+                if (studentBusy.has(sKey) || !genIsAvailable(st.availability, st.lockedSlots, day, ts)) { possible = false; break; }
               }
-              if (possible) {
-                const roomFree = (rn: string) => !timeSlots.some((ts) => roomBusy.has(makeKey(rn, day, ts)));
-                const preferred = classRoom[ses.className];
-                let room: string | undefined = preferred && roomFree(preferred) ? preferred : roomNames.find(roomFree);
-                if (room && !classRoom[ses.className]) classRoom[ses.className] = room;
-                timeSlots.forEach(ts => {
-                  const tKey = makeKey(tName, day, ts);
-                  const gKey = makeKey(ses.className, day, ts);
-                  const rKey = room ? makeKey(room, day, ts) : null;
-                  teacherBusy.add(tKey); tempBusy.teacher.push(tKey);
-                  groupBusy.add(gKey); tempBusy.group.push(gKey);
-                  ses.students.forEach((st: any) => {
-                    const sKey = makeKey(st.id, day, ts);
-                    studentBusy.add(sKey); tempBusy.student.push(sKey);
-                  });
-                  if (rKey) { roomBusy.add(rKey); tempBusy.room.push(rKey); }
-                });
-                tempSchedule.push({ id: `${ses.className}-${ses.lessonName}-${day}-${h}`, groupName: ses.className, grade: sesGrade, teacher: tName, day, time: `${genHH(h)}-${genHH(h + blockHours)}`, subject: ses.lessonName, room });
-                usedDayIndices.push(dayIdx);
-                placedBlock = true;
-                break;
+              if (!possible) break;
+              if (roomNames.length > 0) {
+                if (roomNames.every((rn: string) => roomBusy.has(makeKey(rn, day, ts)))) { possible = false; break; }
               }
             }
-            if (placedBlock) break;
+            if (!possible) continue;
+
+            // Room selection (deterministic: preferred → πρώτη ελεύθερη)
+            const roomFree = (rn: string) => !timeSlots.some((ts) => roomBusy.has(makeKey(rn, day, ts)));
+            const preferred = classRoom[ses.className];
+            const room: string | undefined = preferred && roomFree(preferred) ? preferred : roomNames.find(roomFree);
+
+            // ⭐ SCORING — penalty (χαμηλότερο = καλύτερο)
+            const blockHoursArr: number[] = [];
+            for (let i = 0; i < blockHours; i++) blockHoursArr.push(h + i);
+
+            // 1) Κενά μαθητών (ΥΨΗΛΟ βάρος)
+            let studentGapPenalty = 0;
+            for (const st of ses.students) {
+              const occupied = availableHours.filter((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh))));
+              const before = internalGaps(occupied);
+              const after = internalGaps([...occupied, ...blockHoursArr]);
+              studentGapPenalty += (after - before);
+            }
+
+            // 2) Κενά καθηγητή (μεσαίο βάρος)
+            const teacherOccupied = availableHours.filter((hh) => teacherBusy.has(makeKey(tName, day, genHH(hh))));
+            const teacherGapAdded = internalGaps([...teacherOccupied, ...blockHoursArr]) - internalGaps(teacherOccupied);
+
+            // 3) Προτίμηση ώρας ανά τάξη (Γυμνάσιο νωρίς, Λύκειο αργά)
+            const timePref = isGym ? h : (24 - h);
+
+            // 4) Compactness: προτίμησε μέρες που ο μαθητής έχει ήδη μάθημα
+            let alreadyHasDayBonus = 0;
+            for (const st of ses.students) {
+              const hasDay = availableHours.some((hh) => studentBusy.has(makeKey(st.id, day, genHH(hh))));
+              if (hasDay) alreadyHasDayBonus -= 5; // bonus (μειώνει penalty)
+            }
+
+            const penalty =
+              studentGapPenalty * 1000 +      // κενά μαθητών = κορυφαία προτεραιότητα
+              teacherGapAdded * 100 +          // κενά καθηγητή
+              alreadyHasDayBonus +             // συμπαγές πρόγραμμα
+              timePref * 2 +                   // προτίμηση ώρας
+              dayIdx * 1;                      // σταθερό tie-break
+
+            validCands.push({ day, dayIdx, h, penalty, room });
           }
-          if (!placedBlock) { placedAllBlocks = false; break; }
         }
 
-        if (placedAllBlocks) {
-          schedule.push(...tempSchedule);
-          teacherLoad[tName] = (teacherLoad[tName] || 0) + distribution.reduce((sum, hh) => sum + hh, 0);
-          placedSession = true;
-          break;
-        } else {
-          tempBusy.teacher.forEach(k => teacherBusy.delete(k));
-          tempBusy.group.forEach(k => groupBusy.delete(k));
-          tempBusy.student.forEach(k => studentBusy.delete(k));
-          tempBusy.room.forEach(k => roomBusy.delete(k));
-        }
+        if (validCands.length === 0) { placedAllBlocks = false; break; }
+
+        // ⭐ Διάλεξε το slot με ΧΑΜΗΛΟΤΕΡΟ penalty (deterministic tie-break)
+        validCands.sort((a, b) => {
+          if (a.penalty !== b.penalty) return a.penalty - b.penalty;
+          if (a.dayIdx !== b.dayIdx) return a.dayIdx - b.dayIdx;
+          return a.h - b.h;
+        });
+        const chosen = validCands[0];
+
+        // Commit το επιλεγμένο block
+        const timeSlots: string[] = [];
+        for (let i = 0; i < blockHours; i++) timeSlots.push(genHH(chosen.h + i));
+        const room = chosen.room;
+        if (room && !classRoom[ses.className]) classRoom[ses.className] = room;
+
+        timeSlots.forEach((ts) => {
+          const tKey = makeKey(tName, chosen.day, ts);
+          const gKey = makeKey(secKey, chosen.day, ts);
+          const rKey = room ? makeKey(room, chosen.day, ts) : null;
+          teacherBusy.add(tKey); tempBusy.teacher.push(tKey);
+          groupBusy.add(gKey); tempBusy.group.push(gKey);
+          ses.students.forEach((st: any) => {
+            const sKey = makeKey(st.id, chosen.day, ts);
+            studentBusy.add(sKey); tempBusy.student.push(sKey);
+          });
+          if (rKey) { roomBusy.add(rKey); tempBusy.room.push(rKey); }
+        });
+
+        tempSchedule.push({
+          id: `${ses.className}-${ses.lessonName}-${chosen.day}-${chosen.h}`,
+          groupName: ses.className,
+          grade: sesGrade,
+          teacher: tName,
+          teacherId: teacher.id,
+          day: chosen.day,
+          time: `${genHH(chosen.h)}-${genHH(chosen.h + blockHours)}`,
+          subject: ses.lessonName,
+          room,
+        });
+        usedDayIndices.push(chosen.dayIdx);
       }
-      if (!placedSession) {
-        unplaced.push({ ...ses, reason: candidates.length === 0 ? "Δεν υπάρχει καθηγητής για το μάθημα" : "Αδυναμία τοποθέτησης με διαθέσιμους καθηγητές" });
+
+      if (placedAllBlocks) {
+        schedule.push(...tempSchedule);
+        teacherLoad[tName] = (teacherLoad[tName] || 0) + distribution.reduce((sum, hh) => sum + hh, 0);
+        placedSession = true;
+        break;
+      } else {
+        // Rollback
+        tempBusy.teacher.forEach((k) => teacherBusy.delete(k));
+        tempBusy.group.forEach((k) => groupBusy.delete(k));
+        tempBusy.student.forEach((k) => studentBusy.delete(k));
+        tempBusy.room.forEach((k) => roomBusy.delete(k));
       }
     }
 
-    const currentScore = calculateScore(schedule, students);
-    if (currentScore > bestResult.score) {
-      bestResult = { schedule, unplaced, placed: schedule.length, score: currentScore, teacherScore: teacherLoad };
+    if (!placedSession) {
+      unplaced.push({
+        ...ses,
+        reason: candidates.length === 0
+          ? "Δεν υπάρχει καθηγητής για το μάθημα"
+          : "Αδυναμία τοποθέτησης (συγκρούσεις/διαθεσιμότητα)",
+      });
     }
   }
 
-  console.log("Scheduling Report:", { students: students.length, teachers: teachers.length, lessons: lessons.length, rooms: rooms.length, sessions: sessionCount, schedule: bestResult.schedule.length, unplaced: bestResult.unplaced.length });
-  console.log("Ώρες ανά καθηγητή (score):", bestResult.teacherScore);
-  if (bestResult.unplaced.length > 0) { console.table(bestResult.unplaced); }
-  return bestResult;
+  console.log("Scheduling Report (deterministic):", {
+    students: students.length, teachers: teachers.length, lessons: lessons.length,
+    rooms: rooms.length, sessions: sessionCount, schedule: schedule.length, unplaced: unplaced.length,
+  });
+  console.log("Ώρες ανά καθηγητή:", teacherLoad);
+  if (unplaced.length > 0) console.table(unplaced.map((u) => ({ lesson: u.lessonName, class: u.className, reason: u.reason })));
+
+  return { schedule, unplaced, placed: schedule.length, teacherScore: teacherLoad };
 }
 
 function computeQuality(schedule: any[], students: any[]) {
@@ -312,7 +382,6 @@ export default function SchedulePage() {
   const handleAutoGenerate = () => {
     if (data.schedule.length > 0 && !confirm("Να αντικατασταθεί το υπάρχον πρόγραμμα;")) return;
 
-    // Διαγνωστικά πριν τρέξει
     const studentsWithEnrollments = data.students.filter((s: any) => s.enrollments?.some((e: any) => e.className));
     if (studentsWithEnrollments.length === 0) {
       alert("⚠ Δεν υπάρχουν μαθητές με τμήμα.\n\nΠήγαινε στη σελίδα «Μαθητές» και δήλωσε μάθημα + τμήμα για κάθε μαθητή.");
@@ -354,7 +423,7 @@ export default function SchedulePage() {
   const filteredStudents = useMemo(() => data.students.filter((s: any) => `${s.lastName || ""} ${s.firstName || ""}`.toLowerCase().includes(search.toLowerCase())), [search, data.students]);
 
   return (
-    <WorkspaceShell title="Master Scheduler" description="Πλήρης διαχείριση προγράμματος">
+    <WorkspaceShell title="Master Scheduler" description="Πλήρης διαχείριση προγράμματος (deterministic)">
       <div className="flex gap-3 mb-6">
         <input placeholder="Αναζήτηση..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-[#1e2330] border border-slate-800 rounded-2xl px-4 py-3 text-white text-sm w-80" />
         <button onClick={handleAutoGenerate} className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold"><Zap size={16} /> Αυτόματη Δημιουργία</button>
