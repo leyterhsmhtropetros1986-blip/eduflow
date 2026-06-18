@@ -683,6 +683,37 @@ function parseTime(time: string): { start: number; end: number } {
 }
 
 /**
+ * HARD CONSTRAINT: Validate operating hours
+ * Monday-Friday: 14:00-23:00
+ * Saturday: 09:00-17:00
+ * Sunday: disabled
+ */
+export function isValidTimeSlot(
+  day: string,
+  startHour: number,
+  endHour: number
+): boolean {
+  // Sunday is disabled
+  if (day === "Κυριακή") {
+    return false;
+  }
+  
+  // Saturday: 09:00-17:00
+  if (day === "Σάββατο") {
+    return startHour >= 9 && endHour <= 17;
+  }
+  
+  // Monday-Friday: 14:00-23:00
+  const weekdays = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή"];
+  if (weekdays.includes(day)) {
+    return startHour >= 14 && endHour <= 23;
+  }
+  
+  // Unknown day
+  return false;
+}
+
+/**
  * Calculate gap penalty for a single student (WEIGHT: 10000)
  */
 function calculateStudentGapPenalty(studentId: string, schedule: Session[]): number {
@@ -960,7 +991,10 @@ export function tryMoveSessionToAdjacentHour(
   const newStart = direction === 'earlier' ? start - 1 : start + 1;
   const newEnd = direction === 'earlier' ? end - 1 : end + 1;
   
-  if (newStart < 9 || newEnd > 23) return null;  // Out of bounds
+  // HARD CONSTRAINT: Validate operating hours
+  if (!isValidTimeSlot(session.day, newStart, newEnd)) {
+    return null;
+  }
   
   const newTime = `${String(newStart).padStart(2, '0')}:00-${String(newEnd).padStart(2, '0')}:00`;
   
@@ -993,9 +1027,14 @@ export function tryMoveSessionToAnyHour(
   const { start, end } = parseTime(session.time);
   const duration = end - start;
   
-  if (newHour < 9 || newHour + duration > 23) return null;
+  const newEnd = newHour + duration;
   
-  const newTime = `${String(newHour).padStart(2, '0')}:00-${String(newHour + duration).padStart(2, '0')}:00`;
+  // HARD CONSTRAINT: Validate operating hours
+  if (!isValidTimeSlot(session.day, newHour, newEnd)) {
+    return null;
+  }
+  
+  const newTime = `${String(newHour).padStart(2, '0')}:00-${String(newEnd).padStart(2, '0')}:00`;
   
   const newSchedule = [...schedule];
   newSchedule[sessionIndex] = { ...session, time: newTime };
@@ -1017,6 +1056,12 @@ export function tryMoveSessionToDay(
   if (sessionIndex === -1) return null;
   
   const session = schedule[sessionIndex];
+  const { start, end } = parseTime(session.time);
+  
+  // HARD CONSTRAINT: Validate operating hours for new day
+  if (!isValidTimeSlot(newDay, start, end)) {
+    return null;
+  }
   
   const newSchedule = [...schedule];
   newSchedule[sessionIndex] = { ...session, day: newDay };
@@ -1041,6 +1086,17 @@ export function trySwapSessions(
   
   const session1 = schedule[idx1];
   const session2 = schedule[idx2];
+  
+  const { start: start1, end: end1 } = parseTime(session1.time);
+  const { start: start2, end: end2 } = parseTime(session2.time);
+  
+  // HARD CONSTRAINT: Validate operating hours for both swaps
+  if (!isValidTimeSlot(session2.day, start1, end1)) {
+    return null;
+  }
+  if (!isValidTimeSlot(session1.day, start2, end2)) {
+    return null;
+  }
   
   const newSchedule = [...schedule];
   newSchedule[idx1] = { ...session1, day: session2.day, time: session2.time };
@@ -1177,7 +1233,14 @@ function shuffleSchedule(schedule: Session[]): Session[] {
     for (let attempts = 0; attempts < 20; attempts++) {
       const randomDay = DAYS[Math.floor(Math.random() * DAYS.length)];
       const randomHour = HOURS[Math.floor(Math.random() * (HOURS.length - duration))];
-      const newTime = `${String(randomHour).padStart(2, '0')}:00-${String(randomHour + duration).padStart(2, '0')}:00`;
+      const newEnd = randomHour + duration;
+      
+      // HARD CONSTRAINT: Validate operating hours
+      if (!isValidTimeSlot(randomDay, randomHour, newEnd)) {
+        continue;  // Try another random position
+      }
+      
+      const newTime = `${String(randomHour).padStart(2, '0')}:00-${String(newEnd).padStart(2, '0')}:00`;
       
       const testSchedule = schedule.map(s => 
         s.id === session.id ? { ...s, day: randomDay, time: newTime } : s

@@ -69,11 +69,25 @@ export default function TimetableByGradePage() {
     }
   }, [availableGrades, activeGrade]);
 
-  // Τμήματα για επιλεγμένη τάξη
+  // Τμήματα για επιλεγμένη τάξη (unique by name + subject)
   const sectionsForGrade = (grade: string) => {
-    return classes
-      .filter((c) => c.grade === grade)
-      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    const filtered = classes.filter((c) => c.grade === grade);
+    
+    // Remove duplicates based on name + subject combination
+    const uniqueMap = new Map<string, any>();
+    filtered.forEach((c) => {
+      const key = `${c.name}__${c.subject || ''}`;
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, c);
+      }
+    });
+    
+    return Array.from(uniqueMap.values())
+      .sort((a, b) => {
+        const nameCompare = (a.name || "").localeCompare(b.name || "");
+        if (nameCompare !== 0) return nameCompare;
+        return (a.subject || "").localeCompare(b.subject || "");
+      });
   };
 
   // Ώρες range
@@ -90,10 +104,11 @@ export default function TimetableByGradePage() {
 
   const hours = Array.from({ length: hoursRange.max - hoursRange.min }, (_, i) => i + hoursRange.min);
 
-  // Βρες slot για συγκεκριμένο τμήμα, μέρα, ώρα
-  const getSlot = (sectionName: string, day: string, hour: number) => {
+  // Βρες slot για συγκεκριμένο τμήμα + subject, μέρα, ώρα
+  const getSlot = (sectionName: string, sectionSubject: string, day: string, hour: number) => {
     return schedule.find((s) => {
       if (s.groupName !== sectionName || s.day !== day) return false;
+      if (sectionSubject && s.subject !== sectionSubject) return false;
       const { sh, eh } = parseTime(s.time);
       return hour >= sh && hour < eh;
     });
@@ -152,7 +167,7 @@ export default function TimetableByGradePage() {
                 <th className="border border-slate-800 print:border-slate-300 p-1.5 bg-[#0b0e14] print:bg-slate-100 text-slate-500 print:text-slate-700 font-bold uppercase text-[10px] w-12 sticky left-0 z-10">Ώρα</th>
                 {sections.map((sec) => (
                   <th key={sec.id} colSpan={DAYS.length} className="border border-slate-800 print:border-slate-300 p-1.5 bg-indigo-950/30 print:bg-indigo-50 text-white print:text-black font-bold text-sm print:text-xs">
-                    {sec.name}
+                    {sec.subject ? `${sec.subject} - ${sec.name}` : sec.name}
                   </th>
                 ))}
               </tr>
@@ -175,7 +190,7 @@ export default function TimetableByGradePage() {
                   </td>
                   {sections.flatMap((sec) =>
                     DAYS.map((d) => {
-                      const slot = getSlot(sec.name, d, h);
+                      const slot = getSlot(sec.name, sec.subject || '', d, h);
                       if (!slot) {
                         return <td key={`${sec.id}-${d}-${h}`} className="border border-slate-800 print:border-slate-300 p-1 text-slate-700 print:text-slate-300 text-center">—</td>;
                       }

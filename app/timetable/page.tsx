@@ -48,12 +48,34 @@ export default function TimetablePage() {
     .map((s: any) => ({ value: s.id, label: `${s.lastName || ""} ${s.firstName || ""}`.trim() || "—", student: s })), [students]);
   const studentsById = useMemo(() => { const m: Record<string, any> = {}; students.forEach((s: any) => { m[s.id] = s; }); return m; }, [students]);
 
-  // Τμήματα με διαφοροποίηση τάξης (π.χ. Β1 Β Γυμνασίου vs Β1 Β Λυκείου)
-  const classOptions = useMemo(() => classes.map((c: any) => {
-    const name = c.name || c.className || "";
-    const grade = c.grade || "";
-    return { value: `${name}|||${grade}`, name, grade, label: grade ? `${name} — ${grade}` : name };
-  }).filter((o: any) => o.name), [classes]);
+  // Τμήματα με διαφοροποίηση τάξης + μάθημα (π.χ. Φυσική - Γ1)
+  const classOptions = useMemo(() => {
+    // Remove duplicates based on name + subject + grade
+    const uniqueMap = new Map<string, any>();
+    classes.forEach((c: any) => {
+      const name = c.name || c.className || "";
+      const subject = c.subject || "";
+      const grade = c.grade || "";
+      const key = `${name}|||${subject}|||${grade}`;
+      
+      if (!uniqueMap.has(key) && name) {
+        uniqueMap.set(key, {
+          value: key,
+          name,
+          subject,
+          grade,
+          label: subject ? `${subject} - ${name}` : (grade ? `${name} — ${grade}` : name)
+        });
+      }
+    });
+    
+    return Array.from(uniqueMap.values())
+      .sort((a, b) => {
+        const nameCompare = a.name.localeCompare(b.name, "el");
+        if (nameCompare !== 0) return nameCompare;
+        return (a.subject || "").localeCompare(b.subject || "", "el");
+      });
+  }, [classes]);
   const teacherNames = useMemo(() => teachers.map((t: any) => `${t.lastName || ""} ${t.firstName || ""}`.trim()).filter(Boolean), [teachers]);
   const options = mode === "class"
     ? classOptions.map((o: any) => ({ value: o.value, label: o.label }))
@@ -81,9 +103,10 @@ export default function TimetablePage() {
         // Ο μαθητής παρακολουθεί το session αν έχει εγγραφή (μάθημα + τμήμα) που ταιριάζει
         return (st.enrollments || []).some((e: any) => e.className === it.groupName && e.lessonName === it.subject);
       }
-      // class mode: value = "name|||grade"
-      const [nm, gr] = String(selected).split("|||");
+      // class mode: value = "name|||subject|||grade"
+      const [nm, subj, gr] = String(selected).split("|||");
       if (it.groupName !== nm) return false;
+      if (subj && it.subject !== subj) return false;
       return !gr || !it.grade || it.grade === gr;
     });
     const dayMap: Record<string, Record<number, any>> = {};
