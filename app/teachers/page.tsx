@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { AvailabilityMatrix } from "../../components/AvailabilityMatrix";
-import { generateId, nextCode } from "../../lib/schema";
+import { generateId, nextCode, getSectionKey, sectionLabel } from "../../lib/schema";
 
 type Slot = { day: string; start: string; end: string };
 
@@ -58,6 +58,8 @@ export default function TeachersPage() {
           ...t,
           id: t.id || generateId("tea"),
           subjects: t.subjects || (t.subject ? [t.subject] : []),
+          // Migrate old preferredClasses to preferredSections
+          preferredSections: t.preferredSections || [],
         }));
         setTeachers(migrated);
       } catch {}
@@ -102,7 +104,7 @@ export default function TeachersPage() {
   const resetForm = () => {
     setForm({
       firstName: "", lastName: "", phone: "", email: "",
-      subjects: [], preferredClasses: [], acceptsSummer: false,
+      subjects: [], preferredSections: [], acceptsSummer: false,
       availability: [],
     });
     setErrors({});
@@ -146,7 +148,7 @@ export default function TeachersPage() {
       email: form.email!.trim(),
       subjects: form.subjects || [],
       subject: form.subjects?.[0] || "",
-      preferredClasses: form.preferredClasses || [],
+      preferredSections: form.preferredSections || [],
       acceptsSummer: form.acceptsSummer || false,
       availability: form.availability || [],
     };
@@ -164,6 +166,7 @@ export default function TeachersPage() {
       ...t,
       subjects: t.subjects || (t.subject ? [t.subject] : []),
       availability: t.availability || [],
+      preferredSections: t.preferredSections || [],
     });
     setEditingId(t.id);
     setShowForm(true);
@@ -181,21 +184,27 @@ export default function TeachersPage() {
     const cur = form.subjects || [];
     const newSubjects = cur.includes(n) ? cur.filter((s) => s !== n) : [...cur, n];
     
-    // Auto-cleanup: Remove preferred classes that don't match the new subjects
-    const validPreferredClasses = (form.preferredClasses || []).filter((className) => {
-      const matchingClass = classes.find((c) => c.name === className);
-      return matchingClass && newSubjects.includes(matchingClass.subject || '');
-    });
+    // Auto-cleanup: Remove preferred sections that don't match the new subjects
+    const validPreferredSections = (form.preferredSections || []).filter((ps) => 
+      newSubjects.includes(ps.subject)
+    );
     
     setForm({ 
       ...form, 
       subjects: newSubjects,
-      preferredClasses: validPreferredClasses
+      preferredSections: validPreferredSections
     });
   };
-  const togglePreferredClass = (n: string) => {
-    const cur = form.preferredClasses || [];
-    setForm({ ...form, preferredClasses: cur.includes(n) ? cur.filter((c) => c !== n) : [...cur, n] });
+
+  const togglePreferredSection = (className: string, subject: string) => {
+    const cur = form.preferredSections || [];
+    const exists = cur.some(ps => ps.className === className && ps.subject === subject);
+    
+    const newPreferred = exists
+      ? cur.filter(ps => !(ps.className === className && ps.subject === subject))
+      : [...cur, { className, subject }];
+    
+    setForm({ ...form, preferredSections: newPreferred });
   };
 
   const coursesByGrade = courses.reduce<{ [k: string]: Course[] }>((acc, c) => {
@@ -205,7 +214,7 @@ export default function TeachersPage() {
     return acc;
   }, {});
   
-  // Filter classes by teacher's subjects - CRITICAL: Only show sections for subjects the teacher teaches
+  // CRITICAL: Filter classes by teacher's subjects - Only show sections for subjects the teacher teaches
   const availableClasses = useMemo(() => {
     const teacherSubjects = form.subjects || [];
     if (teacherSubjects.length === 0) return [];
@@ -248,6 +257,12 @@ export default function TeachersPage() {
     () => [...teachers].sort((a, b) => a.lastName.localeCompare(b.lastName, "el")),
     [teachers]
   );
+
+  const isSectionPreferred = (className: string, subject: string): boolean => {
+    return (form.preferredSections || []).some(ps => 
+      ps.className === className && ps.subject === subject
+    );
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -361,8 +376,8 @@ export default function TeachersPage() {
               <button type="button" onClick={() => setShowClassesDropdown(!showClassesDropdown)}
                 className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-left flex items-center justify-between">
                 <span className="text-sm">
-                  {form.preferredClasses && form.preferredClasses.length > 0
-                    ? `✓ ${form.preferredClasses.length} τμήματα`
+                  {form.preferredSections && form.preferredSections.length > 0
+                    ? `✓ ${form.preferredSections.length} τμήματα`
                     : "— Όλα διαθέσιμα —"}
                 </span>
                 <span className="text-zinc-400">{showClassesDropdown ? "▲" : "▼"}</span>
@@ -370,22 +385,24 @@ export default function TeachersPage() {
 
               {showClassesDropdown && (
                 <div className="mt-2 bg-zinc-800 border border-indigo-500 rounded-lg p-3 max-h-80 overflow-y-auto">
-                  {classes.length === 0 ? (
+                  {availableClasses.length === 0 ? (
                     <p className="text-amber-400 text-xs text-center py-4">
-                      ⚠️ Δεν υπάρχουν τμήματα. Πήγαινε στη σελίδα «Τμήματα».
+                      {form.subjects && form.subjects.length > 0
+                        ? "⚠️ Δεν υπάρχουν τμήματα για τα επιλεγμένα μαθήματα."
+                        : "⚠️ Επίλεξε πρώτα μαθήματα διδασκαλίας."}
                     </p>
                   ) : (
                     GRADE_ORDER.filter((g) => classesByGrade[g]).map((grade) => (
                       <div key={grade} className="mb-3 last:mb-0">
                         <div className="text-xs font-bold text-indigo-400 uppercase tracking-wide mb-1">{grade}</div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-1">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
                           {classesByGrade[grade].map((c) => (
                             <label key={c.id} className="flex items-center gap-1 text-sm cursor-pointer hover:bg-zinc-700 px-2 py-1 rounded">
                               <input type="checkbox"
-                                checked={form.preferredClasses?.includes(c.name) || false}
-                                onChange={() => togglePreferredClass(c.name)}
+                                checked={isSectionPreferred(c.name, c.subject || "")}
+                                onChange={() => togglePreferredSection(c.name, c.subject || "")}
                                 className="accent-indigo-500" />
-                              <span>{c.name}{c.subject ? ` (${c.subject})` : ""}</span>
+                              <span className="truncate">{sectionLabel(c)}</span>
                             </label>
                           ))}
                         </div>
@@ -393,11 +410,11 @@ export default function TeachersPage() {
                     ))
                   )}
                   <div className="sticky bottom-0 bg-zinc-800 pt-2 mt-2 border-t border-zinc-700 flex justify-between items-center">
-                    <button type="button" onClick={() => setForm({ ...form, preferredClasses: [] })}
+                    <button type="button" onClick={() => setForm({ ...form, preferredSections: [] })}
                       className="text-xs text-zinc-400 hover:text-white">🗑 Καθαρισμός</button>
                     <button type="button" onClick={() => setShowClassesDropdown(false)}
                       className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded text-sm font-semibold">
-                      ✓ Έτοιμο ({form.preferredClasses?.length || 0})
+                      ✓ Έτοιμο ({form.preferredSections?.length || 0})
                     </button>
                   </div>
                 </div>
@@ -486,8 +503,8 @@ export default function TeachersPage() {
               </div>
               <div className="text-xs text-zinc-500 mt-1 flex items-center gap-3 flex-wrap">
                 <span>⏰ {(selectedTeacher.availability || []).length} σλοτ διαθεσιμότητας</span>
-                {selectedTeacher.preferredClasses && selectedTeacher.preferredClasses.length > 0 && (
-                  <span className="text-indigo-400">📌 {selectedTeacher.preferredClasses.length} τμήματα προτίμησης</span>
+                {selectedTeacher.preferredSections && selectedTeacher.preferredSections.length > 0 && (
+                  <span className="text-indigo-400">📌 {selectedTeacher.preferredSections.length} τμήματα προτίμησης</span>
                 )}
                 {selectedTeacher.acceptsSummer && <span className="text-amber-400">☀️ Καλοκαιρινό</span>}
               </div>

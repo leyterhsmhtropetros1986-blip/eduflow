@@ -105,15 +105,30 @@ export function nextCode(prefix: string, existing: string[]): string {
   return `${prefix}${String(max + 1).padStart(3, "0")}`;
 }
 
-/** Μοναδικό κλειδί τμήματος: (όνομα, μάθημα) */
-export function sectionKey(className: string, lessonName: string): string {
-  return `${className || ""}__${lessonName || ""}`;
+/** Μοναδικό κλειδί τμήματος: (μάθημα, όνομα) - CRITICAL: subject first! */
+export function getSectionKey(subject: string, groupName: string): string {
+  return `${subject || ""}__${groupName || ""}`;
 }
 
-/** Display label τμήματος: "Γα1 - Φυσική" */
+/** Legacy compatibility */
+export function sectionKey(className: string, lessonName: string): string {
+  return getSectionKey(lessonName, className);
+}
+
+/** Compare if two sections are the same */
+export function sameSection(
+  subjectA: string,
+  groupA: string,
+  subjectB: string,
+  groupB: string
+): boolean {
+  return subjectA === subjectB && groupA === groupB;
+}
+
+/** Display label τμήματος: "Φυσική - Γα1" (subject first) */
 export function sectionLabel(section: { name: string; subject?: string }): string {
   if (!section.subject) return section.name;
-  return `${section.name} - ${section.subject}`;
+  return `${section.subject} - ${section.name}`;
 }
 
 // =====================================================
