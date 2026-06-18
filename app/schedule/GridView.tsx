@@ -81,7 +81,7 @@ export function GridView({ schedule, onUpdate }: GridViewProps) {
     const clash = current.find((s: any) => {
       if (s.day !== modal.day) return false;
       const { sh, eh } = parseTime(s.time);
-      return overlap(startH, endH, sh, eh) && (s.teacher === form.teacher || s.groupName === form.className || (form.room && s.room === form.room));
+      return overlap(startH, endH, sh, eh) && (s.teacher === form.teacher || (s.groupName === form.className && s.subject === form.subject) || (form.room && s.room === form.room));
     });
     if (clash && !confirm("⚠ Υπάρχει σύγκρουση (καθηγητής / τμήμα / αίθουσα) σε αυτό το διάστημα. Προσθήκη ούτως ή άλλως;")) return;
 

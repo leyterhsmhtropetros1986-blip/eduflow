@@ -7,7 +7,7 @@ export function ClassesView({ schedule, classes, students }: any) {
     <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
       {classes.map((cls: any) => {
         // 1. Dynamic Resolution based on Schedule
-        const sessions = schedule.filter((s: any) => s.groupName === cls.name);
+        const sessions = schedule.filter((s: any) => s.groupName === cls.name && s.subject === cls.subject);
         const teacherName = sessions.length > 0 ? sessions[0].teacher : "Δεν έχει ανατεθεί";
         const roomName = sessions.length > 0 ? sessions[0].room : "-";
 

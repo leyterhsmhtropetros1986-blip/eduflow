@@ -6,6 +6,7 @@ import { GridView } from "./GridView";
 import { TeachersView } from "./TeachersView";
 import { RoomsView } from "./RoomsView";
 import { Zap, Trash2, CheckCircle2, AlertTriangle, ShieldCheck } from "lucide-react";
+import { optimizeSchedule, type Session, type OptimizationReport } from "../../lib/schema";
 
 const DAYS_MAP = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
 
@@ -440,6 +441,7 @@ export default function SchedulePage() {
   const [data, setData] = useState({ schedule: [], classes: [], students: [], teachers: [], rooms: [], lessons: [] });
   const [search, setSearch] = useState("");
   const [validationIssues, setValidationIssues] = useState<any[] | null>(null);
+  const [optimizationReport, setOptimizationReport] = useState<OptimizationReport | null>(null);
 
   const loadData = () => {
     try {
@@ -486,12 +488,53 @@ export default function SchedulePage() {
       alert(`Δεν τοποθετήθηκε τίποτα.\n\nΑιτίες:\n${reasons || "—"}`);
       return;
     }
-    localStorage.setItem("eduflow_schedule", JSON.stringify(result.schedule));
+
+    // Convert schedule to Session format with student IDs
+    const sessionsWithStudents: Session[] = result.schedule.map((s: any) => ({
+      id: s.id,
+      groupName: s.groupName,
+      subject: s.subject,
+      teacher: s.teacher,
+      room: s.room,
+      day: s.day,
+      time: s.time,
+      students: data.students
+        .filter((st: any) => 
+          st.enrollments?.some((e: any) => 
+            e.className === s.groupName && e.lessonName === s.subject
+          )
+        )
+        .map((st: any) => st.id)
+    }));
+
+    // Run optimization
+    console.log("🔄 Running optimization engine...");
+    const optimizationResult = optimizeSchedule(sessionsWithStudents, data.students, data.teachers, {
+      maxIterationsPerRun: 50,
+      numRestarts: 3
+    });
+    console.log("✅ Optimization complete:", optimizationResult.report);
+
+    // Save optimized schedule (convert back to original format)
+    const optimizedSchedule = optimizationResult.schedule.map((s: Session) => ({
+      id: s.id,
+      sectionId: result.schedule.find((rs: any) => rs.id === s.id)?.sectionId,
+      groupName: s.groupName,
+      grade: result.schedule.find((rs: any) => rs.id === s.id)?.grade,
+      teacher: s.teacher,
+      teacherId: result.schedule.find((rs: any) => rs.id === s.id)?.teacherId,
+      day: s.day,
+      time: s.time,
+      subject: s.subject,
+      room: s.room,
+    }));
+
+    localStorage.setItem("eduflow_schedule", JSON.stringify(optimizedSchedule));
+    setOptimizationReport(optimizationResult.report);
     loadData();
 
-    const globalScoreReport = calculateGlobalScore(result.schedule, data.students, data.teachers, data.lessons);
-    console.log("Global Timetable Score:", globalScoreReport);
-    // You might want to store or display this score in the UI
+    const globalScoreReport = calculateGlobalScore(optimizedSchedule, data.students, data.teachers, data.lessons);
+    console.log("Global Timetable Score (after optimization):", globalScoreReport);
 
     setActiveTab("grid");
   };
