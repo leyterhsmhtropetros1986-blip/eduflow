@@ -15,7 +15,10 @@ type Teacher = {
   email: string;
   subject?: string;
   subjects: string[];
-  preferredClasses?: string[];
+  preferredSections?: Array<{
+    className: string;
+    subject: string;
+  }>;
   acceptsSummer?: boolean;
   availability: Slot[];
 };
@@ -39,7 +42,7 @@ export default function TeachersPage() {
 
   const [form, setForm] = useState<Partial<Teacher>>({
     firstName: "", lastName: "", phone: "", email: "",
-    subjects: [], preferredClasses: [], acceptsSummer: false,
+    subjects: [], preferredSections: [], acceptsSummer: false,
     availability: [],
   });
 
@@ -176,7 +179,19 @@ export default function TeachersPage() {
 
   const toggleSubject = (n: string) => {
     const cur = form.subjects || [];
-    setForm({ ...form, subjects: cur.includes(n) ? cur.filter((s) => s !== n) : [...cur, n] });
+    const newSubjects = cur.includes(n) ? cur.filter((s) => s !== n) : [...cur, n];
+    
+    // Auto-cleanup: Remove preferred classes that don't match the new subjects
+    const validPreferredClasses = (form.preferredClasses || []).filter((className) => {
+      const matchingClass = classes.find((c) => c.name === className);
+      return matchingClass && newSubjects.includes(matchingClass.subject || '');
+    });
+    
+    setForm({ 
+      ...form, 
+      subjects: newSubjects,
+      preferredClasses: validPreferredClasses
+    });
   };
   const togglePreferredClass = (n: string) => {
     const cur = form.preferredClasses || [];
@@ -189,7 +204,18 @@ export default function TeachersPage() {
     acc[g].push(c);
     return acc;
   }, {});
-  const classesByGrade = classes.reduce<{ [k: string]: ClassUnit[] }>((acc, c) => {
+  
+  // Filter classes by teacher's subjects - CRITICAL: Only show sections for subjects the teacher teaches
+  const availableClasses = useMemo(() => {
+    const teacherSubjects = form.subjects || [];
+    if (teacherSubjects.length === 0) return [];
+    
+    return classes.filter((c) => 
+      c.subject && teacherSubjects.includes(c.subject)
+    );
+  }, [classes, form.subjects]);
+  
+  const classesByGrade = availableClasses.reduce<{ [k: string]: ClassUnit[] }>((acc, c) => {
     const g = c.grade || "Άλλο";
     if (!acc[g]) acc[g] = [];
     acc[g].push(c);

@@ -48,15 +48,14 @@ export type Student = {
 
 export type Teacher = {
   id: string;
-  teacherCode?: string;         // "T001"
+  teacherCode?: string;
   firstName: string;
   lastName: string;
   phone: string;
   email: string;
   subjects: string[];
   subject?: string;
-  preferredClasses?: string[];  // Legacy: class-level preferences
-  preferredSections?: Array<{   // New: subject-specific preferences
+  preferredSections?: Array<{   // Subject-specific section preferences
     className: string;
     subject: string;
   }>;
