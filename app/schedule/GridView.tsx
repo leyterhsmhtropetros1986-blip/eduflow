@@ -206,7 +206,7 @@ export function GridView({ schedule, onUpdate }: GridViewProps) {
               <option value="">Τμήμα *</option>
               {refData.classes.map((c: any, i: number) => (
                 <option key={i} value={c.name || c.className}>
-                  {c.name || c.className}{c.subject ? ` - ${c.subject}` : ""}
+                  {c.subject ? `${c.name || c.className} - ${c.subject}` : `${c.name || c.className} (Γενικό)`}
                 </option>
               ))}
             </select>

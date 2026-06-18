@@ -55,7 +55,11 @@ export type Teacher = {
   email: string;
   subjects: string[];
   subject?: string;
-  preferredClasses?: string[];
+  preferredClasses?: string[];  // Legacy: class-level preferences
+  preferredSections?: Array<{   // New: subject-specific preferences
+    className: string;
+    subject: string;
+  }>;
   acceptsSummer?: boolean;
   availability: Slot[];
 };

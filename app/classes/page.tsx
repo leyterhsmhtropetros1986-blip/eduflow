@@ -8,6 +8,7 @@ import {
   loadCourses,
   getSectionLoad,
   generateId,
+  sectionLabel,
 } from "../../lib/schema";
 
 const GRADES = [

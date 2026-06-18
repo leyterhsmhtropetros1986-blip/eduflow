@@ -430,7 +430,7 @@ export default function StudentsPage() {
       "Email Γονέα": s.parentEmail || "",
       "Τηλ. Μαθητή": s.studentPhone || "",
       "Καλοκαιρινό": s.attendsSummer ? "Y" : "N",
-      "Μαθήματα & Τμήματα": (s.enrollments || []).map((e) => `${e.lessonName}${e.className ? `→${e.className}` : "(Τυχαία)"}`).join(" · "),
+      "Μαθήματα & Τμήματα": (s.enrollments || []).map((e) => e.className ? `${e.className} - ${e.lessonName}` : `${e.lessonName} (Τυχαία)`).join(" · "),
       "Σημειώσεις": s.notes || "",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
