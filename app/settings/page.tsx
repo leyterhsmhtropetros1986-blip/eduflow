@@ -23,12 +23,23 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    setData({
-      schools: JSON.parse(localStorage.getItem("eduflow_schools") || "[]"),
-      courses: JSON.parse(localStorage.getItem("eduflow_courses") || "[]"),
-      classes: JSON.parse(localStorage.getItem("eduflow_classes") || "[]"),
-      rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || "[]"),
-    });
+    try {
+      setData({
+        schools: JSON.parse(localStorage.getItem("eduflow_schools") || "[]"),
+        courses: JSON.parse(localStorage.getItem("eduflow_courses") || "[]"),
+        classes: JSON.parse(localStorage.getItem("eduflow_classes") || "[]"),
+        rooms: JSON.parse(localStorage.getItem("eduflow_rooms") || "[]"),
+      });
+    } catch (error) {
+      console.error("Failed to load settings data:", error);
+      // Set safe defaults on error
+      setData({
+        schools: [],
+        courses: [],
+        classes: [],
+        rooms: [],
+      });
+    }
   }, []);
 
   const saveItem = (key: keyof typeof data, value: string) => {

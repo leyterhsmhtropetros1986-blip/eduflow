@@ -40,13 +40,19 @@ export default function TimetableByGradePage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setSchedule(JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"));
-    const c = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]");
-    const normalized = c.map((x: any) => ({
-      ...x,
-      grade: x.grade || x.category || "",
-    }));
-    setClasses(normalized);
+    try {
+      setSchedule(JSON.parse(localStorage.getItem("eduflow_schedule") || "[]"));
+      const c = JSON.parse(localStorage.getItem("eduflow_classes") || localStorage.getItem("eduflow_classes_data") || "[]");
+      const normalized = c.map((x: any) => ({
+        ...x,
+        grade: x.grade || x.category || "",
+      }));
+      setClasses(normalized);
+    } catch (error) {
+      console.error("Failed to load timetable data:", error);
+      setSchedule([]);
+      setClasses([]);
+    }
   }, []);
 
   // Πιθανές τάξεις (μόνο όσες υπάρχουν στα classes)
