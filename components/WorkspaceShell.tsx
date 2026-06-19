@@ -86,12 +86,15 @@ const navGroups = [
       { href: "/student-report", label: "Αναφορά Μαθητή PDF", icon: <FileBarChart size={18} /> },
       { href: "/backup", label: "Backup", icon: <Database size={18} /> },
       { href: "/settings", label: "Branding & Ρυθμίσεις", icon: <Palette size={18} /> },
-      { href: "/cloud-demo", label: "🌥 Cloud Demo", icon: <Cloud size={18} /> },
     ],
   },
 ];
 
-const parse = (k: string) => { try { return JSON.parse(localStorage.getItem(k) || "[]"); } catch { return []; } };
+const parse = (k: string) => { 
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(k) || "[]"); } 
+  catch { return []; } 
+};
 
 export function WorkspaceShell({ title, description, children }: { title: string; description: string; children: React.ReactNode; }) {
   const pathname = usePathname();
