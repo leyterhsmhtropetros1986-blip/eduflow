@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Sidebar() {
   const menuItems = [
     { name: "Dashboard", href: "/" },
@@ -5,7 +7,7 @@ export default function Sidebar() {
     { name: "Καθηγητές", href: "/teachers" },
     { name: "Τμήματα", href: "/classes" },
     { name: "Αίθουσες", href: "/rooms" },
-    { name: "Μαθήματα", href: "/subjects" },
+    { name: "Μαθήματα", href: "/courses" },
     { name: "Scheduler", href: "/schedule" },
   ];
 
@@ -14,13 +16,13 @@ export default function Sidebar() {
       <h1 className="text-xl font-bold mb-8">EduFlow</h1>
       <nav className="space-y-2">
         {menuItems.map((item) => (
-          <a 
+          <Link 
             key={item.name} 
             href={item.href} 
             className="block p-3 rounded-lg hover:bg-slate-800 transition"
           >
             {item.name}
-          </a>
+          </Link>
         ))}
       </nav>
     </aside>
