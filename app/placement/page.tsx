@@ -56,7 +56,20 @@ export default function PlacementPage() {
     // Όλες οι τάξεις (grades) που έχουν μαθητές με αυτό το μάθημα
     const grades = new Set<string>();
     eligibleStudents.forEach((s) => grades.add(s.grade));
-    return classes.filter((c) => grades.has(c.grade));
+    
+    const filtered = classes.filter((c) => grades.has(c.grade));
+    
+    // TEMPORARY FIX: Deduplicate by name to prevent showing multiple Γ1, Γ2, Γ3
+    // TODO: Proper fix requires adding subject field to class data model
+    const seen = new Set<string>();
+    const deduped = filtered.filter((c) => {
+      const key = `${c.grade}-${c.name}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    
+    return deduped;
   }, [classes, selectedLesson, eligibleStudents]);
 
   // Drag & Drop handlers
@@ -169,6 +182,7 @@ export default function PlacementPage() {
                     className={`bg-[#1e2330] border-2 rounded-2xl p-4 transition ${dropTarget === cls.name ? "border-indigo-500 bg-indigo-950/20" : "border-slate-800"} min-h-[200px]`}>
                     <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
                       <div>
+                        <p className="text-[9px] text-indigo-400 uppercase font-bold tracking-wider">{selectedLesson}</p>
                         <h3 className="text-white font-bold text-sm">{cls.name}</h3>
                         <p className="text-[10px] text-slate-500">{cls.grade}</p>
                       </div>
