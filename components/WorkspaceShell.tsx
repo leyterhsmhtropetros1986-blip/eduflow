@@ -20,72 +20,78 @@ const hexToRgba = (hex: string, alpha: number = 1): string => {
 
 const navGroups = [
   {
-    id: "main",
-    label: "Αρχική",
+    id: "dashboard",
+    label: "📊 Dashboard",
+    icon: <LayoutDashboard size={14} />,
     items: [
-      { href: "/", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-      { href: "/workflow", label: "🗺 Workflow", icon: <ClipboardList size={18} /> },
+      { href: "/", label: "Dashboard", icon: <LayoutDashboard size={16} /> },
+      { href: "/workflow", label: "Workflow", icon: <ClipboardList size={16} /> },
     ],
   },
   {
-    id: "data",
-    label: "Δεδομένα",
-    icon: <Database size={14} />,
+    id: "academic",
+    label: "👥 Academic Data",
+    icon: <Users size={14} />,
     items: [
-      { href: "/students", label: "Μαθητές", icon: <GraduationCap size={18} /> },
-      { href: "/teachers", label: "Καθηγητές", icon: <Users size={18} /> },
-      { href: "/classes", label: "Τάξεις", icon: <BookOpen size={18} /> },
-      { href: "/placement", label: "Τοποθέτηση σε Τμήματα", icon: <Move size={18} /> },
-      { href: "/courses", label: "Μαθήματα", icon: <Library size={18} /> },
-      { href: "/rooms", label: "Αίθουσες", icon: <Building size={18} /> },
-      { href: "/parents", label: "Γονείς", icon: <UserCircle size={18} /> },
+      { href: "/students", label: "Students", icon: <GraduationCap size={16} /> },
+      { href: "/teachers", label: "Teachers", icon: <Users size={16} /> },
+      { href: "/parents", label: "Parents", icon: <UserCircle size={16} /> },
+      { href: "/courses", label: "Courses", icon: <Library size={16} /> },
+      { href: "/classes", label: "Classes", icon: <BookOpen size={16} /> },
+      { href: "/rooms", label: "Rooms", icon: <Building size={16} /> },
     ],
   },
   {
-    id: "schedule",
-    label: "Πρόγραμμα",
-    icon: <Calendar size={14} />,
+    id: "scheduling",
+    label: "🎯 Scheduling",
+    icon: <Bot size={14} />,
     items: [
-      { href: "/schedule", label: "AI Scheduler", icon: <Bot size={18} /> },
-      { href: "/timetable", label: "Εκτυπώσιμο", icon: <Printer size={18} /> },
-      { href: "/timetable-by-grade", label: "📋 Ανά Τάξη", icon: <School size={18} /> },
-      { href: "/calendar", label: "Ημερολόγιο & Αλλαγές", icon: <Calendar size={18} /> },
-      { href: "/availability", label: "Διαθεσιμότητα", icon: <Clock size={18} /> },
-      { href: "/teacher-hours", label: "Ώρες Καθηγητών", icon: <Timer size={18} /> },
+      { href: "/placement", label: "Placement", icon: <Move size={16} /> },
+      { href: "/schedule", label: "AI Scheduler", icon: <Bot size={16} /> },
+      { href: "/availability", label: "Availability", icon: <Clock size={16} /> },
+      { href: "/teacher-hours", label: "Teacher Hours", icon: <Timer size={16} /> },
+      { href: "/calendar", label: "Calendar & Changes", icon: <Calendar size={16} /> },
+    ],
+  },
+  {
+    id: "timetables",
+    label: "📅 Timetables",
+    icon: <Printer size={14} />,
+    items: [
+      { href: "/timetable", label: "Printable Timetable", icon: <Printer size={16} /> },
+      { href: "/timetable-by-grade", label: "By Grade", icon: <School size={16} /> },
     ],
   },
   {
     id: "operations",
-    label: "Λειτουργία",
-    icon: <CheckCircle2 size={14} />,
+    label: "📈 Operations",
+    icon: <TrendingUp size={14} />,
     items: [
-      { href: "/attendance", label: "Παρουσίες", icon: <CheckCircle2 size={18} /> },
-      { href: "/progress", label: "Πρόοδος", icon: <TrendingUp size={18} /> },
-      { href: "/goals", label: "Στόχοι Μαθητών", icon: <Target size={18} /> },
-      { href: "/exams", label: "Διαγωνίσματα", icon: <ClipboardList size={18} /> },
-      { href: "/library", label: "Βιβλιοθήκη Υλικού", icon: <LibraryIcon size={18} /> },
+      { href: "/crm", label: "CRM", icon: <Briefcase size={16} /> },
+      { href: "/messages", label: "Communication", icon: <Send size={16} /> },
+      { href: "/notifications", label: "Notifications", icon: <Bell size={16} /> },
+      { href: "/attendance", label: "Attendance", icon: <CheckCircle2 size={16} /> },
+      { href: "/progress", label: "Progress", icon: <TrendingUp size={16} /> },
     ],
   },
   {
-    id: "communication",
-    label: "Επικοινωνία",
-    icon: <Send size={14} />,
+    id: "reports",
+    label: "📄 Reports",
+    icon: <FileText size={14} />,
     items: [
-      { href: "/messages", label: "Επικοινωνία", icon: <Send size={18} /> },
-      { href: "/notifications", label: "Ειδοποιήσεις", icon: <Bell size={18} /> },
-      { href: "/crm", label: "CRM", icon: <Briefcase size={18} /> },
+      { href: "/reports", label: "Reports", icon: <FileText size={16} /> },
+      { href: "/student-report", label: "Student Report PDF", icon: <FileBarChart size={16} /> },
+      { href: "/audit", label: "Audit", icon: <Activity size={16} /> },
     ],
   },
   {
-    id: "system",
-    label: "Σύστημα",
-    icon: <Activity size={14} />,
+    id: "admin",
+    label: "⚙️ Administration",
+    icon: <Palette size={14} />,
     items: [
-      { href: "/health", label: "Έλεγχος", icon: <Activity size={18} /> },
-      { href: "/reports", label: "Αναφορές", icon: <FileText size={18} /> },
-      { href: "/student-report", label: "Αναφορά Μαθητή PDF", icon: <FileBarChart size={18} /> },
-      { href: "/backup", label: "Backup", icon: <Database size={18} /> },
-      { href: "/settings", label: "Branding & Ρυθμίσεις", icon: <Palette size={18} /> },
+      { href: "/import", label: "Import", icon: <Upload size={16} /> },
+      { href: "/backup", label: "Backup", icon: <Database size={16} /> },
+      { href: "/settings", label: "Settings", icon: <Palette size={16} /> },
     ],
   },
 ];
@@ -109,12 +115,12 @@ export function WorkspaceShell({ title, description, children }: { title: string
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    if (typeof window === "undefined") return { main: true };
+    if (typeof window === "undefined") return { dashboard: true };
     try {
       const saved = JSON.parse(localStorage.getItem("eduflow_nav_groups") || "null");
       if (saved) return saved;
     } catch {}
-    return { main: true, data: true, schedule: true, operations: true, communication: true, system: false };
+    return { dashboard: true };
   });
 
   // ===== BRANDING =====
@@ -248,20 +254,16 @@ export function WorkspaceShell({ title, description, children }: { title: string
           {navGroups.map((group) => {
             const isOpen = openGroups[group.id];
             const badge = groupBadge(group.id);
-            const isMain = group.id === "main";
             return (
               <div key={group.id} className="mb-1">
-                {!isMain && (
-                  <button onClick={() => toggleGroup(group.id)} className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-300 transition">
-                    <span className="flex items-center gap-2">
-                      {group.icon}
-                      {group.label}
-                      {badge > 0 && <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 rounded-full">{badge}</span>}
-                    </span>
-                    {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  </button>
-                )}
-                {(isMain || isOpen) && (
+                <button onClick={() => toggleGroup(group.id)} className="w-full flex items-center justify-between gap-2 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-300 transition">
+                  <span className="flex items-center gap-2">
+                    {group.label}
+                    {badge > 0 && <span className="bg-rose-500 text-white text-[9px] font-bold px-1.5 rounded-full">{badge}</span>}
+                  </span>
+                  {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                </button>
+                {isOpen && (
                   <div className="space-y-0.5 mt-0.5">
                     {group.items.map((item) => {
                       const active = pathname === item.href;
