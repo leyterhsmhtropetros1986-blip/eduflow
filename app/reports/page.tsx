@@ -490,7 +490,7 @@ function getTableHeaders(tab: string) {
   switch(tab) {
     case "students": return ["Όνομα", "Επίθετο", "Τάξη", "Γονέας", "Τηλέφωνο", "Email", "Εγγραφές"];
     case "teachers": return ["Όνομα", "Επίθετο", "Μάθημα", "Τηλέφωνο", "Availability"];
-    case "classes": return ["Τμήμα", "Τάξη", "Χωρητικότητα", "Κατάσταση"];
+    case "classes": return ["Μάθημα", "Τμήμα", "Τάξη", "Καθηγητής", "Χωρητικότητα", "Μαθητές", "Διαθέσιμες Θέσεις", "Εβδομαδιαίες Ώρες", "Κατάσταση"];
     case "crm": return ["Lead", "Τηλέφωνο", "Στάδιο", "Πηγή", "Ημερ. Δημιουργίας"];
     default: return [];
   }
@@ -523,13 +523,51 @@ function getTableData(tab: string, data: any) {
         };
       });
     case "classes":
-      return data.classes.map((c: any) => ({
-        // ✅ Διόρθωση 4: name ή className
-        name: c.name || c.className,
-        grade: c.grade,
-        capacity: c.maxStudents || c.maxCapacity || c.capacity || 20,
-        status: "Ενεργό"
-      }));
+      return data.classes.map((c: any) => {
+        const className = c.name || c.className;
+        const subject = c.subject || "-";
+        
+        // Calculate current students enrolled in this specific section (subject + className)
+        const currentStudents = data.students.filter((s: any) => 
+          s.enrollments?.some((e: any) => 
+            e.className === className && e.lessonName === subject
+          )
+        ).length;
+        
+        // Find teacher assigned to this section
+        const teacher = data.teachers.find((t: any) => 
+          t.subjects?.includes(subject) || t.subject === subject
+        );
+        const teacherName = teacher ? `${teacher.lastName} ${teacher.firstName}` : "-";
+        
+        // Calculate weekly hours from schedule
+        const weeklyHours = data.schedule.filter((s: any) => 
+          s.groupName === className && s.subject === subject
+        ).reduce((total: number, session: any) => {
+          const [start, end] = (session.time || "").split("-");
+          if (start && end) {
+            const duration = parseInt(end.split(":")[0]) - parseInt(start.split(":")[0]);
+            return total + (duration > 0 ? duration : 0);
+          }
+          return total;
+        }, 0);
+        
+        const capacity = c.maxStudents || c.maxCapacity || c.capacity || 20;
+        const availableSeats = Math.max(0, capacity - currentStudents);
+        const status = currentStudents >= capacity ? "Πλήρες" : "Ενεργό";
+        
+        return {
+          subject: subject,
+          name: className,
+          grade: c.grade || "-",
+          teacher: teacherName,
+          capacity: capacity,
+          currentStudents: currentStudents,
+          availableSeats: availableSeats,
+          weeklyHours: weeklyHours > 0 ? `${weeklyHours}h` : "-",
+          status: status
+        };
+      });
     case "crm":
       return data.leads.map((l: any) => ({
         name: l.name,
