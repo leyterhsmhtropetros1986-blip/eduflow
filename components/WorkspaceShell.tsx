@@ -21,77 +21,77 @@ const hexToRgba = (hex: string, alpha: number = 1): string => {
 const navGroups = [
   {
     id: "dashboard",
-    label: "📊 Dashboard",
+    label: "📊 ΑΡΧΙΚΗ",
     icon: <LayoutDashboard size={14} />,
     items: [
-      { href: "/", label: "Dashboard", icon: <LayoutDashboard size={16} /> },
-      { href: "/workflow", label: "Workflow", icon: <ClipboardList size={16} /> },
+      { href: "/", label: "Αρχική", icon: <LayoutDashboard size={16} /> },
+      { href: "/workflow", label: "Ροή Εργασίας", icon: <ClipboardList size={16} /> },
     ],
   },
   {
     id: "academic",
-    label: "👥 Academic Data",
+    label: "👥 ΔΕΔΟΜΕΝΑ ΦΡΟΝΤΙΣΤΗΡΙΟΥ",
     icon: <Users size={14} />,
     items: [
-      { href: "/students", label: "Students", icon: <GraduationCap size={16} /> },
-      { href: "/teachers", label: "Teachers", icon: <Users size={16} /> },
-      { href: "/parents", label: "Parents", icon: <UserCircle size={16} /> },
-      { href: "/courses", label: "Courses", icon: <Library size={16} /> },
-      { href: "/classes", label: "Classes", icon: <BookOpen size={16} /> },
-      { href: "/rooms", label: "Rooms", icon: <Building size={16} /> },
+      { href: "/students", label: "Μαθητές", icon: <GraduationCap size={16} /> },
+      { href: "/teachers", label: "Καθηγητές", icon: <Users size={16} /> },
+      { href: "/parents", label: "Γονείς", icon: <UserCircle size={16} /> },
+      { href: "/courses", label: "Μαθήματα", icon: <Library size={16} /> },
+      { href: "/classes", label: "Τμήματα", icon: <BookOpen size={16} /> },
+      { href: "/rooms", label: "Αίθουσες", icon: <Building size={16} /> },
     ],
   },
   {
     id: "scheduling",
-    label: "🎯 Scheduling",
+    label: "🎯 ΠΡΟΓΡΑΜΜΑΤΙΣΜΟΣ",
     icon: <Bot size={14} />,
     items: [
-      { href: "/placement", label: "Placement", icon: <Move size={16} /> },
+      { href: "/placement", label: "Τοποθέτηση", icon: <Move size={16} /> },
       { href: "/schedule", label: "AI Scheduler", icon: <Bot size={16} /> },
-      { href: "/availability", label: "Availability", icon: <Clock size={16} /> },
-      { href: "/teacher-hours", label: "Teacher Hours", icon: <Timer size={16} /> },
-      { href: "/calendar", label: "Calendar & Changes", icon: <Calendar size={16} /> },
+      { href: "/availability", label: "Διαθεσιμότητα", icon: <Clock size={16} /> },
+      { href: "/teacher-hours", label: "Ώρες Καθηγητών", icon: <Timer size={16} /> },
+      { href: "/calendar", label: "Ημερολόγιο", icon: <Calendar size={16} /> },
     ],
   },
   {
     id: "timetables",
-    label: "📅 Timetables",
+    label: "📅 ΠΡΟΓΡΑΜΜΑΤΑ",
     icon: <Printer size={14} />,
     items: [
-      { href: "/timetable", label: "Printable Timetable", icon: <Printer size={16} /> },
-      { href: "/timetable-by-grade", label: "By Grade", icon: <School size={16} /> },
+      { href: "/timetable", label: "Εκτυπώσιμο", icon: <Printer size={16} /> },
+      { href: "/timetable-by-grade", label: "Ανά Τάξη", icon: <School size={16} /> },
     ],
   },
   {
     id: "operations",
-    label: "📈 Operations",
+    label: "📈 ΠΑΡΑΚΟΛΟΥΘΗΣΗ",
     icon: <TrendingUp size={14} />,
     items: [
       { href: "/crm", label: "CRM", icon: <Briefcase size={16} /> },
-      { href: "/messages", label: "Communication", icon: <Send size={16} /> },
-      { href: "/notifications", label: "Notifications", icon: <Bell size={16} /> },
-      { href: "/attendance", label: "Attendance", icon: <CheckCircle2 size={16} /> },
-      { href: "/progress", label: "Progress", icon: <TrendingUp size={16} /> },
+      { href: "/messages", label: "Επικοινωνία", icon: <Send size={16} /> },
+      { href: "/notifications", label: "Ειδοποιήσεις", icon: <Bell size={16} /> },
+      { href: "/attendance", label: "Παρουσίες", icon: <CheckCircle2 size={16} /> },
+      { href: "/progress", label: "Πρόοδος", icon: <TrendingUp size={16} /> },
     ],
   },
   {
     id: "reports",
-    label: "📄 Reports",
+    label: "📄 ΑΝΑΦΟΡΕΣ",
     icon: <FileText size={14} />,
     items: [
-      { href: "/reports", label: "Reports", icon: <FileText size={16} /> },
-      { href: "/student-report", label: "Student Report PDF", icon: <FileBarChart size={16} /> },
-      { href: "/audit", label: "Audit", icon: <Activity size={16} /> },
+      { href: "/reports", label: "Αναφορές", icon: <FileText size={16} /> },
+      { href: "/student-report", label: "Αναφορά Μαθητή", icon: <FileBarChart size={16} /> },
+      { href: "/audit", label: "Έλεγχος", icon: <Activity size={16} /> },
     ],
   },
   {
     id: "admin",
-    label: "⚙️ Administration",
+    label: "⚙️ ΔΙΑΧΕΙΡΙΣΗ",
     icon: <Palette size={14} />,
     items: [
-      { href: "/import", label: "Import", icon: <Upload size={16} /> },
+      { href: "/import", label: "Εισαγωγή", icon: <Upload size={16} /> },
       { href: "/backup", label: "Backup", icon: <Database size={16} /> },
-      { href: "/settings", label: "Settings", icon: <Palette size={16} /> },
+      { href: "/settings", label: "Ρυθμίσεις", icon: <Palette size={16} /> },
     ],
   },
 ];
@@ -164,7 +164,9 @@ export function WorkspaceShell({ title, description, children }: { title: string
 
   const toggleGroup = (id: string) => {
     setOpenGroups((s) => {
-      const next = { ...s, [id]: !s[id] };
+      // Accordion behavior: close all others, toggle clicked one
+      const isCurrentlyOpen = s[id];
+      const next = { [id]: !isCurrentlyOpen };
       localStorage.setItem("eduflow_nav_groups", JSON.stringify(next));
       return next;
     });
