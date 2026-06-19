@@ -8,6 +8,7 @@ import {
   Building, Library, Calendar, CheckCircle2, Briefcase,
   UserCircle, FileText, School, Bell, Search, Bot, Database, Activity, Printer, Send, Clock, RefreshCw, TrendingUp, ClipboardList, Timer, Library as LibraryIcon, FileBarChart, Cloud, ChevronDown, ChevronRight, Palette, Target, Move, Upload
 } from "lucide-react";
+import { BackButton } from "./ui/BackButton";
 
 // Helper: hex → rgba με alpha
 const hexToRgba = (hex: string, alpha: number = 1): string => {
@@ -303,9 +304,12 @@ export function WorkspaceShell({ title, description, children }: { title: string
 
       <main className="flex-1 overflow-y-auto">
         <header className="sticky top-0 bg-[#1e2330]/80 backdrop-blur-md border-b border-slate-800 px-10 py-6 flex items-center justify-between z-20 print:hidden">
-          <div>
-            <h1 className="text-3xl font-black text-white">{title}</h1>
-            <p className="text-slate-400 mt-1 text-sm">{description}</p>
+          <div className="flex items-center gap-4">
+            {pathname !== "/" && <BackButton />}
+            <div>
+              <h1 className="text-3xl font-black text-white">{title}</h1>
+              <p className="text-slate-400 mt-1 text-sm">{description}</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
