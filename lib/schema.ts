@@ -1122,7 +1122,14 @@ export function trySwapSessions(
 }
 
 /**
- * Perform local search optimization on a schedule
+ * Deterministic best-improvement local search.
+ *
+ * On every pass it evaluates ALL possible neighbour moves for ALL sessions,
+ * then applies the single best-improving move found. It repeats until no move
+ * improves the score (a local optimum) or the iteration budget is exhausted.
+ *
+ * There is no randomness involved, so the same input always produces the exact
+ * same output ("βέλτιστο πρόγραμμα χωρίς random").
  */
 function localSearchOptimization(
   initialSchedule: Session[],
@@ -1130,151 +1137,73 @@ function localSearchOptimization(
   teachers: Teacher[],
   maxIterations: number = 50
 ): { schedule: Session[]; iterations: number } {
+  const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
+  const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
+
   let currentSchedule = [...initialSchedule];
-  let currentScore = calculateScheduleScore(currentSchedule, students, teachers);
-  
-  let bestSchedule = currentSchedule;
-  let bestScore = currentScore;
-  
+  let currentScore = calculateScheduleScore(currentSchedule, students, teachers).totalScore;
+
   let iterations = 0;
-  let improved = true;
-  
-  const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
-  const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
-  
-  while (improved && iterations < maxIterations) {
-    improved = false;
+
+  while (iterations < maxIterations) {
     iterations++;
-    
-    // Try different move types
-    for (const session of currentSchedule) {
-      // Move 1: Adjacent hour moves
-      for (const direction of ['earlier', 'later'] as const) {
-        const newSchedule = tryMoveSessionToAdjacentHour(currentSchedule, session.id, direction);
-        if (newSchedule) {
-          const newScore = calculateScheduleScore(newSchedule, students, teachers);
-          if (newScore.totalScore < bestScore.totalScore) {
-            bestSchedule = newSchedule;
-            bestScore = newScore;
-            currentSchedule = newSchedule;
-            improved = true;
-            break;
-          }
-        }
+
+    let bestCandidate: Session[] | null = null;
+    let bestCandidateScore = currentScore;
+
+    // Deterministic, stable ordering so ties are always resolved identically.
+    const ordered = [...currentSchedule].sort((a, b) => a.id.localeCompare(b.id));
+
+    const consider = (candidate: Session[] | null) => {
+      if (!candidate) return;
+      const score = calculateScheduleScore(candidate, students, teachers).totalScore;
+      // Strict "<" keeps the first-found move on ties -> fully deterministic.
+      if (score < bestCandidateScore) {
+        bestCandidateScore = score;
+        bestCandidate = candidate;
       }
-      
-      if (improved) break;
-      
-      // Move 2: Try moving to any valid hour (sample a few)
-      for (let i = 0; i < 3; i++) {
-        const randomHour = HOURS[Math.floor(Math.random() * HOURS.length)];
-        const newSchedule = tryMoveSessionToAnyHour(currentSchedule, session.id, randomHour);
-        if (newSchedule) {
-          const newScore = calculateScheduleScore(newSchedule, students, teachers);
-          if (newScore.totalScore < bestScore.totalScore) {
-            bestSchedule = newSchedule;
-            bestScore = newScore;
-            currentSchedule = newSchedule;
-            improved = true;
-            break;
-          }
-        }
+    };
+
+    for (const session of ordered) {
+      // Move 1: shift to the adjacent hour (earlier / later).
+      consider(tryMoveSessionToAdjacentHour(currentSchedule, session.id, "earlier"));
+      consider(tryMoveSessionToAdjacentHour(currentSchedule, session.id, "later"));
+
+      // Move 2: try EVERY valid hour of the day (exhaustive - no random sampling).
+      for (const hour of HOURS) {
+        consider(tryMoveSessionToAnyHour(currentSchedule, session.id, hour));
       }
-      
-      if (improved) break;
-      
-      // Move 3: Try moving to another day
-      for (const newDay of DAYS) {
-        if (newDay === session.day) continue;
-        const newSchedule = tryMoveSessionToDay(currentSchedule, session.id, newDay);
-        if (newSchedule) {
-          const newScore = calculateScheduleScore(newSchedule, students, teachers);
-          if (newScore.totalScore < bestScore.totalScore) {
-            bestSchedule = newSchedule;
-            bestScore = newScore;
-            currentSchedule = newSchedule;
-            improved = true;
-            break;
-          }
-        }
-      }
-      
-      if (improved) break;
-    }
-    
-    // Move 4: Try swapping random pairs of sessions
-    if (!improved && currentSchedule.length > 1) {
-      for (let i = 0; i < Math.min(5, currentSchedule.length); i++) {
-        const idx1 = Math.floor(Math.random() * currentSchedule.length);
-        const idx2 = Math.floor(Math.random() * currentSchedule.length);
-        if (idx1 === idx2) continue;
-        
-        const newSchedule = trySwapSessions(
-          currentSchedule,
-          currentSchedule[idx1].id,
-          currentSchedule[idx2].id
-        );
-        
-        if (newSchedule) {
-          const newScore = calculateScheduleScore(newSchedule, students, teachers);
-          if (newScore.totalScore < bestScore.totalScore) {
-            bestSchedule = newSchedule;
-            bestScore = newScore;
-            currentSchedule = newSchedule;
-            improved = true;
-            break;
-          }
-        }
+
+      // Move 3: try moving to every other day.
+      for (const day of DAYS) {
+        if (day === session.day) continue;
+        consider(tryMoveSessionToDay(currentSchedule, session.id, day));
       }
     }
+
+    // Move 4: try swapping EVERY unordered pair of sessions (exhaustive - no random pairs).
+    for (let i = 0; i < ordered.length; i++) {
+      for (let j = i + 1; j < ordered.length; j++) {
+        consider(trySwapSessions(currentSchedule, ordered[i].id, ordered[j].id));
+      }
+    }
+
+    // No improving move -> local optimum reached, stop.
+    if (bestCandidate === null || bestCandidateScore >= currentScore) break;
+
+    currentSchedule = bestCandidate;
+    currentScore = bestCandidateScore;
   }
-  
-  return { schedule: bestSchedule, iterations };
+
+  return { schedule: currentSchedule, iterations };
 }
 
 /**
- * Shuffle schedule sessions randomly (for random restarts)
- */
-function shuffleSchedule(schedule: Session[]): Session[] {
-  const DAYS = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
-  const HOURS = [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
-  
-  const shuffled = schedule.map(session => {
-    const { start, end } = parseTime(session.time);
-    const duration = end - start;
-    
-    // Try random day and hour
-    for (let attempts = 0; attempts < 20; attempts++) {
-      const randomDay = DAYS[Math.floor(Math.random() * DAYS.length)];
-      const randomHour = HOURS[Math.floor(Math.random() * (HOURS.length - duration))];
-      const newEnd = randomHour + duration;
-      
-      // HARD CONSTRAINT: Validate operating hours
-      if (!isValidTimeSlot(randomDay, randomHour, newEnd)) {
-        continue;  // Try another random position
-      }
-      
-      const newTime = `${String(randomHour).padStart(2, '0')}:00-${String(newEnd).padStart(2, '0')}:00`;
-      
-      const testSchedule = schedule.map(s => 
-        s.id === session.id ? { ...s, day: randomDay, time: newTime } : s
-      );
-      
-      if (!hasHardConstraintViolations(testSchedule)) {
-        return { ...session, day: randomDay, time: newTime };
-      }
-    }
-    
-    // If can't find valid random position, keep original
-    return session;
-  });
-  
-  return shuffled;
-}
-
-/**
- * Optimize schedule using multi-start local search
- * Runs multiple optimization attempts from different starting points
+ * Optimize a schedule with deterministic best-improvement local search.
+ *
+ * The greedy constraint-based generator already produces a fixed starting
+ * point, and this local search only ever applies strictly-improving moves,
+ * so the result is reproducible: no random restarts, no shuffling.
  */
 export function optimizeSchedule(
   initialSchedule: Session[],
@@ -1286,57 +1215,33 @@ export function optimizeSchedule(
   } = {}
 ): { schedule: Session[]; report: OptimizationReport } {
   const startTime = Date.now();
-  
+
   const maxIterationsPerRun = options.maxIterationsPerRun || 50;
-  const numRestarts = options.numRestarts || 3;
-  
-  // Calculate initial score
+
   const initialScore = calculateScheduleScore(initialSchedule, students, teachers);
   const initialScoreValue = initialScore.totalScore;
   const initialGaps = initialScore.studentGapCount;
   const initialDays = Object.values(initialScore.attendanceDaysPerStudent).reduce((a, b) => a + b, 0);
-  
-  let globalBestSchedule = initialSchedule;
-  let globalBestScore = initialScore;
-  let totalIterations = 0;
-  
-  // Run 1: Optimize from initial schedule
-  const run1 = localSearchOptimization(initialSchedule, students, teachers, maxIterationsPerRun);
-  const run1Score = calculateScheduleScore(run1.schedule, students, teachers);
-  totalIterations += run1.iterations;
-  
-  if (run1Score.totalScore < globalBestScore.totalScore) {
-    globalBestSchedule = run1.schedule;
-    globalBestScore = run1Score;
-  }
-  
-  // Additional runs: Random restarts
-  for (let restart = 0; restart < numRestarts - 1; restart++) {
-    // Create randomized starting point
-    const shuffled = shuffleSchedule(globalBestSchedule);
-    
-    // Optimize from this starting point
-    const runResult = localSearchOptimization(shuffled, students, teachers, maxIterationsPerRun);
-    const runScore = calculateScheduleScore(runResult.schedule, students, teachers);
-    totalIterations += runResult.iterations;
-    
-    // Keep if better
-    if (runScore.totalScore < globalBestScore.totalScore) {
-      globalBestSchedule = runResult.schedule;
-      globalBestScore = runScore;
-    }
-  }
-  
+
+  const run = localSearchOptimization(initialSchedule, students, teachers, maxIterationsPerRun);
+  const runScore = calculateScheduleScore(run.schedule, students, teachers);
+
+  // Local search is monotonic, but guard anyway: never return a worse schedule.
+  const keepOptimized = runScore.totalScore <= initialScoreValue;
+  const globalBestSchedule = keepOptimized ? run.schedule : initialSchedule;
+  const globalBestScore = keepOptimized ? runScore : initialScore;
+  const totalIterations = run.iterations;
+
   const finalGaps = globalBestScore.studentGapCount;
   const finalDays = Object.values(globalBestScore.attendanceDaysPerStudent).reduce((a, b) => a + b, 0);
-  
+
   const executionTimeMs = Date.now() - startTime;
-  
+
   const report: OptimizationReport = {
     initialScore: initialScoreValue,
     finalScore: globalBestScore.totalScore,
-    improvementPercent: initialScoreValue > 0 
-      ? ((initialScoreValue - globalBestScore.totalScore) / initialScoreValue) * 100 
+    improvementPercent: initialScoreValue > 0
+      ? ((initialScoreValue - globalBestScore.totalScore) / initialScoreValue) * 100
       : 0,
     gapsRemoved: initialGaps - finalGaps,
     attendanceDaysReduced: initialDays - finalDays,
@@ -1345,6 +1250,6 @@ export function optimizeSchedule(
     iterations: totalIterations,
     executionTimeMs,
   };
-  
+
   return { schedule: globalBestSchedule, report };
 }

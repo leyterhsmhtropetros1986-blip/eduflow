@@ -59,6 +59,15 @@ export function GridView({ schedule, onUpdate }: GridViewProps) {
 
   const teacherName = (t: any) => t.name || `${t.lastName || ""} ${t.firstName || ""}`.trim();
 
+  // Τάξη (grade) ενός μαθήματος: από το session ή fallback από τα τμήματα.
+  const gradeOf = (session: any): string => {
+    if (session.grade) return session.grade;
+    const cls = refData.classes.find(
+      (c: any) => (c.name || c.className) === session.groupName && (!c.subject || c.subject === session.subject)
+    );
+    return cls?.grade || cls?.category || "";
+  };
+
   const persistSchedule = (next: any[]) => {
     localStorage.setItem("eduflow_schedule", JSON.stringify(next));
     if (onUpdate) onUpdate(); else window.dispatchEvent(new Event("focus"));
@@ -170,7 +179,12 @@ export function GridView({ schedule, onUpdate }: GridViewProps) {
                             >
                               <X size={10} />
                             </button>
-                            <p className="text-[11px] font-bold text-white truncate pr-4">{session.groupName}</p>
+                            <div className="flex items-center gap-1 pr-4">
+                              <p className="text-[11px] font-bold text-white truncate">{session.groupName}</p>
+                              {gradeOf(session) && (
+                                <span className="shrink-0 text-[8px] font-bold uppercase px-1 py-px rounded bg-white/10 text-slate-200">{gradeOf(session)}</span>
+                              )}
+                            </div>
                             <p className="text-[10px] truncate">📘 {session.subject}</p>
                             <p className="text-[10px] text-slate-300 truncate">👨‍🏫 {session.teacher}</p>
                             <p className="text-[9px] text-slate-500 truncate">
