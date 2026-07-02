@@ -621,7 +621,7 @@ export default function SchedulePage() {
           {activeTab === "grid" && <GridView schedule={data.schedule} onUpdate={loadData} />}
           {activeTab === "teachers" && <TeachersView schedule={data.schedule} teachers={data.teachers} />}
           {activeTab === "rooms" && <RoomsView schedule={data.schedule} rooms={data.rooms} />}
-          {activeTab === "students" && <StudentsView students={filteredStudents} />}
+          {activeTab === "students" && <StudentsView students={filteredStudents} schedule={data.schedule} />}
         </>
       )}
     </WorkspaceShell>
@@ -640,15 +640,63 @@ function QualityRow({ ok, label, detail }: { ok: boolean; label: string; detail:
   );
 }
 
-function StudentsView({ students }: { students: any[] }) {
+function StudentsView({ students, schedule }: { students: any[]; schedule: any[] }) {
+  const dayOrder = ["Δευτέρα", "Τρίτη", "Τετάρτη", "Πέμπτη", "Παρασκευή", "Σάββατο"];
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {students.map((s: any, i: number) => (
-        <div key={i} className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4 text-white">
-          <p className="font-bold">{[s.lastName, s.firstName].join(" ")}</p>
-          <p className="text-slate-500 text-xs">{s.grade}</p>
-        </div>
-      ))}
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {students.map((s: any, i: number) => {
+        const enrollments = (s.enrollments || []).filter((e: any) => e.className);
+        return (
+          <div key={s.id ?? i} className="bg-[#1e2330] border border-slate-800 rounded-2xl p-4 text-white">
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <p className="font-bold text-sm truncate">{[s.lastName, s.firstName].filter(Boolean).join(" ")}</p>
+              {/* ΤΑΞΗ (grade) */}
+              <span className="shrink-0 text-[10px] font-bold uppercase px-2 py-1 rounded-lg bg-indigo-600/20 text-indigo-300 border border-indigo-500/30">
+                {s.grade || "—"}
+              </span>
+            </div>
+
+            {enrollments.length === 0 ? (
+              <p className="text-slate-500 text-xs">Χωρίς τμήματα.</p>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-[9px] uppercase font-bold text-slate-600">Τμήματα ({enrollments.length})</p>
+                {enrollments.map((e: any, j: number) => {
+                  const sessions = schedule
+                    .filter((it: any) => it.groupName === e.className && it.subject === e.lessonName)
+                    .sort((a: any, b: any) => {
+                      const d = dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day);
+                      return d !== 0 ? d : String(a.time).localeCompare(String(b.time));
+                    });
+                  const teacher = sessions[0]?.teacher;
+                  return (
+                    <div key={e.id ?? j} className="bg-[#0b0e14] border border-slate-800 rounded-xl p-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* ΤΜΗΜΑ (section) + μάθημα */}
+                        <span className="text-[11px] font-black text-white">{e.className}</span>
+                        <span className="text-slate-600">·</span>
+                        <span className="text-[11px] text-indigo-300 truncate">📘 {e.lessonName}</span>
+                      </div>
+                      {teacher && <p className="text-[10px] text-slate-500 mt-0.5 truncate">👨‍🏫 {teacher}</p>}
+                      {sessions.length > 0 ? (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {sessions.map((it: any, k: number) => (
+                            <span key={it.id ?? k} className="text-[9px] bg-slate-800/60 text-slate-300 rounded px-1.5 py-0.5">
+                              {String(it.day).slice(0, 3)} {it.time}{it.room ? ` · ${it.room}` : ""}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[9px] text-amber-400/70 mt-1">Χωρίς ώρες στο πρόγραμμα</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
